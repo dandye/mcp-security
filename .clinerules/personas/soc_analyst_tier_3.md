@@ -52,6 +52,8 @@ Tier 3 Analysts often work beyond standard runbooks but may reference or enhance
 
 *   `apt_threat_hunt.md`
 *   `proactive_threat_hunting_based_on_gti_campain_or_actor.md`
+*   `advanced_threat_hunting.md`
+*   `detection_rule_validation_tuning.md`
 *   `detection_as_code_workflows.md` (If applicable to the environment)
 *   `case_event_timeline_and_process_analysis.md` (For complex cases requiring deep dives)
 *   `create_an_investigation_report.md` (For major incidents)

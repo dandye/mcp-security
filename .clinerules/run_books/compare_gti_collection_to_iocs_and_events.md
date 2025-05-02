@@ -54,5 +54,3 @@ sequenceDiagram
     Cline->>SOAR: post_case_comment(case_id=[Relevant Case or New Case], comment="Sweep Report for GTI-XYZ: Found indicators [N1, N2...]. Events [...] observed. Recommended actions: [...]")
     SOAR-->>Cline: Comment confirmation
     Cline->>Cline: attempt_completion(result="Environment sweep based on GTI Collection 'GTI-XYZ' complete. Report posted.")
-
-```

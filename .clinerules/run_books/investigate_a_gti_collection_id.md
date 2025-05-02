@@ -113,5 +113,3 @@ sequenceDiagram
     Note over Cline: Report file created
 
     Cline->>User: attempt_completion(result="Enhanced investigation complete. Report generated.")
-
-```

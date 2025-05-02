@@ -51,7 +51,8 @@ SOC Managers primarily use tools for oversight, reporting, and understanding ope
 
 SOC Managers ensure runbooks are followed and effective, rather than executing them routinely. They are interested in:
 
-*   Runbooks defining core SOC processes like `triage_alerts.md`, `prioritize_and_investigate_a_case.md`, `close_duplicate_or_similar_cases.md`.
-*   Incident response runbooks (`investgate_a_case_w_external_tools.md`, specific attack type runbooks) to ensure preparedness.
+*   Runbooks defining core SOC processes like `triage_alerts.md`, `prioritize_and_investigate_a_case.md`, `close_duplicate_or_similar_cases.md`, `basic_ioc_enrichment.md`, `suspicious_login_triage.md`.
+*   Incident response runbooks (`investgate_a_case_w_external_tools.md`, `ioc_containment.md`, `compromised_user_account_response.md`, `basic_endpoint_triage_isolation.md`, `phishing_response.md`, `ransomware_response.md`) to ensure preparedness and effective response.
+*   Advanced analysis, hunting, and tuning runbooks (`deep_dive_ioc_analysis.md`, `malware_triage.md`, `guided_ttp_hunt_credential_access.md`, `lateral_movement_hunt_psexec_wmi.md`, `advanced_threat_hunting.md`, `detection_rule_validation_tuning.md`) to understand team capabilities and operational effectiveness.
 *   Reporting runbooks like `create_an_investigation_report.md` or `report_writing.md` to ensure quality documentation.
-*   They oversee the development and maintenance of all SOC runbooks.
+*   They oversee the development, maintenance, and effectiveness tracking of all SOC runbooks.

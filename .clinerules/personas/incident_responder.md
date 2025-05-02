@@ -54,6 +54,11 @@ Incident Responders rely heavily on structured response procedures:
 *   `case_event_timeline_and_process_analysis.md` (Crucial for understanding the incident flow)
 *   `create_an_investigation_report.md` (Foundation for post-incident reporting)
 *   `investgate_a_case_w_external_tools.md` (Core IR workflow)
-*   Runbooks specific to attack types (e.g., Ransomware Response, Phishing Response, Data Exfiltration Response - *if these exist*)
+*   `ioc_containment.md`
+*   `compromised_user_account_response.md`
+*   `basic_endpoint_triage_isolation.md`
+*   `phishing_response.md`
+*   `ransomware_response.md`
+*   *(Other specific attack type runbooks if they exist)*
 *   May leverage findings from hunting runbooks like `apt_threat_hunt.md` or `proactive_threat_hunting_based_on_gti_campain_or_actor.md` if an incident arises from a hunt.
 *   `report_writing.md` (For post-incident reports)

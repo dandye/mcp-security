@@ -63,6 +63,8 @@ CTI Researchers focus on runbooks related to intelligence gathering, analysis, h
 *   `compare_gti_collection_to_iocs_and_events.md`
 *   `ioc_threat_hunt.md`
 *   `apt_threat_hunt.md`
+*   `deep_dive_ioc_analysis.md`
+*   `malware_triage.md`
 *   `threat_intel_workflows.md` (Core workflow document)
 *   `report_writing.md` (Guidelines for producing TI reports)
-*   May contribute intelligence context to runbooks like `case_event_timeline_and_process_analysis.md` or `create_an_investigation_report.md`.
+*   May contribute intelligence context to runbooks like `case_event_timeline_and_process_analysis.md`, `create_an_investigation_report.md`, `phishing_response.md`, or `ransomware_response.md`.

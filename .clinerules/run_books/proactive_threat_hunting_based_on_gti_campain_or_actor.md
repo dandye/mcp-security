@@ -112,5 +112,3 @@ sequenceDiagram
              Cline->>Cline: attempt_completion(result="Proactive threat hunt for `${GTI_COLLECTION_ID}` complete. Findings summarized. No output action taken.")
         end
     end
-
-```

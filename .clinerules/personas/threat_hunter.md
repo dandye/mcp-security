@@ -56,7 +56,10 @@ Threat Hunters often operate more freely but leverage specific hunting-focused r
 *   `apt_threat_hunt.md`
 *   `proactive_threat_hunting_based_on_gti_campain_or_actor.md`
 *   `ioc_threat_hunt.md`
+*   `advanced_threat_hunting.md`
+*   `guided_ttp_hunt_credential_access.md`
+*   `lateral_movement_hunt_psexec_wmi.md`
 *   `threat_intel_workflows.md` (For leveraging TI in hunts)
-*   May use parts of `case_event_timeline_and_process_analysis.md` to analyze findings.
-*   May contribute findings to `detection_as_code_workflows.md` or similar detection improvement processes.
+*   May use parts of `case_event_timeline_and_process_analysis.md`, `deep_dive_ioc_analysis.md`, or `malware_triage.md` to analyze findings.
+*   May contribute findings to `detection_as_code_workflows.md` or `detection_rule_validation_tuning.md`.
 *   Often develop their own ad-hoc hunting procedures based on hypotheses.

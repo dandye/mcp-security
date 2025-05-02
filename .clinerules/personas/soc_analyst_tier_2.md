@@ -60,6 +60,10 @@ Tier 2 Analysts utilize more complex and in-depth runbooks:
 *   `prioritize_and_investigate_a_case.md` (Full execution, including rule logic analysis)
 *   `investgate_a_case_w_external_tools.md` (Full execution, including potential remediation steps)
 *   `group_cases.md` / `group_cases_v2.md` (Deeper analysis and justification)
+*   `deep_dive_ioc_analysis.md`
+*   `guided_ttp_hunt_credential_access.md`
+*   `malware_triage.md`
+*   `lateral_movement_hunt_psexec_wmi.md`
 *   `report_writing.md` (For detailed investigation reports)
 *   `ioc_threat_hunt.md`
 *   `apt_threat_hunt.md`

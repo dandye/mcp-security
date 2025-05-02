@@ -54,6 +54,8 @@ The Tier 1 Analyst primarily utilizes runbooks focused on initial handling and s
 *   `prioritize_and_investigate_a_case.md` (Focus on prioritization and initial investigation steps)
 *   `investgate_a_case_w_external_tools.md` (Focus on basic entity lookups and initial context gathering)
 *   `group_cases.md` / `group_cases_v2.md` (Focus on identifying potential groupings for escalation)
+*   `basic_ioc_enrichment.md`
+*   `suspicious_login_triage.md`
 *   `report_writing.md` (For basic case documentation standards)
 
 *Note: More complex investigation, threat hunting, timeline analysis, or vulnerability management runbooks are typically handled by Tier 2/3 analysts.*
