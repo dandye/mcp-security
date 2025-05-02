@@ -24,63 +24,28 @@ This runbook covers the fundamental enrichment steps using readily available GTI
 ## Workflow Steps & Diagram
 
 1.  **Receive Input:** Obtain `${IOC_VALUE}`, `${IOC_TYPE}`, `${CASE_ID}`, and `${ALERT_GROUP_IDENTIFIERS}`.
-2.  **GTI Enrichment:**
-    *   Based on `${IOC_TYPE}`:
-        *   If "IP Address", use `gti-mcp.get_ip_address_report` with `ip_address=${IOC_VALUE}`.
-        *   If "Domain", use `gti-mcp.get_domain_report` with `domain=${IOC_VALUE}`.
-        *   If "File Hash", use `gti-mcp.get_file_report` with `hash=${IOC_VALUE}`.
-        *   If "URL", use `gti-mcp.get_url_report` with `url=${IOC_VALUE}`.
-    *   Record the key findings (e.g., reputation, detection ratio, key relationships if available in the summary).
-3.  **SIEM Context - Entity Lookup:**
-    *   Use `secops-mcp.lookup_entity` with `entity_value=${IOC_VALUE}`.
-    *   Record the summary provided (e.g., first/last seen, related alerts/entities within the SIEM timeframe).
-4.  **SIEM Context - IOC Match Check:**
-    *   Use `secops-mcp.get_ioc_matches` (potentially filter by `${IOC_VALUE}` if the tool supports it, otherwise review the general list for the IOC).
-    *   Record if the specific `${IOC_VALUE}` was found in recent SIEM IOC matches.
-5.  **Document Findings:**
-    *   Use `secops-soar.post_case_comment` for `${CASE_ID}`.
-    *   The comment should summarize the findings: "Basic IOC Enrichment for `${IOC_VALUE}` (`${IOC_TYPE}`): GTI Reputation: [...]. SIEM Activity: [...]. Recent SIEM IOC Match: [Yes/No]."
-6.  **Completion:** Conclude the runbook execution. The Tier 1 analyst uses the documented summary to inform their next steps (close, escalate, further investigation if within scope).
+2.  **Enrich IOC:** Execute `common_steps/enrich_ioc.md` with `${IOC_VALUE}` and `${IOC_TYPE}`. Obtain `${GTI_FINDINGS}`, `${SIEM_ENTITY_SUMMARY}`, `${SIEM_IOC_MATCH_STATUS}`.
+3.  **Document Findings:** Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and a comment summarizing the enrichment results (e.g., "Basic IOC Enrichment for `${IOC_VALUE}` (`${IOC_TYPE}`): GTI: `${GTI_FINDINGS}`. SIEM Summary: `${SIEM_ENTITY_SUMMARY}`. SIEM IOC Match: `${SIEM_IOC_MATCH_STATUS}`."). Obtain `${COMMENT_POST_STATUS}`.
+4.  **Completion:** Conclude the runbook execution. The Tier 1 analyst uses the documented summary to inform their next steps (close, escalate, further investigation if within scope).
 
 ```{mermaid}
 sequenceDiagram
     participant Analyst
     participant Cline as Cline (MCP Client)
-    participant GTI as gti-mcp
-    participant SIEM as secops-mcp
-    participant SOAR as secops-soar
+    participant EnrichIOC as common_steps/enrich_ioc.md
+    participant DocumentInSOAR as common_steps/document_in_soar.md
+    participant SOAR as secops-soar %% Underlying tool for documentation
 
     Analyst->>Cline: Start Basic IOC Enrichment\nInput: IOC_VALUE, IOC_TYPE, CASE_ID, ALERT_GROUP_IDS
 
-    %% Step 2: GTI Enrichment
-    alt IOC_TYPE is IP Address
-        Cline->>GTI: get_ip_address_report(ip_address=IOC_VALUE)
-        GTI-->>Cline: IP Report Summary
-    else IOC_TYPE is Domain
-        Cline->>GTI: get_domain_report(domain=IOC_VALUE)
-        GTI-->>Cline: Domain Report Summary
-    else IOC_TYPE is File Hash
-        Cline->>GTI: get_file_report(hash=IOC_VALUE)
-        GTI-->>Cline: File Report Summary
-    else IOC_TYPE is URL
-        Cline->>GTI: get_url_report(url=IOC_VALUE)
-        GTI-->>Cline: URL Report Summary
-    end
-    Note over Cline: Record GTI Findings
+    %% Step 2: Enrich IOC
+    Cline->>EnrichIOC: Execute(Input: IOC_VALUE, IOC_TYPE)
+    EnrichIOC-->>Cline: Results: GTI_FINDINGS, SIEM_ENTITY_SUMMARY, SIEM_IOC_MATCH_STATUS
 
-    %% Step 3: SIEM Entity Lookup
-    Cline->>SIEM: lookup_entity(entity_value=IOC_VALUE)
-    SIEM-->>Cline: SIEM Entity Summary
-    Note over Cline: Record SIEM Lookup Findings
+    %% Step 3: Document Findings
+    Note over Cline: Format comment using enrichment results
+    Cline->>DocumentInSOAR: Execute(Input: CASE_ID, COMMENT_TEXT)
+    DocumentInSOAR-->>Cline: Results: COMMENT_POST_STATUS
 
-    %% Step 4: SIEM IOC Match Check
-    Cline->>SIEM: get_ioc_matches() %% Potentially filter if supported
-    SIEM-->>Cline: List of Recent IOC Matches
-    Note over Cline: Check if IOC_VALUE is in the list. Record Yes/No.
-
-    %% Step 5: Document Findings
-    Cline->>SOAR: post_case_comment(case_id=CASE_ID, comment="Basic IOC Enrichment Summary...")
-    SOAR-->>Cline: Comment Confirmation
-
-    %% Step 6: Completion
+    %% Step 4: Completion
     Cline->>Analyst: attempt_completion(result="Basic IOC enrichment complete for IOC_VALUE. Findings documented in case CASE_ID.")

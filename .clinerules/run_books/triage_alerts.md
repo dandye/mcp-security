@@ -22,55 +22,83 @@
 ## Workflow Steps & Diagram
 
 1.  **Receive Alert/Case:** Obtain the `${ALERT_ID}` or `${CASE_ID}`.
-2.  **Gather Initial Context:** Use `get_case_full_details` or `list_alerts_by_case` / `list_events_by_alert` to understand the alert type, severity, involved entities, and triggering events.
-3.  **Check for Duplicates:** Use `siemplify_get_similar_cases` to identify potential duplicate cases. If a duplicate is confirmed, close the current case/alert following procedure (e.g., using `siemplify_close_case` with appropriate reason).
-4.  **Basic Enrichment:** Use `lookup_entity` (SIEM) and relevant `get_*_report` (GTI) tools for key involved entities (IPs, domains, hashes, users). Check `get_ioc_matches` for known bad indicators.
-5.  **Initial Assessment:** Based on alert type, entity reputation, SIEM context, and potential known benign patterns (referencing `.clinerules/common_benign_alerts.md` if available), make an initial assessment:
+2.  **Gather Initial Context:** Use `secops-soar.get_case_full_details` or `list_alerts_by_case` / `list_events_by_alert` to understand the alert type, severity, involved entities (`KEY_ENTITIES`), and triggering events.
+3.  **Check for Duplicates:** Execute `common_steps/check_duplicate_cases.md` with `${CASE_ID}`. Obtain `${SIMILAR_CASE_IDS}`.
+4.  **Handle Duplicates:** If `${SIMILAR_CASE_IDS}` is not empty and duplication is confirmed by analyst:
+    *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and comment "Closing as duplicate of [Similar Case ID]".
+    *   Execute `common_steps/close_soar_artifact.md` with `${ARTIFACT_ID}` = `${CASE_ID}` (or `${ALERT_ID}`), `${ARTIFACT_TYPE}` = "Case" (or "Alert"), `${CLOSURE_REASON}` = "Duplicate", `${ROOT_CAUSE}` = "Consolidated Investigation", `${CLOSURE_COMMENT}` = "Duplicate of [Similar Case ID]".
+    *   End runbook execution.
+5.  **Basic Enrichment:** Initialize `ENRICHMENT_RESULTS` structure. For each entity `Ei` in `KEY_ENTITIES`:
+    *   Execute `common_steps/enrich_ioc.md` with `IOC_VALUE=Ei` and appropriate `IOC_TYPE`.
+    *   Store results (`GTI_FINDINGS`, `SIEM_ENTITY_SUMMARY`, `SIEM_IOC_MATCH_STATUS`) in `ENRICHMENT_RESULTS[Ei]`.
+6.  **Initial Assessment:** Based on alert type, `ENRICHMENT_RESULTS`, and potential known benign patterns (referencing `.clinerules/common_benign_alerts.md` if available), make an initial assessment:
     *   False Positive (FP)
     *   Benign True Positive (BTP - expected/authorized activity)
     *   Requires Further Investigation (True Positive - TP or Suspicious)
-6.  **Action Based on Assessment:**
-    *   **If FP/BTP:** Document the reason clearly using `post_case_comment` and close the alert/case using `siemplify_close_alert` or `siemplify_close_case`.
-    *   **If TP/Suspicious:** Ensure appropriate priority is set (`change_case_priority`), document initial findings (`post_case_comment`), and escalate/assign to the appropriate next tier or trigger a relevant investigation runbook (e.g., `basic_ioc_enrichment.md`, `suspicious_login_triage.md`).
+7.  **Action Based on Assessment:**
+    *   **If FP/BTP:**
+        *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and comment explaining FP/BTP reason.
+        *   Execute `common_steps/close_soar_artifact.md` with `${ARTIFACT_ID}` = `${CASE_ID}` (or `${ALERT_ID}`), `${ARTIFACT_TYPE}` = "Case" (or "Alert"), appropriate `${CLOSURE_REASON}`/`${ROOT_CAUSE}`, and `${CLOSURE_COMMENT}` = "Closed as FP/BTP during triage.".
+    *   **If TP/Suspicious:**
+        *   *(Optional)* Use `secops-soar.change_case_priority` if needed.
+        *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and comment summarizing initial findings and assessment.
+        *   Escalate/assign to the appropriate next tier or trigger a relevant investigation runbook (e.g., `deep_dive_ioc_analysis.md`, `suspicious_login_triage.md`).
 
 ```{mermaid}
 sequenceDiagram
     participant Analyst
+    participant Cline as Cline (MCP Client)
     participant SOAR as secops-soar
-    participant SIEM as secops-mcp
-    participant GTI as gti-mcp
+    participant CheckDuplicates as common_steps/check_duplicate_cases.md
+    participant EnrichIOC as common_steps/enrich_ioc.md
+    participant DocumentInSOAR as common_steps/document_in_soar.md
+    participant CloseArtifact as common_steps/close_soar_artifact.md
 
-    Analyst->>SOAR: Receive Alert/Case (ID)
-    SOAR-->>Analyst: Alert/Case Details
-    Analyst->>SOAR: get_case_full_details / list_alerts_by_case / list_events_by_alert
-    SOAR-->>Analyst: Context (Entities E1, E2...)
-    Analyst->>SOAR: siemplify_get_similar_cases
-    SOAR-->>Analyst: Potential Duplicates
-    alt Duplicate Found & Confirmed
-        Analyst->>SOAR: post_case_comment (Reason: Duplicate)
-        Analyst->>SOAR: siemplify_close_case / siemplify_close_alert
-        Analyst->>Analyst: End Triage
+    Analyst->>Cline: Start Alert Triage\nInput: ALERT_ID/CASE_ID
+
+    %% Step 2: Gather Initial Context
+    Cline->>SOAR: get_case_full_details / list_alerts_by_case / list_events_by_alert
+    SOAR-->>Cline: Context (Entities E1, E2...)
+
+    %% Step 3: Check for Duplicates
+    Cline->>CheckDuplicates: Execute(Input: CASE_ID)
+    CheckDuplicates-->>Cline: Results: SIMILAR_CASE_IDS
+
+    %% Step 4: Handle Duplicates
+    alt SIMILAR_CASE_IDS not empty & Confirmed Duplicate
+        Cline->>DocumentInSOAR: Execute(Input: CASE_ID, Comment="Closing as duplicate...")
+        DocumentInSOAR-->>Cline: Status
+        Cline->>CloseArtifact: Execute(Input: ARTIFACT_ID=CASE_ID/ALERT_ID, TYPE=..., REASON="Duplicate"...)
+        CloseArtifact-->>Cline: Status
+        Cline->>Analyst: End Triage (Duplicate)
     end
+
+    %% Step 5: Basic Enrichment
     loop For each Key Entity Ei
-        Analyst->>SIEM: lookup_entity(entity_value=Ei)
-        SIEM-->>Analyst: SIEM Context
-        Analyst->>GTI: get...report(ioc=Ei)
-        GTI-->>Analyst: GTI Context
-    end
-    Analyst->>SIEM: get_ioc_matches
-    SIEM-->>Analyst: IOC Match Results
-    Note over Analyst: Assess: FP / BTP / TP / Suspicious
-    alt FP / BTP
-        Analyst->>SOAR: post_case_comment (Reason: FP/BTP Explanation)
-        Analyst->>SOAR: siemplify_close_case / siemplify_close_alert
-        Analyst->>Analyst: End Triage
-    else TP / Suspicious
-        Analyst->>SOAR: change_case_priority (If needed)
-        Analyst->>SOAR: post_case_comment (Initial Findings)
-        Note over Analyst: Escalate / Assign / Trigger Next Runbook
-        Analyst->>Analyst: End Triage
+        Cline->>EnrichIOC: Execute(Input: IOC_VALUE=Ei, IOC_TYPE=...)
+        EnrichIOC-->>Cline: Results: Enrichment Data for Ei
     end
 
+    %% Step 6: Initial Assessment
+    Note over Cline: Assess: FP / BTP / TP / Suspicious based on Context & Enrichment
+
+    %% Step 7: Action Based on Assessment
+    alt FP / BTP
+        Cline->>DocumentInSOAR: Execute(Input: CASE_ID, Comment="Closing as FP/BTP...")
+        DocumentInSOAR-->>Cline: Status
+        Cline->>CloseArtifact: Execute(Input: ARTIFACT_ID=CASE_ID/ALERT_ID, TYPE=..., REASON="FP/BTP"...)
+        CloseArtifact-->>Cline: Status
+        Cline->>Analyst: End Triage (FP/BTP)
+    else TP / Suspicious
+        opt Change Priority
+             Cline->>SOAR: change_case_priority(...)
+             SOAR-->>Cline: Status
+        end
+        Cline->>DocumentInSOAR: Execute(Input: CASE_ID, Comment="Initial Findings...")
+        DocumentInSOAR-->>Cline: Status
+        Note over Cline: Escalate / Assign / Trigger Next Runbook
+        Cline->>Analyst: End Triage (Escalated)
+    end
 ```
 
 ## Completion Criteria
