@@ -7,7 +7,7 @@ Code formatting and import sorting are enforced automatically using `pyink` and 
 Key aspects enforced by the tools include:
 
 *   **Line Length:** 88 characters (configured for both `pyink` and `isort`).
-*   **Indentation:** 4 spaces.
+*   **Indentation:** 2 spaces is preferred for new work but 4 spaces is allowable for existing files. Do not mix within a file.
 *   **Quotes:** Primarily double quotes (`"`), but `pyink` may adjust based on context.
 *   **Imports:** Sorted according to the Google style profile in `isort`.
 *   **Docstrings:** Use triple double quotes (`"""Docstring"""`). While not automatically formatted for content by `pyink`, follow Google style guide recommendations (e.g., for `Args:`, `Returns:`, `Raises:`).
