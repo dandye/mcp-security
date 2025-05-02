@@ -28,24 +28,29 @@ This runbook focuses on the immediate containment actions based on confirmed mal
 
 1.  **Receive Input:** Obtain `${IOC_VALUE}`, `${IOC_TYPE}`, `${CASE_ID}`, and `${ALERT_GROUP_IDENTIFIERS}`.
 2.  **(Optional) Final Reputation Check:** Use the appropriate `gti-mcp` tool (`get_ip_address_report`, `get_domain_report`, `get_file_report`) for `${IOC_VALUE}` to confirm malicious reputation before blocking.
-3.  **Confirm Containment Action:** Use `ask_followup_question` to confirm with the analyst that containment actions should proceed for `${IOC_VALUE}`.
-4.  **Execute Containment:**
-    *   **If `${IOC_TYPE}` is IP Address or Domain:**
-        *   Add `${IOC_VALUE}` to the appropriate blocklist reference list in Chronicle SIEM using `secops-soar.google_chronicle_add_values_to_reference_list`. (Requires knowing the correct `reference_list_name`, e.g., "IP_Blocklist", "Domain_Blocklist").
-        *   *(Optional: Execute actions via specific Firewall/Proxy SOAR integrations if available)*.
-    *   **If `${IOC_TYPE}` is File Hash:**
-        *   Search SIEM (`secops-mcp.search_security_events`) for events involving the file hash (`target.file.md5 = "${IOC_VALUE}"` or similar) to identify affected endpoints.
-        *   *(Optional: Execute EDR actions like file quarantine/deletion on identified endpoints via specific EDR SOAR integrations if available)*.
-5.  **Document Actions:** Record the containment actions taken for `${IOC_VALUE}` in the SOAR case using `secops-soar.post_case_comment`. Include the IOC, type, action taken (e.g., added to blocklist, EDR action attempted), and timestamp.
-6.  **Completion:** Conclude the runbook execution.
+3.  **Confirm Containment Action:** Execute `common_steps/confirm_action.md` with `QUESTION_TEXT="Proceed with containment for ${IOC_VALUE} (${IOC_TYPE})?"` and `RESPONSE_OPTIONS=["Yes", "No"]`. Obtain `${USER_RESPONSE}`.
+4.  **Execute Containment (If Confirmed):**
+    *   If `${USER_RESPONSE}` is "Yes":
+        *   **If `${IOC_TYPE}` is IP Address or Domain:**
+            *   Add `${IOC_VALUE}` to the appropriate blocklist reference list in Chronicle SIEM using `secops-soar.google_chronicle_add_values_to_reference_list`. (Requires knowing the correct `reference_list_name`, e.g., "IP_Blocklist", "Domain_Blocklist"). Let the action status be `CONTAINMENT_ACTION_STATUS`.
+            *   *(Optional: Execute actions via specific Firewall/Proxy SOAR integrations if available)*.
+        *   **If `${IOC_TYPE}` is File Hash:**
+            *   Search SIEM (`secops-mcp.search_security_events`) for events involving the file hash (`target.file.md5 = "${IOC_VALUE}"` or similar) to identify affected endpoints.
+            *   *(Optional: Execute EDR actions like file quarantine/deletion on identified endpoints via specific EDR SOAR integrations if available)*. Let the action status be `CONTAINMENT_ACTION_STATUS`.
+        *   **Document Action:** Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `COMMENT_TEXT="Containment action attempted for IOC: ${IOC_VALUE} (Type: ${IOC_TYPE}). Action: [Blocked/EDR Action Attempted]. Status: ${CONTAINMENT_ACTION_STATUS}"`. Obtain `${COMMENT_POST_STATUS}`.
+    *   If `${USER_RESPONSE}` is "No":
+        *   **Document Action:** Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `COMMENT_TEXT="Containment action aborted by analyst for IOC: ${IOC_VALUE} (Type: ${IOC_TYPE})."`. Obtain `${COMMENT_POST_STATUS}`.
+5.  **Completion:** Conclude the runbook execution.
 
 ```{mermaid}
 sequenceDiagram
     participant Analyst
     participant Cline as Cline (MCP Client)
     participant GTI as gti-mcp
+    participant ConfirmAction as common_steps/confirm_action.md
     participant SOAR as secops-soar
     participant SIEM as secops-mcp
+    participant DocumentInSOAR as common_steps/document_in_soar.md
     %% EDR/Firewall conceptual participants
     participant EDR as EDR (Conceptual)
     participant Firewall as Firewall (Conceptual)
@@ -67,18 +72,19 @@ sequenceDiagram
     end
 
     %% Step 3: Confirm Action
-    Cline->>Analyst: ask_followup_question(question="Proceed with containment for IOC_VALUE?", options=["Yes", "No"])
-    Analyst->>Cline: Confirmation ("Yes")
+    Cline->>ConfirmAction: Execute(Input: QUESTION_TEXT="Proceed...?", RESPONSE_OPTIONS=["Yes", "No"])
+    ConfirmAction-->>Cline: Results: USER_RESPONSE
 
-    %% Step 4: Execute Containment
-    alt Confirmation is "Yes"
+    %% Step 4: Execute Containment (If Confirmed)
+    alt USER_RESPONSE is "Yes"
+        Note over Cline: Containment_Action_Status = "Attempted"
         alt IOC_TYPE is IP Address or Domain
             Note over Cline: Determine Reference List Name (e.g., "IP_Blocklist")
-            Cline->>SOAR: google_chronicle_add_values_to_reference_list(case_id=CASE_ID, alert_group_identifiers=ALERT_GROUP_IDS, reference_list_name="...", values=IOC_VALUE)
-            SOAR-->>Cline: Blocklist Add Confirmation
+            Cline->>SOAR: google_chronicle_add_values_to_reference_list(case_id=CASE_ID, ..., values=IOC_VALUE)
+            SOAR-->>Cline: Blocklist Add Result -> Update Containment_Action_Status
             opt Firewall/Proxy Integration Available
                  Cline->>Firewall: (Conceptual) Block IOC_VALUE
-                 Firewall-->>Cline: Block Confirmation
+                 Firewall-->>Cline: Block Result -> Update Containment_Action_Status
             end
         else IOC_TYPE is File Hash
             Cline->>SIEM: search_security_events(text="Events with hash IOC_VALUE")
@@ -86,20 +92,21 @@ sequenceDiagram
             opt EDR Integration Available
                 loop For each Endpoint Ei
                     Cline->>EDR: (Conceptual) Quarantine/Delete Hash IOC_VALUE on Ei
-                    EDR-->>Cline: EDR Action Confirmation for Ei
+                    EDR-->>Cline: EDR Action Result -> Update Containment_Action_Status
                 end
+            else
+                Note over Cline: Containment_Action_Status = "Manual EDR Action Needed"
             end
         end
 
-        %% Step 5: Document Actions
-        Cline->>SOAR: post_case_comment(case_id=CASE_ID, comment="Containment action taken for IOC: IOC_VALUE (Type: IOC_TYPE). Action: [Blocked/EDR Action Attempted]")
-        SOAR-->>Cline: Comment Confirmation
+        %% Document Action (Yes case)
+        Cline->>DocumentInSOAR: Execute(Input: CASE_ID, COMMENT_TEXT="Containment action attempted...")
+        DocumentInSOAR-->>Cline: Results: COMMENT_POST_STATUS
+        Cline->>Analyst: attempt_completion(result="IOC Containment runbook complete for IOC_VALUE. Action attempted.")
 
-        %% Step 6: Completion
-        Cline->>Analyst: attempt_completion(result="IOC Containment runbook complete for IOC_VALUE.")
-
-    else Confirmation is "No"
-         Cline->>SOAR: post_case_comment(case_id=CASE_ID, comment="Containment action aborted for IOC: IOC_VALUE (Type: IOC_TYPE).")
-         SOAR-->>Cline: Comment Confirmation
+    else USER_RESPONSE is "No"
+         %% Document Action (No case)
+         Cline->>DocumentInSOAR: Execute(Input: CASE_ID, COMMENT_TEXT="Containment action aborted...")
+         DocumentInSOAR-->>Cline: Results: COMMENT_POST_STATUS
          Cline->>Analyst: attempt_completion(result="IOC Containment runbook aborted for IOC_VALUE.")
     end
