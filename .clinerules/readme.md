@@ -15,6 +15,9 @@ This directory contains configuration files and documentation to provide context
 *   **Purpose:** These files contain documented, step-by-step procedures or workflows for specific security operations tasks (e.g., triaging alerts, investigating IOCs, hunting for threats, responding to phishing).
 *   **Content:** They often include objectives, scope, required inputs, specific MCP tools to use, workflow steps (sometimes visualized with diagrams like Mermaid), and expected outcomes.
 *   **Usage by LLM Agent:** Serves as a primary plan for executing common security workflows, ensuring adherence to established procedures, guiding tool selection and sequencing, and promoting consistency.
+*   **IRP vs. Runbook Distinction:** While all files here serve as procedural guides, we differentiate between:
+    *   **Incident Response Plans (IRPs):** Located in the `./run_books/irps/` subdirectory, these outline the *end-to-end strategy* for handling major incident types (e.g., malware, phishing) following the full PICERL lifecycle. They orchestrate multiple steps and often call other runbooks. Use these as the starting point for major incident types.
+    *   **Runbooks:** Located directly within `./run_books/` or in `./run_books/common_steps/`, these provide detailed, *tactical steps* for specific tasks (e.g., enriching an IOC, triaging an alert, isolating an endpoint) or reusable procedures. They are often components within a larger IRP.
 
 ## Suggested Additional Context Files
 
