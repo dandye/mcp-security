@@ -46,7 +46,7 @@ Uses Tools:
 11. Format the report in Markdown, ensuring it **MUST** include:
     *   A summary section (incorporating initial case details and optionally the Gemini summary).
     *   A **Process Execution Tree (Text)** showing the full parent-child chain.
-    *   A **Process Execution Tree (Diagram)** using Mermaid.
+    *   A **Process Execution Tree (Diagram)** using Mermaid (`graph LR`).
     *   An **Event Timeline Table** including timestamps, classifications, and optional MITRE TACTICs/time deltas.
     *   An analysis section.
 12. Ask the user to confirm report generation and format preferences (e.g., include time delta, include Gemini summary).
