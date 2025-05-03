@@ -19,7 +19,7 @@ This runbook covers gathering essential details about the alert(s), associated e
 
 *   `secops-soar`: `get_case_full_details`, `list_alerts_by_case`, `list_events_by_alert`, `get_entities_by_alert_group_identifiers`, `post_case_comment`
 *   `secops-mcp`: `lookup_entity`, `search_security_events` (optional, for broader context)
-*   `gti-mcp`: `get_ip_address_report`, `get_domain_report`, `get_file_report`, `get_url_report`
+*   `Google Threat Intelligence MCP server`: `get_ip_address_report`, `get_domain_report`, `get_file_report`, `get_url_report`
 *   `write_to_file`
 
 ## Workflow Steps & Diagram
@@ -30,7 +30,7 @@ This runbook covers gathering essential details about the alert(s), associated e
     *   If using `${ALERT_IDS}`, retrieve details for those specific alerts (potentially from the `get_case_full_details` output or by iterating `list_alerts_by_case` if needed). Identify entities directly from these alerts.
     *   Compile a list of unique key entities (Users, Hosts, IPs, Hashes, Domains, URLs) involved in the target alert(s). Let this be `KEY_ENTITIES`.
 3.  **Gather Alert Events:**
-    *   For each target alert ID, use `secops-soar.list_events_by_alert` to retrieve the underlying UDM events.
+    *   Retrieve underlying UDM events for key alerts. Use `secops-soar.list_events_by_alert` for detailed events, or summarize event details available within the `secops-soar.get_case_full_details` output if sufficient for a summary perspective.
     *   Extract key event details (timestamps, event types, process info, network info, file info).
 4.  **Enrich Key Entities:**
     *   Initialize an empty structure for enrichment findings.
@@ -39,9 +39,11 @@ This runbook covers gathering essential details about the alert(s), associated e
         *   Use the appropriate `gti-mcp.get_..._report` tool based on entity type (IP, Domain, Hash, URL) to get threat intelligence reputation/context.
     *   Store enrichment summaries.
 5.  **(Optional) Search Related SIEM Activity:**
+    *   *(Guidance: Consider performing this step if initial enrichment reveals highly critical IOCs or if the alert context is unclear).*
     *   Perform limited `secops-mcp.search_security_events` queries around the alert timeframe for the most critical entities identified (e.g., the primary host or user) to find immediate related context beyond the specific alert events.
 6.  **Synthesize & Format Report:**
-    *   Create a Markdown report structure including:
+    *   Create a Markdown report structure including (referencing `.clinerules/reporting_templates.md` and `.clinerules/runbook_guidelines.md`):
+        *   **Metadata:** Runbook Used, Timestamp, Case ID(s).
         *   **Case Summary:** Case ID, Name, Priority, Status (from `get_case_full_details`).
         *   **Alert(s) Summary:** List target Alert IDs, Names, Timestamps, Severities.
         *   **Key Entities Involved:** List entities from `KEY_ENTITIES` with a brief description.
@@ -49,8 +51,9 @@ This runbook covers gathering essential details about the alert(s), associated e
         *   **Event Summary:** Briefly describe the key events triggering the alert(s). Include timestamps and event types.
         *   **(Optional) Related SIEM Activity:** Summarize findings from Step 5.
         *   **Initial Assessment/Conclusion:** A brief statement on the nature of the alert based on the gathered data (e.g., "Likely malicious activity involving...", "Appears to be benign based on...", "Requires further investigation by Tier 2...").
+        *   **Workflow Diagram:** Include a Mermaid sequence diagram illustrating the steps taken during this runbook execution.
 7.  **Write Report File:**
-    *   Generate a timestamp string (`yyyymmdd_hhmm`).
+    *   Generate a timestamp string (`TIMESTAMP`, e.g., `yyyymmdd_hhmm`).
     *   Construct filename: `./reports/alert_report_${CASE_ID}_${REPORT_FILENAME_SUFFIX}_${timestamp}.md`.
     *   Use `write_to_file` with the path and formatted Markdown content.
 8.  **(Optional) Update SOAR Case:**
@@ -63,7 +66,7 @@ sequenceDiagram
     participant Cline as Cline (MCP Client)
     participant SOAR as secops-soar
     participant SIEM as secops-mcp
-    participant GTI as gti-mcp
+    participant GTI as Google Threat Intelligence MCP server
 
     Analyst/User->>Cline: Generate Alert Report\nInput: CASE_ID, ALERT_GROUP_IDS/ALERT_IDS, FILENAME_SUFFIX (opt)
 
