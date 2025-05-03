@@ -26,7 +26,15 @@
         *   List key cloud services in use (GKE, Cloud SQL, etc.).
         *   Describe basic cloud network topology (VPCs, subnets).
         *   *Potential Action:* Ask user/Cloud Team for architecture diagrams or descriptions.
-    5.  **Create `log_source_overview.md`**:
+    5.  **Create `security_products_inventory.md`**:
+        *   List key security products deployed (e.g., EDR vendor/product, Firewall vendor/product, Email Gateway, Vulnerability Scanner, etc.).
+        *   Briefly note the primary function of each product.
+        *   *Potential Action:* Ask user/Security Engineering/SOC Manager for this inventory.
+    6.  **Create `baseline_behavior.md`**:
+        *   Document known normal operational patterns (e.g., expected administrative script activity times/sources, typical outbound traffic patterns for key servers, common benign scan activity).
+        *   This can help differentiate anomalous activity from expected noise.
+        *   *Potential Action:* Gather this from user/SOC team experience/historical analysis.
+    7.  **Create `log_source_overview.md`**:
         *   Identify critical log sources (OS, network, cloud, application, security tools).
         *   Document primary location/ingestion method (e.g., Chronicle Parser, Splunk Index).
         *   Note typical retention periods.
@@ -52,6 +60,7 @@
     4.  **Create `detection_strategy.md`**:
         *   Outline the high-level strategy for detection development (e.g., focus areas, use of MITRE ATT&CK, threat intelligence driven).
         *   Mention key detection platforms (e.g., Chronicle SIEM, EDR).
+        *   Include key detection thresholds or sensitivity levels where applicable.
         *   Reference `internal_threat_profile.md` for priority threats.
         *   *Potential Action:* Ask user/Detection Engineering Lead/SOC Manager.
     *   **Rationale:** Aligns with the "Detect" function of NIST CSF 2.0 and provides context for how detections are created and prioritized.
