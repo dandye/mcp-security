@@ -27,7 +27,12 @@
 3.  **Check for Duplicates:** Execute `common_steps/check_duplicate_cases.md` with `${CASE_ID}`. Obtain `${SIMILAR_CASE_IDS}`.
 4.  **Handle Duplicates:** If `${SIMILAR_CASE_IDS}` is not empty and duplication is confirmed by analyst:
     *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and comment "Closing as duplicate of [Similar Case ID]".
-    *   Execute `common_steps/close_soar_artifact.md` with `${ARTIFACT_ID}` = `${CASE_ID}` (or `${ALERT_ID}`), `${ARTIFACT_TYPE}` = "Case" (or "Alert"), `${CLOSURE_REASON}` = "Duplicate", `${ROOT_CAUSE}` = "Consolidated Investigation", `${CLOSURE_COMMENT}` = "Duplicate of [Similar Case ID]".
+    *   Execute `common_steps/close_soar_artifact.md` with:
+        *   `${ARTIFACT_ID}` = `${CASE_ID}` (or `${ALERT_ID}`)
+        *   `${ARTIFACT_TYPE}` = "Case" (or "Alert")
+        *   `${CLOSURE_REASON}` = `"NOT_MALICIOUS"`
+        *   `${ROOT_CAUSE}` = `"Similar case is already under investigation"`
+        *   `${CLOSURE_COMMENT}` = "Closing as duplicate of [Similar Case ID]"
     *   End runbook execution.
 5.  **Find Entity-Related Cases:**
     *   Execute `common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS=KEY_ENTITIES` (list of entities from Step 2) and `CASE_STATUS_FILTER="Opened"`.
@@ -42,7 +47,10 @@
 8.  **Action Based on Assessment:**
     *   **If FP/BTP:**
         *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and comment explaining FP/BTP reason.
-        *   Execute `common_steps/close_soar_artifact.md` with `${ARTIFACT_ID}` = `${CASE_ID}` (or `${ALERT_ID}`), `${ARTIFACT_TYPE}` = "Case" (or "Alert"), appropriate `${CLOSURE_REASON}`/`${ROOT_CAUSE}`, and `${CLOSURE_COMMENT}` = "Closed as FP/BTP during triage.".
+        *   **Guidance for Closure:**
+            *   Choose an appropriate `${CLOSURE_REASON}` (likely `NOT_MALICIOUS`).
+            *   Choose a valid `${ROOT_CAUSE}` from the SOAR platform's predefined list (e.g., `"Legit action"`, `"Normal behavior"`, `"Other"`). Use `secops-soar.get_case_settings_root_causes` to list valid options if unsure.
+        *   Execute `common_steps/close_soar_artifact.md` with `${ARTIFACT_ID}` = `${CASE_ID}` (or `${ALERT_ID}`), `${ARTIFACT_TYPE}` = "Case" (or "Alert"), the chosen `${CLOSURE_REASON}`/`${ROOT_CAUSE}`, and `${CLOSURE_COMMENT}` = "Closed as FP/BTP during triage.".
     *   **If TP/Suspicious:**
         *   *(Optional)* Use `secops-soar.change_case_priority` if needed.
         *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and comment summarizing initial findings and assessment.
