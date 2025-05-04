@@ -128,6 +128,33 @@
         *   Outline general procedures for data restoration validation.
         *   *Potential Action:* Ask user/Backup Administrators/IT Operations.
 
+**Phase 6: Runbook Refinement & Optimization**
+*   **Objective:** Continuously improve the clarity, efficiency, and robustness of existing runbooks based on operational experience and evolving capabilities.
+*   **Tasks (Ongoing/Iterative):**
+    1.  **Enhance Error Handling & Fallbacks:**
+        *   Review `enrich_ioc.md` and other runbooks to add specific guidance for handling tool errors (e.g., "If GTI lookup fails due to quota, note limitation and rely on SIEM context").
+        *   Suggest concrete alternative steps (e.g., "If primary SIEM search fails, try broader time window or alternative query structure").
+        *   Integrate checks against `tool_rate_limits.md` before calling tools with known limits.
+    2.  **Improve Context Integration:**
+        *   Modify `triage_alerts.md` to suggest checking `common_benign_alerts.md`.
+        *   Update investigation runbooks to prompt referencing `network_map.md` or `asset_inventory_guidelines.md` when assessing internal entity criticality.
+    3.  **Refine Common Steps:**
+        *   Analyze `enrich_ioc.md` - could it be split into `enrich_ip.md`, `enrich_domain.md`, etc., for more specific logic/fallbacks?
+        *   Review other common steps for potential modularization.
+    4.  **Clarify Decision Logic:**
+        *   Refine assessment steps in runbooks like `triage_alerts.md` with specific examples (e.g., "If source IP is internal AND user is known admin AND target is domain controller AND time matches known patching window -> Likely BTP. Else -> Investigate further.").
+        *   Explicitly link decision criteria to `incident_severity_matrix.md` where applicable.
+    5.  **Standardize Reporting Outputs:**
+        *   Define a standard "Key Findings" structure in `reporting_templates.md` to be used across triage, investigation, and hunt reports.
+    6.  **Align with Personas:**
+        *   Review runbooks like `deep_dive_ioc_analysis.md` or `advanced_threat_hunting.md` and add "*(Tier 2+/Tier 3 Recommended)*" annotations to particularly complex steps or tool usage.
+    7.  **Incorporate Visualizations:**
+        *   Update `case_event_timeline_and_process_analysis.md` to explicitly require a Mermaid process tree diagram in the report.
+        *   Encourage adding simple relationship diagrams (e.g., `graph LR; Host-->IP; IP-->Domain;`) in investigation reports.
+    8.  **Address Tool Limitations:**
+        *   Ensure `find_relevant_soar_case.md` clearly documents the `list_cases` entity search limitation and suggests specific workarounds (manual search, SIEM correlation).
+    *   **Rationale:** Ensures runbooks remain effective, reflect real-world conditions, incorporate lessons learned (like tool errors), and leverage the full context available within the `.clinerules` directory.
+
 **Next Steps:**
 
 This plan outlines the creation of the suggested files. We can tackle these phases and tasks sequentially or prioritize based on which information would provide the most immediate value.
