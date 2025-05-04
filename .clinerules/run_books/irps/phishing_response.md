@@ -41,6 +41,7 @@ This runbook covers the end-to-end response lifecycle for phishing incidents. It
 *   **Basic Endpoint Triage & Isolation Runbook:** `../basic_endpoint_triage_isolation.md`
 *   `ask_followup_question` (To confirm actions).
 *   *(Potentially Email Gateway tools if integrated via MCP for searching/deleting emails)*
+*   **Common Steps:** `common_steps/check_duplicate_cases.md`, `common_steps/enrich_ioc.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`
 
 ## Workflow Steps & Diagram
 
@@ -138,8 +139,12 @@ sequenceDiagram
             *   Users who received similar emails (`SIMILAR_EMAIL_RECIPIENTS`).
             *   Users who potentially clicked/opened/interacted (`POTENTIAL_COMPROMISED_USERS`).
             *   Endpoints exhibiting suspicious activity related to the phish (`SUSPICIOUS_ENDPOINTS`).
-    8.  **Document Identification Phase:**
-        *   Document findings (including `PHISHING_CATEGORY`) using `../common_steps/document_in_soar.md`.
+    8.  **Check Related SOAR Cases:**
+        *   Prepare list of key entities: `SEARCH_TERMS = POTENTIAL_COMPROMISED_USERS + SUSPICIOUS_ENDPOINTS + MALICIOUS_IOCs`.
+        *   Execute `../common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS` and `CASE_STATUS_FILTER="Opened"`.
+        *   Obtain `${RELATED_SOAR_CASES}` (list of potentially relevant open case summaries/IDs).
+    9.  **Document Identification Phase:**
+        *   Document findings (including `PHISHING_CATEGORY` and `${RELATED_SOAR_CASES}`) using `../common_steps/document_in_soar.md`.
 
 ---
 

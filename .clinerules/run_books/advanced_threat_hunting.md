@@ -133,3 +133,4 @@ sequenceDiagram
         Note over Cline: Document negative results and limitations
         Cline->>Analyst/Hunter: attempt_completion(result="Advanced Hunt complete. No significant findings. Hunt documented.")
     end
+```

@@ -13,11 +13,11 @@ Uses Tools:
 *   **`gti-mcp.get_domain_report` / `get_file_report` / `get_ip_address_report` / `get_url_report` (Deeper GTI enrichment for *found* IOCs)**
 *   **`gti-mcp.get_entities_related_to_a_domain/file/ip/url` (Pivot on *found* IOCs)**
 *   **`secops-mcp.get_security_alerts` (Check related SIEM alerts for *found* IOCs/hosts)**
-*   **`secops-soar.list_cases` (Check related SOAR cases for *found* IOCs/hosts)**
 *   **(Optional) `gti-mcp.get_file_behavior_summary` (For found file hashes)**
 *   `write_to_file` (for report generation)
-*   `secops-soar.post_case_comment` (optional)
+*   `secops-soar`: `post_case_comment` (optional), `list_cases`
 *   `ask_followup_question`
+*   **Common Steps:** `common_steps/find_relevant_soar_case.md`
 
 ```{mermaid}
 sequenceDiagram
@@ -26,6 +26,7 @@ sequenceDiagram
     participant GTI as gti-mcp
     participant SIEM as secops-mcp
     participant SOAR as secops-soar
+    participant FindCase as common_steps/find_relevant_soar_case.md
 
     User->>Cline: Hunt for Campaign/Actor: `${GTI_COLLECTION_ID}`
     Cline->>GTI: get_collection_report(id=`${GTI_COLLECTION_ID}`)
@@ -87,13 +88,13 @@ sequenceDiagram
 
         Note over Cline: Check Related SIEM Alerts & SOAR Cases
         Cline->>SIEM: get_security_alerts(query="alert contains Pi or involves host Hi", hours_back=72)
-        SIEM-->>Cline: Related SIEM Alerts
-        Cline->>SOAR: list_cases(filter="Contains Pi or involves host Hi") %% Conceptual Filter
-        SOAR-->>Cline: Potentially related SOAR Cases
-        Note over Cline: Store related alert/case info
+        SIEM-->>Cline: Related SIEM Alerts (Store findings)
+        Note over Cline: Prepare search terms (Pi + Hi)
+        Cline->>FindCase: Execute(Input: SEARCH_TERMS=[Pi, Hi], CASE_STATUS_FILTER="Opened")
+        FindCase-->>Cline: Results: RELATED_SOAR_CASES (Store findings)
     end
 
-    Note over Cline: Synthesize GTI context, IOCs, TTPs, SIEM findings, Enrichment, Related Alerts/Cases
+    Note over Cline: Synthesize GTI context, IOCs, TTPs, SIEM findings, Enrichment, Related Alerts & Cases
     Cline->>User: ask_followup_question(question="Hunt found potential activity related to `${GTI_COLLECTION_ID}`. Create/Update SOAR Case or Generate Report?", options=["Create New Case", "Update Case [ID]", "Generate Report", "Do Nothing"])
     User->>Cline: Response (e.g., "Generate Report")
 

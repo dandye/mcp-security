@@ -32,6 +32,7 @@ This runbook covers the end-to-end response lifecycle for compromised user accou
 *   `ask_followup_question` (To confirm actions)
 *   *(Potentially Email platform tools for checking rules/delegation)*
 *   *(Potentially Endpoint tools if investigating actions taken on hosts)*
+*   **Common Steps:** `common_steps/check_duplicate_cases.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/confirm_action.md`
 
 ## Workflow Steps & Diagram
 
@@ -100,8 +101,11 @@ sequenceDiagram
             *   Failed login attempts followed by success.
             *   Changes to account settings (MFA, recovery email/phone, forwarding rules).
             *   Creation/modification of OAuth application grants.
-    4.  **Assess Compromise Likelihood:** Based on the initial alert, context, and activity analysis, determine the likelihood of compromise (Low, Medium, High, Confirmed).
-    5.  **Document Identification Phase:** Document findings using `../common_steps/document_in_soar.md`.
+    4.  **Check Related SOAR Cases:**
+        *   Execute `../common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS=["${USER_ID}"]` and `CASE_STATUS_FILTER="Opened"`.
+        *   Obtain `${RELATED_SOAR_CASES}` (list of potentially relevant open case summaries/IDs).
+    5.  **Assess Compromise Likelihood:** Based on the initial alert, context, activity analysis, and `${RELATED_SOAR_CASES}`, determine the likelihood of compromise (Low, Medium, High, Confirmed).
+    6.  **Document Identification Phase:** Document findings (including `${RELATED_SOAR_CASES}`) using `../common_steps/document_in_soar.md`.
 
 ---
 

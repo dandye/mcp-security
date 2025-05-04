@@ -23,7 +23,7 @@ This runbook covers in-depth analysis of a single IOC (IP, Domain, Hash, URL) us
 *   `secops-mcp`: `lookup_entity`, `search_security_events`, `get_security_alerts`.
 *   `secops-soar`: `post_case_comment`, `get_case_full_details`, `list_cases`.
 *   `write_to_file` (for local report generation if skipping SOAR).
-*   **Common Steps:** `common_steps/pivot_on_ioc_gti.md`, `common_steps/enrich_ioc.md`, `common_steps/correlate_ioc_with_alerts_cases.md`, `common_steps/document_in_soar.md`, `common_steps/generate_report_file.md`.
+*   **Common Steps:** `common_steps/pivot_on_ioc_gti.md`, `common_steps/enrich_ioc.md`, `common_steps/correlate_ioc_with_alerts_cases.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/generate_report_file.md`.
 
 ## Workflow Steps & Diagram
 
@@ -45,16 +45,17 @@ This runbook covers in-depth analysis of a single IOC (IP, Domain, Hash, URL) us
     *   **Prioritize observed IOCs:** For each key IOC `Ki` (including `${IOC_VALUE}` and IOCs in `${OBSERVED_RELATED_IOCS}`):
         *   Execute `common_steps/enrich_ioc.md` with `IOC_VALUE=Ki` and appropriate `IOC_TYPE`. Store results in `SIEM_ENRICHMENT_RESULTS[Ki]`.
     *   *(Note: For related IOCs from GTI not observed in SIEM searches, enrichment can be skipped or performed with lower priority if analyst deems necessary).*
-    *   Execute `common_steps/correlate_ioc_with_alerts_cases.md` with `IOC_LIST` containing `${IOC_VALUE}` and `${OBSERVED_RELATED_IOCS}`. Obtain `${RELATED_SIEM_ALERTS}` and `${RELATED_SOAR_CASES}`.
+    *   Execute `common_steps/correlate_ioc_with_alerts_cases.md` with `IOC_LIST` containing `${IOC_VALUE}` and `${OBSERVED_RELATED_IOCS}`. Obtain `${RELATED_SIEM_ALERTS}` and `${RELATED_SOAR_CASES_CORRELATION}`.
+    *   **Broader Case Search:** Execute `common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS` = list of `${IOC_VALUE}` + `${OBSERVED_RELATED_IOCS}` + key entities from `${SIEM_SEARCH_RESULTS}` (e.g., involved hosts/users) and `CASE_STATUS_FILTER="Opened"`. Obtain `${RELATED_SOAR_CASES_BROAD}`.
 6.  **(Optional) Enrich Associated Threats:**
     *   If `${ASSOCIATED_THREAT_IDS}` were identified in Step 2:
         *   For each Threat ID `Ti` in `${ASSOCIATED_THREAT_IDS}`:
             *   Use `gti-mcp.get_collection_report` with `id=Ti` to get context on the associated malware/actor. Store in `${ASSOCIATED_THREAT_DETAILS}`.
 7.  **Synthesize & Document/Report:**
-    *   Combine all findings: `${GTI_REPORT_DETAILS}`, `${RELATED_ENTITIES}`, `${SIEM_SEARCH_RESULTS}`, `SIEM_ENRICHMENT_RESULTS`, `${RELATED_SIEM_ALERTS}`, `${RELATED_SOAR_CASES}`, `${ASSOCIATED_THREAT_DETAILS}` (optional).
+    *   Combine all findings: `${GTI_REPORT_DETAILS}`, `${RELATED_ENTITIES}`, `${SIEM_SEARCH_RESULTS}`, `SIEM_ENRICHMENT_RESULTS`, `${RELATED_SIEM_ALERTS}`, `${RELATED_SOAR_CASES_CORRELATION}`, `${RELATED_SOAR_CASES_BROAD}`, `${ASSOCIATED_THREAT_DETAILS}` (optional).
     *   Assess the overall impact and scope. Identify potentially compromised assets or users. Formulate `ASSESSMENT` and `RECOMMENDATION`.
     *   **If `${CASE_ID}` provided and `${SKIP_SOAR}` is not true:**
-        *   Prepare `COMMENT_TEXT` summarizing the deep dive: "Deep Dive Analysis for `${IOC_VALUE}` (`${IOC_TYPE}`): GTI Details: [...]. GTI Pivots found: [...]. SIEM Search revealed: [...]. SIEM Enrichment (Observed): [...]. Related Alerts/Cases: [...]. Associated Threats: [...]. Assessment: `${ASSESSMENT}`. Recommendation: `${RECOMMENDATION}`".
+        *   Prepare `COMMENT_TEXT` summarizing the deep dive: "Deep Dive Analysis for `${IOC_VALUE}` (`${IOC_TYPE}`): GTI Details: [...]. GTI Pivots found: [...]. SIEM Search revealed: [...]. SIEM Enrichment (Observed): [...]. Related Alerts: [...]. Related Cases (Correlation): [...]. Related Cases (Broad Search): [...]. Associated Threats: [...]. Assessment: `${ASSESSMENT}`. Recommendation: `${RECOMMENDATION}`".
         *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `${COMMENT_TEXT}`. Obtain `${COMMENT_POST_STATUS}`.
     *   **Else (No CASE_ID or SKIP_SOAR is true):**
         *   Prepare `REPORT_CONTENT` similar to `COMMENT_TEXT` but formatted for a standalone Markdown report, including a Mermaid diagram of the workflow performed.
@@ -70,6 +71,7 @@ sequenceDiagram
     participant SIEM as secops-mcp
     participant EnrichIOC as common_steps/enrich_ioc.md
     participant CorrelateIOC as common_steps/correlate_ioc_with_alerts_cases.md
+    participant FindCase as common_steps/find_relevant_soar_case.md
     participant DocumentInSOAR as common_steps/document_in_soar.md
     participant GenerateReport as common_steps/generate_report_file.md
     participant SOAR as secops-soar %% Underlying tool for documentation & context
@@ -111,7 +113,10 @@ sequenceDiagram
         EnrichIOC-->>Cline: Results: Store in SIEM_ENRICHMENT_RESULTS[Ki]
     end
     Cline->>CorrelateIOC: Execute(Input: IOC_LIST=[Prioritized List], TIME_FRAME_HOURS)
-    CorrelateIOC-->>Cline: Results: RELATED_SIEM_ALERTS, RELATED_SOAR_CASES
+    CorrelateIOC-->>Cline: Results: RELATED_SIEM_ALERTS, RELATED_SOAR_CASES_CORRELATION
+    Note over Cline: Prepare broader search list (IOCs + key entities from SIEM results)
+    Cline->>FindCase: Execute(Input: SEARCH_TERMS=[Broad List], CASE_STATUS_FILTER="Opened")
+    FindCase-->>Cline: Results: RELATED_SOAR_CASES_BROAD
 
     %% Step 6: Optional Threat Enrichment
     opt ASSOCIATED_THREAT_IDS exist

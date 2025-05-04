@@ -20,6 +20,7 @@ This runbook provides a template for hunting specific lateral movement TTPs, foc
 *   `secops-soar`: `post_case_comment` (for documenting hunt/findings), `list_cases` (optional, check related cases).
 *   `gti-mcp`: (Used for enriching findings if IOCs are discovered).
 *   *(Optional: Identity Provider tools like `okta-mcp.lookup_okta_user`)*
+*   **Common Steps:** `common_steps/find_relevant_soar_case.md`
 
 ## Workflow Steps & Diagram
 
@@ -45,17 +46,21 @@ This runbook provides a template for hunting specific lateral movement TTPs, foc
     *   Review results for anomalous patterns: PsExec/WMI usage originating from unexpected sources (e.g., user workstations instead of admin servers), execution targeting a large number of hosts, execution of suspicious commands via WMI, correlation between network connections and remote process execution.
 7.  **Enrich Findings:**
     *   If suspicious activity is found:
-        *   Use `secops-mcp.lookup_entity` for involved source/destination hosts, users.
-        *   *(Optional)* If an Identity Provider tool is available (e.g., `okta-mcp.lookup_okta_user`), gather context on involved user accounts.
-        *   Use `gti-mcp` tools to enrich any associated IPs, domains, or hashes if applicable.
-8.  **Document Hunt & Findings:**
+            *   Use `secops-mcp.lookup_entity` for involved source/destination hosts, users. Let these be `SUSPICIOUS_ENTITIES`.
+            *   *(Optional)* If an Identity Provider tool is available (e.g., `okta-mcp.lookup_okta_user`), gather context on involved user accounts.
+            *   Use `gti-mcp` tools to enrich any associated IPs, domains, or hashes if applicable. Let combined enrichment be `ENRICHMENT_RESULTS`.
+8.  **Check Related SOAR Cases:**
+    *   If `SUSPICIOUS_ENTITIES` were identified:
+        *   Execute `common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS=SUSPICIOUS_ENTITIES` and `CASE_STATUS_FILTER="Opened"`.
+        *   Obtain `${RELATED_SOAR_CASES}` (list of potentially relevant open case summaries/IDs).
+9.  **Document Hunt & Findings:**
     *   Use `secops-soar.post_case_comment` in a dedicated hunting case or relevant existing case.
-    *   Document: Hunt Hypothesis/Objective, Techniques Hunted, Scope, Timeframe, Queries Used, Summary of Findings (**explicitly noting queries with negative results**), Details of suspicious activity, Enrichment results.
+    *   Document: Hunt Hypothesis/Objective, Techniques Hunted, Scope, Timeframe, Queries Used, Summary of Findings (**explicitly noting queries with negative results**), Details of suspicious activity, Enrichment results (`ENRICHMENT_RESULTS`), Related SOAR Cases (`${RELATED_SOAR_CASES}`).
     *   **Suggest Follow-on Actions:** Based on findings, suggest next steps like triggering `case_event_timeline_and_process_analysis.md` for suspicious processes or `compromised_user_account_response.md` for involved users.
-9.  **Escalate or Conclude:**
+10. **Escalate or Conclude:**
     *   If confirmed lateral movement or tool abuse is found, escalate by creating a new incident case or linking findings to an existing one.
     *   If no significant findings, conclude the hunt and document it thoroughly.
-10. **Completion:** Conclude the runbook execution.
+11. **Completion:** Conclude the runbook execution.
 
 ```{mermaid}
 sequenceDiagram
@@ -66,6 +71,7 @@ sequenceDiagram
     participant MITRE as MITRE ATT&CK (External)
     participant IDP as Identity Provider (Optional)
     participant GTI as gti-mcp
+    participant FindCase as common_steps/find_relevant_soar_case.md
 
     Analyst->>Cline: Start Lateral Movement Hunt (PsExec/WMI)\nInput: TIME_FRAME_HOURS, TARGET_SCOPE_QUERY (opt), HUNT_HYPOTHESIS (opt)
 
@@ -97,8 +103,9 @@ sequenceDiagram
     Note over Cline: Analyze results for anomalous PsExec/WMI usage & correlations
 
     %% Step 7: Enrich Findings
-    opt Suspicious Activity Found (Hosts H1, H2..., Users U1...)
-        loop For each Suspicious Entity Ei (H1, U1...)
+    opt Suspicious Activity Found
+        Note over Cline: Identify SUSPICIOUS_ENTITIES (H1, U1...)
+        loop For each Suspicious Entity Ei
             Cline->>SecOpsMCP: lookup_entity(entity_value=Ei)
             SecOpsMCP-->>Cline: SIEM Summary for Ei
             opt IDP Tool Available and Ei is User
@@ -113,14 +120,21 @@ sequenceDiagram
                  end
             end
         end
+        Note over Cline: Store combined enrichment (ENRICHMENT_RESULTS)
     end
 
-    %% Step 8: Document Hunt
-    Note over Cline: Prepare hunt summary comment (incl. negative results & suggested follow-ons)
-    Cline->>SOAR: post_case_comment(case_id=[Hunt Case/Relevant Case], comment="Lateral Movement Hunt (PsExec/WMI) Summary: Scope [...], Queries [...], Findings [...], Enrichment [...], Follow-on: [...]")
+    %% Step 8: Check Related SOAR Cases
+    opt Suspicious Activity Found
+        Cline->>FindCase: Execute(Input: SEARCH_TERMS=SUSPICIOUS_ENTITIES, CASE_STATUS_FILTER="Opened")
+        FindCase-->>Cline: Results: RELATED_SOAR_CASES
+    end
+
+    %% Step 9: Document Hunt
+    Note over Cline: Prepare hunt summary comment (incl. negative results, related cases & suggested follow-ons)
+    Cline->>SOAR: post_case_comment(case_id=[Hunt Case/Relevant Case], comment="Lateral Movement Hunt (PsExec/WMI) Summary: Scope [...], Queries [...], Findings [...], Enrichment [...], Related Cases: [...], Follow-on: [...]")
     SOAR-->>Cline: Comment Confirmation
 
-    %% Step 9 & 10: Escalate or Conclude
+    %% Step 10 & 11: Escalate or Conclude
     alt Confirmed Malicious Activity Found
         Note over Cline: Escalate findings (Create new case or link to existing)
         Cline->>Analyst: attempt_completion(result="Lateral Movement Hunt complete. Findings escalated.")

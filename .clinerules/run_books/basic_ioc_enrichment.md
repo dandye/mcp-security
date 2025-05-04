@@ -36,7 +36,7 @@ This runbook covers fundamental enrichment steps using readily available GTI and
 *   `secops-soar`: `list_cases`, `post_case_comment`
 *   `ask_followup_question`
 *   `write_to_file`
-*   **Common Steps:** `common_steps/enrich_ioc.md`, `common_steps/pivot_on_ioc_gti.md`, `common_steps/document_in_soar.md`, `common_steps/generate_report_file.md`
+*   **Common Steps:** `common_steps/enrich_ioc.md`, `common_steps/pivot_on_ioc_gti.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/generate_report_file.md`
 
 ## Workflow Steps & Diagram
 
@@ -50,8 +50,8 @@ This runbook covers fundamental enrichment steps using readily available GTI and
     *   Execute the search with `hours_back=${SIEM_SEARCH_HOURS}`.
     *   Store a summary of findings (e.g., count, key event types, involved hosts/users) in `${SIEM_RECENT_EVENTS}`.
 5.  **Search Relevant SOAR Cases:**
-    *   Use `secops-soar.list_cases` with a filter targeting open cases related to `${IOC_VALUE}`. *Note: The exact filter depends on SOAR capabilities and may require searching case names or entities.*
-    *   Store the list of found open case IDs/names in `${FOUND_CASES}`.
+    *   Execute `common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS=["${IOC_VALUE}"]` and `CASE_STATUS_FILTER="Opened"`.
+    *   Obtain `${RELEVANT_CASE_IDS}` and `${RELEVANT_CASE_SUMMARIES}`. Let `${FOUND_CASES}` = `${RELEVANT_CASE_SUMMARIES}` (or `${RELEVANT_CASE_IDS}` if summaries aren't needed/available).
 6.  **Synthesize Findings & Assess Risk:**
     *   Combine all findings: `${GTI_FINDINGS}`, `${GTI_RELATIONSHIPS}`, `${SIEM_ENTITY_SUMMARY}`, `${SIEM_IOC_MATCH_STATUS}`, `${SIEM_RECENT_EVENTS}`, `${FOUND_CASES}`.
     *   Guide the analyst (via output prompt or internal logic) to make an initial risk assessment (`${ASSESSMENT}`) based on the combined data (e.g., GTI reputation, SIEM activity presence/volume, relation to existing cases).
@@ -75,6 +75,7 @@ sequenceDiagram
     participant Cline as Cline (MCP Client)
     participant EnrichIOC as common_steps/enrich_ioc.md
     participant PivotGTI as common_steps/pivot_on_ioc_gti.md
+    participant FindCase as common_steps/find_relevant_soar_case.md
     participant DocumentInSOAR as common_steps/document_in_soar.md
     participant GenerateReport as common_steps/generate_report_file.md
     participant SIEM as secops-mcp
@@ -98,12 +99,11 @@ sequenceDiagram
     SIEM-->>Cline: Recent SIEM Events Summary (SIEM_RECENT_EVENTS)
 
     %% Step 5: Search Relevant SOAR Cases
-    Note over Cline: Construct filter for list_cases based on IOC_VALUE
-    Cline->>SOAR: list_cases(filter=..., status="OPEN")
-    SOAR-->>Cline: List of relevant open cases (FOUND_CASES)
+    Cline->>FindCase: Execute(Input: SEARCH_TERMS=[IOC_VALUE], CASE_STATUS_FILTER="Opened")
+    FindCase-->>Cline: Results: RELEVANT_CASE_IDS, RELEVANT_CASE_SUMMARIES (FOUND_CASES)
 
     %% Step 6: Synthesize Findings & Assess Risk
-    Note over Cline: Combine all findings. Guide analyst assessment (ASSESSMENT) & recommendation (RECOMMENDATION).
+    Note over Cline: Combine all findings (incl. FOUND_CASES). Guide analyst assessment (ASSESSMENT) & recommendation (RECOMMENDATION).
 
     %% Step 7: Conditional Documentation
     alt CASE_ID provided

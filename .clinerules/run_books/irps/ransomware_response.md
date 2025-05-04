@@ -38,6 +38,7 @@ This runbook covers the end-to-end response lifecycle for ransomware incidents, 
 *   **Compromised User Account Response Runbook:** `../compromised_user_account_response.md` (If initial access vector involves user).
 *   `ask_followup_question` (To confirm actions, especially isolation).
 *   *(External Resources: Ransomware identification sites, known decryptor databases - manual step)*.
+*   **Common Steps:** `common_steps/check_duplicate_cases.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`
 
 ## Workflow Steps & Diagram
 
@@ -108,8 +109,12 @@ sequenceDiagram
         *   Identify potential initial access vector (`INITIAL_ACCESS_VECTOR`) and other potentially affected systems (`POTENTIAL_ADDITIONAL_SYSTEMS`).
     4.  **Initial Scope Assessment:**
         *   Combine initial indicators with findings from step 3 to create a list of initially identified affected endpoints (`AFFECTED_ENDPOINTS`) and potentially malicious network IOCs (`MALICIOUS_IOCs`).
-    5.  **Document Identification Phase:**
-        *   Document findings (`IDENTIFIED_STRAIN`, `INITIAL_ACCESS_VECTOR`, `AFFECTED_ENDPOINTS`, `MALICIOUS_IOCs`) using `../common_steps/document_in_soar.md`.
+    5.  **Check Related SOAR Cases:**
+        *   Prepare list of key entities: `SEARCH_TERMS = AFFECTED_ENDPOINTS + MALICIOUS_IOCs`.
+        *   Execute `../common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS` and `CASE_STATUS_FILTER="Opened"`.
+        *   Obtain `${RELATED_SOAR_CASES}` (list of potentially relevant open case summaries/IDs).
+    6.  **Document Identification Phase:**
+        *   Document findings (`IDENTIFIED_STRAIN`, `INITIAL_ACCESS_VECTOR`, `AFFECTED_ENDPOINTS`, `MALICIOUS_IOCs`, `${RELATED_SOAR_CASES}`) using `../common_steps/document_in_soar.md`.
 
 ---
 

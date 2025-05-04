@@ -35,8 +35,10 @@ Uses Tools:
         *   **Store:** If the launch event for `Current_Parent_PID` is found, store its details (parent PID, command line, timestamp, etc.) in the process chain data. Update `Current_Parent_PID` to the *newly found parent's PID* and update `Child_Timestamp` to the timestamp of the event just found. Repeat the search.
         *   **Stop:** Continue iterating backward until a known root process (e.g., `explorer.exe`, `services.exe`) is reached, the parent PID is null/invalid, or the search yields no results within a reasonable timeframe.
     *   **Troubleshooting:** If `search_security_events` fails, times out, or returns no results:
-        *   Try broadening the time window for the specific parent search.
+        *   Try broadening the time window for the specific parent search (e.g., +/- 1 hour, +/- 6 hours). Be aware this may increase noise.
         *   Consider using `secops-soar.google_chronicle_list_events` filtered for `metadata.event_type = "PROCESS_LAUNCH"` on the specific asset around the expected time as an alternative.
+        *   If parent process launch events are still elusive, consider searching for other related activity (e.g., user logins, network connections) associated with the parent process around its estimated start time to infer context.
+        *   **Acknowledge Limitations:** Note that tracing the full chain might not always be possible due to log availability, timing discrepancies, unusual process IDs (e.g., PID 4), or processes starting before the log retention/search window.
     *   Store all found launch event details chronologically.
 6.  (Optional) For key involved assets identified in Step 4, use `google_chronicle_list_events` to get broader event context for those assets around the alert time.
 7.  Enrich process hashes using GTI (`get_file_report`) to classify processes (Legitimate, LOLBIN, Malicious).
@@ -45,10 +47,11 @@ Uses Tools:
 10. (Optional) Generate an AI summary using `siemplify_create_gemini_case_summary`.
 11. Format the report in Markdown, ensuring it **MUST** include:
     *   A summary section (incorporating initial case details and optionally the Gemini summary).
-    *   A **Process Execution Tree (Text)** showing the full parent-child chain.
-    *   A **Process Execution Tree (Diagram)** using Mermaid (`graph LR`).
+    *   A **Process Execution Tree (Text)** showing the parent-child chain *as determined*. If the full chain could not be traced, clearly indicate where the tracing stopped (e.g., `[PID ???]`).
+    *   A **Process Execution Tree (Diagram)** using Mermaid (`graph LR`), similarly reflecting the extent of the traced chain.
     *   An **Event Timeline Table** including timestamps, classifications, and optional MITRE TACTICs/time deltas.
     *   An analysis section.
+    *   *(Report Limitation Note):* If the full process chain could not be determined, explicitly state this limitation in the report summary or analysis section.
 12. Ask the user to confirm report generation and format preferences (e.g., include time delta, include Gemini summary).
 13. Write the Markdown report to a timestamped file (e.g., `./reports/case_${CASE_ID}_timeline_${timestamp}.md`).
 14. (Optional, based on user feedback) Convert the Markdown report to PDF using `pandoc` via `execute_command`.

@@ -22,6 +22,7 @@ This runbook covers the initial investigation steps to gather context about a su
 *   `secops-mcp`: `lookup_entity`, `search_security_events`
 *   `gti-mcp`: `get_ip_address_report`
 *   *(Optional: Identity Provider tools like `okta-mcp.lookup_okta_user`)*
+*   **Common Steps:** `common_steps/enrich_ioc.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`
 
 ## Workflow Steps & Diagram
 
@@ -35,13 +36,16 @@ This runbook covers the initial investigation steps to gather context about a su
 4.  **Recent Login Activity (SIEM):**
     *   Use `secops-mcp.search_security_events` with a query like `text="User login events for ${USER_ID}"` focusing on the last 24-72 hours.
     *   Look for patterns: logins from other unusual IPs, successful logins after failures, frequency of logins from `${SOURCE_IP}` vs. others (`LOGIN_ACTIVITY_SUMMARY`).
-5.  **(Optional) Identity Provider Check:**
+5.  **Check Related SOAR Cases:**
+    *   Execute `common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS=["${USER_ID}", "${SOURCE_IP}"]` and `CASE_STATUS_FILTER="Opened"`.
+    *   Obtain `${RELATED_SOAR_CASES}` (list of potentially relevant open case summaries/IDs).
+6.  **(Optional) Identity Provider Check:**
     *   *(If available, use `okta-mcp.lookup_okta_user` or similar with `${USER_ID}` to check account status, recent legitimate logins, MFA methods, etc. (`IDP_SUMMARY`))*
-6.  **Synthesize & Document:**
-    *   Combine findings: Is the user known to travel or use VPNs (`USER_SIEM_SUMMARY`)? Is the source IP known malicious (`IP_GTI_FINDINGS`, `IP_SIEM_MATCH`) or associated with legitimate services? Does the recent login pattern look anomalous (`LOGIN_ACTIVITY_SUMMARY`)?
-    *   Prepare comment text: `COMMENT_TEXT = "Suspicious Login Triage for ${USER_ID} from ${SOURCE_IP}: User SIEM Summary: ${USER_SIEM_SUMMARY}. Source IP GTI: ${IP_GTI_FINDINGS}. Source IP SIEM: ${IP_SIEM_SUMMARY}. Source IP IOC Match: ${IP_SIEM_MATCH}. Recent Login Pattern: ${LOGIN_ACTIVITY_SUMMARY}. Optional IDP Check: ${IDP_SUMMARY}. Recommendation: [Close as FP/Known Activity | Escalate to Tier 2 for further investigation]"`
+7.  **Synthesize & Document:**
+    *   Combine findings: Is the user known to travel or use VPNs (`USER_SIEM_SUMMARY`)? Is the source IP known malicious (`IP_GTI_FINDINGS`, `IP_SIEM_MATCH`) or associated with legitimate services? Does the recent login pattern look anomalous (`LOGIN_ACTIVITY_SUMMARY`)? Are there related open cases (`${RELATED_SOAR_CASES}`)?
+    *   Prepare comment text: `COMMENT_TEXT = "Suspicious Login Triage for ${USER_ID} from ${SOURCE_IP}: User SIEM Summary: ${USER_SIEM_SUMMARY}. Source IP GTI: ${IP_GTI_FINDINGS}. Source IP SIEM: ${IP_SIEM_SUMMARY}. Source IP IOC Match: ${IP_SIEM_MATCH}. Recent Login Pattern: ${LOGIN_ACTIVITY_SUMMARY}. Related Open Cases: ${RELATED_SOAR_CASES}. Optional IDP Check: ${IDP_SUMMARY}. Recommendation: [Close as FP/Known Activity | Escalate to Tier 2 for further investigation]"`
     *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `${COMMENT_TEXT}`. Obtain `${COMMENT_POST_STATUS}`.
-7.  **Completion:** Conclude the runbook execution. Tier 1 analyst acts on the recommendation in the comment.
+8.  **Completion:** Conclude the runbook execution. Tier 1 analyst acts on the recommendation in the comment.
 
 ```{mermaid}
 sequenceDiagram
@@ -50,6 +54,7 @@ sequenceDiagram
     participant SOAR as secops-soar
     participant SIEM as secops-mcp
     participant EnrichIOC as common_steps/enrich_ioc.md
+    participant FindCase as common_steps/find_relevant_soar_case.md
     participant DocumentInSOAR as common_steps/document_in_soar.md
     participant IDP as Identity Provider (Optional)
 
@@ -71,16 +76,20 @@ sequenceDiagram
     Cline->>SIEM: search_security_events(text="Logins for USER_ID", hours_back=72)
     SIEM-->>Cline: Recent Login Events (LOGIN_ACTIVITY_SUMMARY)
 
-    %% Step 5: Optional IDP Check
+    %% Step 5: Check Related SOAR Cases
+    Cline->>FindCase: Execute(Input: SEARCH_TERMS=[USER_ID, SOURCE_IP], CASE_STATUS_FILTER="Opened")
+    FindCase-->>Cline: Results: RELATED_SOAR_CASES
+
+    %% Step 6: Optional IDP Check
     opt IDP Tool Available
         Cline->>IDP: lookup_user(user=USER_ID)
         IDP-->>Cline: User Account Details from IDP (IDP_SUMMARY)
     end
 
-    %% Step 6: Synthesize & Document
-    Note over Cline: Synthesize findings and prepare COMMENT_TEXT with Recommendation
+    %% Step 7: Synthesize & Document
+    Note over Cline: Synthesize findings (incl. related cases) and prepare COMMENT_TEXT with Recommendation
     Cline->>DocumentInSOAR: Execute(Input: CASE_ID, COMMENT_TEXT)
     DocumentInSOAR-->>Cline: Results: COMMENT_POST_STATUS
 
-    %% Step 7: Completion
+    %% Step 8: Completion
     Cline->>Analyst: attempt_completion(result="Suspicious Login Triage complete for USER_ID from SOURCE_IP. Findings and recommendation documented in case CASE_ID.")

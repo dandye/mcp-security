@@ -18,6 +18,7 @@
 *   `secops-soar`: `get_case_full_details`, `list_alerts_by_case`, `list_events_by_alert`, `post_case_comment`, `change_case_priority`, `siemplify_get_similar_cases`, `siemplify_close_case`, `siemplify_close_alert`
 *   `secops-mcp`: `lookup_entity`, `get_ioc_matches`
 *   `gti-mcp`: `get_file_report`, `get_domain_report`, `get_ip_address_report`, `get_url_report`
+*   **Common Steps:** `common_steps/check_duplicate_cases.md`, `common_steps/enrich_ioc.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/close_soar_artifact.md`
 
 ## Workflow Steps & Diagram
 
@@ -28,14 +29,17 @@
     *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and comment "Closing as duplicate of [Similar Case ID]".
     *   Execute `common_steps/close_soar_artifact.md` with `${ARTIFACT_ID}` = `${CASE_ID}` (or `${ALERT_ID}`), `${ARTIFACT_TYPE}` = "Case" (or "Alert"), `${CLOSURE_REASON}` = "Duplicate", `${ROOT_CAUSE}` = "Consolidated Investigation", `${CLOSURE_COMMENT}` = "Duplicate of [Similar Case ID]".
     *   End runbook execution.
-5.  **Basic Enrichment:** Initialize `ENRICHMENT_RESULTS` structure. For each entity `Ei` in `KEY_ENTITIES`:
+5.  **Find Entity-Related Cases:**
+    *   Execute `common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS=KEY_ENTITIES` (list of entities from Step 2) and `CASE_STATUS_FILTER="Opened"`.
+    *   Obtain `${ENTITY_RELATED_CASES}` (list of potentially relevant open case summaries/IDs).
+6.  **Basic Enrichment:** Initialize `ENRICHMENT_RESULTS` structure. For each entity `Ei` in `KEY_ENTITIES`:
     *   Execute `common_steps/enrich_ioc.md` with `IOC_VALUE=Ei` and appropriate `IOC_TYPE`.
     *   Store results (`GTI_FINDINGS`, `SIEM_ENTITY_SUMMARY`, `SIEM_IOC_MATCH_STATUS`) in `ENRICHMENT_RESULTS[Ei]`.
-6.  **Initial Assessment:** Based on alert type, `ENRICHMENT_RESULTS`, and potential known benign patterns (referencing `.clinerules/common_benign_alerts.md` if available), make an initial assessment:
+7.  **Initial Assessment:** Based on alert type, `ENRICHMENT_RESULTS`, `${ENTITY_RELATED_CASES}`, and potential known benign patterns (referencing `.clinerules/common_benign_alerts.md` if available), make an initial assessment:
     *   False Positive (FP)
     *   Benign True Positive (BTP - expected/authorized activity)
     *   Requires Further Investigation (True Positive - TP or Suspicious)
-7.  **Action Based on Assessment:**
+8.  **Action Based on Assessment:**
     *   **If FP/BTP:**
         *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and comment explaining FP/BTP reason.
         *   Execute `common_steps/close_soar_artifact.md` with `${ARTIFACT_ID}` = `${CASE_ID}` (or `${ALERT_ID}`), `${ARTIFACT_TYPE}` = "Case" (or "Alert"), appropriate `${CLOSURE_REASON}`/`${ROOT_CAUSE}`, and `${CLOSURE_COMMENT}` = "Closed as FP/BTP during triage.".
@@ -50,6 +54,7 @@ sequenceDiagram
     participant Cline as Cline (MCP Client)
     participant SOAR as secops-soar
     participant CheckDuplicates as common_steps/check_duplicate_cases.md
+    participant FindCase as common_steps/find_relevant_soar_case.md
     participant EnrichIOC as common_steps/enrich_ioc.md
     participant DocumentInSOAR as common_steps/document_in_soar.md
     participant CloseArtifact as common_steps/close_soar_artifact.md
@@ -58,7 +63,7 @@ sequenceDiagram
 
     %% Step 2: Gather Initial Context
     Cline->>SOAR: get_case_full_details / list_alerts_by_case / list_events_by_alert
-    SOAR-->>Cline: Context (Entities E1, E2...)
+    SOAR-->>Cline: Context (KEY_ENTITIES: E1, E2...)
 
     %% Step 3: Check for Duplicates
     Cline->>CheckDuplicates: Execute(Input: CASE_ID)
@@ -73,16 +78,20 @@ sequenceDiagram
         Cline->>Analyst: End Triage (Duplicate)
     end
 
-    %% Step 5: Basic Enrichment
+    %% Step 5: Find Entity-Related Cases
+    Cline->>FindCase: Execute(Input: SEARCH_TERMS=KEY_ENTITIES, CASE_STATUS_FILTER="Opened")
+    FindCase-->>Cline: Results: ENTITY_RELATED_CASES
+
+    %% Step 6: Basic Enrichment
     loop For each Key Entity Ei
         Cline->>EnrichIOC: Execute(Input: IOC_VALUE=Ei, IOC_TYPE=...)
         EnrichIOC-->>Cline: Results: Enrichment Data for Ei
     end
 
-    %% Step 6: Initial Assessment
-    Note over Cline: Assess: FP / BTP / TP / Suspicious based on Context & Enrichment
+    %% Step 7: Initial Assessment
+    Note over Cline: Assess: FP / BTP / TP / Suspicious based on Context, Enrichment & ENTITY_RELATED_CASES
 
-    %% Step 7: Action Based on Assessment
+    %% Step 8: Action Based on Assessment
     alt FP / BTP
         Cline->>DocumentInSOAR: Execute(Input: CASE_ID, Comment="Closing as FP/BTP...")
         DocumentInSOAR-->>Cline: Status
