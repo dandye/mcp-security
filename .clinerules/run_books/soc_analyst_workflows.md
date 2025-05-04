@@ -24,7 +24,7 @@
 2.  **Initial Triage:** Assess alert severity and type. Refer to `.clinerules/run_books/triage_alerts.md`.
 3.  **Basic Enrichment:** Gather initial context on IOCs. Refer to `.clinerules/run_books/basic_ioc_enrichment.md`.
 4.  **Specific Alert Type Handling:** Follow dedicated runbooks for common types (e.g., `.clinerules/run_books/suspicious_login_triage.md`, `.clinerules/run_books/phishing_response.md`).
-5.  **Documentation:** Document findings in the SOAR case. Refer to `.clinerules/run_books/report_writing.md` guidelines.
+5.  **Documentation:** Document findings in the SOAR case. Refer to `.clinerules/run_books/guidelines/report_writing.md` guidelines.
 6.  **Escalation/Closure:** Escalate to Tier 2/3 or close as appropriate. Refer to `.clinerules/run_books/close_duplicate_or_similar_cases.md`.
 
 ```{mermaid}

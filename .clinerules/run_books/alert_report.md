@@ -40,9 +40,9 @@ This runbook covers gathering essential details about the alert(s), associated e
     *   Store enrichment summaries.
 5.  **(Optional) Search Related SIEM Activity:**
     *   *(Guidance: Consider performing this step if initial enrichment reveals highly critical IOCs or if the alert context is unclear).*
-    *   Perform limited `secops-mcp.search_security_events` queries around the alert timeframe for the most critical entities identified (e.g., the primary host or user) to find immediate related context beyond the specific alert events.
+        *   Perform limited `secops-mcp.search_security_events` queries around the alert timeframe for the most critical entities identified (e.g., the primary host or user) to find immediate related context beyond the specific alert events.
 6.  **Synthesize & Format Report:**
-    *   Create a Markdown report structure including (referencing `.clinerules/reporting_templates.md` and `.clinerules/runbook_guidelines.md`):
+    *   Create a Markdown report structure including (referencing `.clinerules/reporting_templates.md` and `.clinerules/run_books/guidelines/runbook_guidelines.md`):
         *   **Metadata:** Runbook Used, Timestamp, Case ID(s).
         *   **Case Summary:** Case ID, Name, Priority, Status (from `get_case_full_details`).
         *   **Alert(s) Summary:** List target Alert IDs, Names, Timestamps, Severities.
