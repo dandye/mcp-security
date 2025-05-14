@@ -21,11 +21,53 @@ import logging
 import os
 from typing import Any, Optional
 
+#from fastmcp import Context
+
 from mcp.server.fastmcp import FastMCP
 from secops import SecOpsClient
 
 # Initialize FastMCP server with a descriptive name
 server = FastMCP('Google Security Operations MCP server', log_level="ERROR")
+
+ACTIVE_PERSONA = None
+
+@server.resource("resource://greeting")
+def get_greeting() -> str:
+    """Provides a simple greeting message."""
+    return "Hello from FastMCP Resources!"
+
+@server.resource("resource://persona-active-get")
+async def persona_active_get() -> dict:
+    """Provides active persona information."""
+    if ACTIVE_PERSONA:
+        return {
+            "persona": ACTIVE_PERSONA,
+        }
+    else:
+        return {
+            "persona": "soc_analyst_tier1",
+        }
+
+@server.resource("resource://persona-active-set")
+async def persona_active_set(persona: str) -> dict:
+    """Sets the active persona."""
+    global ACTIVE_PERSONA
+    ACTIVE_PERSONA = persona
+    return {
+        "persona": ACTIVE_PERSONA,
+    }
+
+@server.resource("resource://personas-available-list")
+async def personas_available_list() -> dict:
+    """Provides available persona list information."""
+    return {
+        "personas": [
+            "soc_analyst_tier1",
+            "soc_analyst_tier2",
+            "soc_analyst_tier3",
+            "ciso",
+        ]
+    }
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -43,8 +85,8 @@ DEFAULT_REGION = os.environ.get('CHRONICLE_REGION', 'us')
 
 
 def get_chronicle_client(
-    project_id: Optional[str] = None, 
-    customer_id: Optional[str] = None, 
+    project_id: Optional[str] = None,
+    customer_id: Optional[str] = None,
     region: Optional[str] = None
 ) -> Any:
     """Initialize and return a Chronicle client.
@@ -91,4 +133,4 @@ def main() -> None:
 
 
 if __name__ == '__main__':
-    main() 
+    main()
