@@ -84,31 +84,32 @@ if readme_path.exists():
     )
     server.add_resource(readme_resource)
 
-readme_path = Path("../README.md").resolve()
-if readme_path.exists():
-    # Use a file:// URI scheme
-    readme_resource = FileResource(
-        uri=f"file://{readme_path.as_posix()}",
-        path=readme_path, # Path to the actual file
-        name="README File",
-        description="The project's README.",
-        mime_type="text/markdown",
-        tags={"documentation"}
-    )
-    server.add_resource(readme_resource)
+# Dynamically register all persona files
+personas_dir_path = Path("/Users/dandye/Projects/agentic_runbooks/clinerules-bank/personas/")
+if personas_dir_path.is_dir():
+    for persona_file_path in personas_dir_path.glob("*.md"):
+        if persona_file_path.name == "personas.md":  # Skip the general overview file
+            continue
 
-th_path = Path("/Users/dandye/Projects/agentic_runbooks/clinerules-bank/personas/threat_hunter.md").resolve()
-if th_path.exists():
-    # Use a file:// URI scheme
-    threat_hunter_resource = FileResource(
-        uri=f"file://{th_path.as_posix()}",
-        path=readme_path, # Path to the actual file
-        name="Threat Hunter Persona File",
-        description="The Persona File for Threat Hunter",
-        mime_type="text/markdown",
-        tags={"persona"}
-    )
-    server.add_resource(readme_resource)
+        resolved_persona_path = persona_file_path.resolve()
+        if resolved_persona_path.exists():
+            file_stem = persona_file_path.stem  # e.g., "ciso", "soc_analyst_tier_1"
+            # Create a more readable name from the file stem
+            persona_name_parts = file_stem.split('_')
+            formatted_persona_name = " ".join(part.capitalize() for part in persona_name_parts)
+
+            resource_name = f"{formatted_persona_name} Persona File"
+            resource_description = f"The Persona File for {formatted_persona_name}"
+
+            persona_resource = FileResource(
+                uri=f"file://{resolved_persona_path.as_posix()}",
+                path=resolved_persona_path,  # Correct path to the persona file
+                name=resource_name,
+                description=resource_description,
+                mime_type="text/markdown",
+                tags={"persona"}
+            )
+            server.add_resource(persona_resource)
 
 
 # Configure logging
