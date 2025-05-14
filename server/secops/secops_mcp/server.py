@@ -32,6 +32,96 @@ server = FastMCP('Google Security Operations MCP server', log_level="DEBUG")
 
 ACTIVE_PERSONA = None
 
+
+# Helper function and formatters for resource registration
+def format_persona_name(file_path: Path, _: Path) -> str:
+    file_stem = file_path.stem
+    persona_name_parts = file_stem.split('_')
+    formatted_persona_name = " ".join(part.capitalize() for part in persona_name_parts)
+    return f"{formatted_persona_name} Persona File"
+
+def format_persona_description(file_path: Path, _: Path) -> str:
+    file_stem = file_path.stem
+    persona_name_parts = file_stem.split('_')
+    formatted_persona_name = " ".join(part.capitalize() for part in persona_name_parts)
+    return f"The Persona File for {formatted_persona_name}"
+
+def format_runbook_name(file_path: Path, relative_to_dir: Path) -> str:
+    path_parts_for_name = file_path.relative_to(relative_to_dir).parent.parts
+    formatted_name_components = [part.replace("_", " ").capitalize() for part in path_parts_for_name]
+    file_stem_capitalized = file_path.stem.replace("_", " ").capitalize()
+
+    full_name_parts = formatted_name_components + [file_stem_capitalized]
+    # Filter out empty strings from parts (e.g. if a part was just '.')
+    # and ensure proper joining for cases with/without subdirs.
+    valid_parts = [part for part in full_name_parts if part and part != '.']
+    if not valid_parts: # Should not happen if file_stem_capitalized is always present
+        formatted_runbook_name = file_stem_capitalized
+    else:
+        formatted_runbook_name = " - ".join(valid_parts)
+    return f"{formatted_runbook_name} Runbook"
+
+def format_runbook_description(file_path: Path, relative_to_dir: Path) -> str:
+    path_parts_for_name = file_path.relative_to(relative_to_dir).parent.parts
+    formatted_name_components = [part.replace("_", " ").capitalize() for part in path_parts_for_name]
+    file_stem_capitalized = file_path.stem.replace("_", " ").capitalize()
+
+    valid_parts = [part for part in (formatted_name_components + [file_stem_capitalized]) if part and part != '.']
+    if not valid_parts:
+        core_name = file_stem_capitalized
+    else:
+        core_name = " - ".join(valid_parts)
+    return f"The Runbook for {core_name}"
+
+def format_report_name(file_path: Path, _: Path) -> str:
+    return f"Report: {file_path.name}"
+
+def format_report_description(file_path: Path, _: Path) -> str:
+    return f"Report file {file_path.name}"
+
+def _register_resources_from_directory(
+    server_instance: FastMCP,
+    directory_path: Path,
+    base_tag: str,
+    file_glob_pattern: str,
+    name_formatter,
+    description_formatter,
+    default_mime_type: str,
+    skip_file_names: Optional[list[str]] = None
+):
+    if not directory_path.is_dir():
+        logger.warning(f"Directory not found or not a directory: {directory_path}")
+        return
+
+    for file_path in directory_path.rglob(file_glob_pattern):
+        if skip_file_names and file_path.name in skip_file_names:
+            continue
+
+        resolved_path = file_path.resolve()
+        if not resolved_path.exists() or not resolved_path.is_file():
+            logger.warning(f"File not found or not a file: {resolved_path}")
+            continue
+
+        relative_subdirs = file_path.relative_to(directory_path).parent.parts
+        tags = [base_tag] + [part for part in relative_subdirs if part and part != '.']
+
+        resource_name = name_formatter(file_path, directory_path)
+        resource_description = description_formatter(file_path, directory_path)
+
+        # Ensure tags are strings and unique
+        final_tags = set(str(tag) for tag in tags)
+
+        resource = FileResource(
+            uri=f"file://{resolved_path.as_posix()}",
+            path=resolved_path,
+            name=resource_name,
+            description=resource_description,
+            mime_type=default_mime_type,
+            tags=final_tags
+        )
+        server_instance.add_resource(resource)
+        logger.debug(f"Registered resource: {resource_name} with tags {final_tags} from {resolved_path}")
+
 @server.resource("resource://greeting")
 def get_greeting() -> str:
     """Provides a simple greeting message."""
@@ -84,88 +174,56 @@ if readme_path.exists():
     )
     server.add_resource(readme_resource)
 
-# Dynamically register all persona files
-personas_dir_path = Path("/Users/dandye/Projects/agentic_runbooks/clinerules-bank/personas/")
-if personas_dir_path.is_dir():
-    for persona_file_path in personas_dir_path.glob("*.md"):
-        if persona_file_path.name == "personas.md":  # Skip the general overview file
-            continue
-
-        resolved_persona_path = persona_file_path.resolve()
-        if resolved_persona_path.exists():
-            file_stem = persona_file_path.stem  # e.g., "ciso", "soc_analyst_tier_1"
-            # Create a more readable name from the file stem
-            persona_name_parts = file_stem.split('_')
-            formatted_persona_name = " ".join(part.capitalize() for part in persona_name_parts)
-
-            resource_name = f"{formatted_persona_name} Persona File"
-            resource_description = f"The Persona File for {formatted_persona_name}"
-
-            persona_resource = FileResource(
-                uri=f"file://{resolved_persona_path.as_posix()}",
-                path=resolved_persona_path,  # Correct path to the persona file
-                name=resource_name,
-                description=resource_description,
-                mime_type="text/markdown",
-                tags={"persona"}
-            )
-            server.add_resource(persona_resource)
-
-# Dynamically register all runbook files
-runbooks_dir_path = Path("/Users/dandye/Projects/agentic_runbooks/clinerules-bank/run_books/")
-if runbooks_dir_path.is_dir():
-    for runbook_file_path in runbooks_dir_path.rglob("*.md"): # Use rglob for recursive search
-        resolved_runbook_path = runbook_file_path.resolve()
-        if resolved_runbook_path.exists():
-            # For runbooks, the name can be derived from the file path to ensure uniqueness and clarity
-            relative_path_parts = runbook_file_path.relative_to(runbooks_dir_path).parts
-            # Capitalize each part and join with " - " for readability, remove .md extension
-            formatted_runbook_name_parts = [part.replace("_", " ").capitalize() for part in relative_path_parts[:-1]]
-            file_stem_capitalized = runbook_file_path.stem.replace("_", " ").capitalize()
-            if formatted_runbook_name_parts:
-                 formatted_runbook_name = " - ".join(formatted_runbook_name_parts) + " - " + file_stem_capitalized
-            else:
-                 formatted_runbook_name = file_stem_capitalized
-
-            resource_name = f"{formatted_runbook_name} Runbook"
-            resource_description = f"The Runbook for {formatted_runbook_name}"
-            # ToDo: add IRP and common_step tags if they are in the path
-            runbook_resource = FileResource(
-                uri=f"file://{resolved_runbook_path.as_posix()}",
-                path=resolved_runbook_path,
-                name=resource_name,
-                description=resource_description,
-                mime_type="text/markdown",
-                tags={"runbook"}
-            )
-            server.add_resource(runbook_resource)
-
-# Dynamically register all report files
-reports_dir_path = Path("/Users/dandye/Projects/agentic_runbooks/reports/")
-if reports_dir_path.is_dir():
-    for report_file_path in reports_dir_path.rglob("*.*"): # Use rglob for recursive search, accept any extension
-        resolved_report_path = report_file_path.resolve()
-        if resolved_report_path.exists() and resolved_report_path.is_file():
-            # For reports, the name can be derived from the file name
-            report_name = report_file_path.name
-
-            resource_name = f"Report File"
-            resource_description = f"Report file {report_name}"
-
-            report_resource = FileResource(
-                uri=f"file://{resolved_report_path.as_posix()}",
-                path=resolved_report_path,
-                name=resource_name,
-                description=resource_description,
-                mime_type="application/octet-stream", # Generic MIME type, can be refined if needed
-                tags={"report"}
-            )
-            server.add_resource(report_resource)
-
-
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.DEBUG,
+    filename='secops_mcp.log',
+    filemode='a',
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger('secops-mcp')
+# Ensure this logger also respects the DEBUG level set for the basicConfig
+logger.setLevel(logging.DEBUG)
+
+# Base path for clinerules-bank and reports
+agentic_runbooks_base_path = Path("/Users/dandye/Projects/agentic_runbooks/")
+
+# Register Persona Files
+personas_dir = agentic_runbooks_base_path / "clinerules-bank" / "personas"
+_register_resources_from_directory(
+    server_instance=server,
+    directory_path=personas_dir,
+    base_tag="persona",
+    file_glob_pattern="*.md",
+    name_formatter=format_persona_name,
+    description_formatter=format_persona_description,
+    default_mime_type="text/markdown",
+    skip_file_names=["personas.md"]
+)
+
+# Register Runbook Files
+runbooks_dir = agentic_runbooks_base_path / "clinerules-bank" / "run_books"
+_register_resources_from_directory(
+    server_instance=server,
+    directory_path=runbooks_dir,
+    base_tag="runbook",
+    file_glob_pattern="*.md",
+    name_formatter=format_runbook_name,
+    description_formatter=format_runbook_description,
+    default_mime_type="text/markdown"
+)
+
+# Register Report Files
+reports_dir = agentic_runbooks_base_path / "reports"
+_register_resources_from_directory(
+    server_instance=server,
+    directory_path=reports_dir,
+    base_tag="report",
+    file_glob_pattern="*.*", # All files
+    name_formatter=format_report_name,
+    description_formatter=format_report_description,
+    default_mime_type="application/octet-stream" # Generic, can be improved with mimetypes lib if needed
+)
 
 # Constants
 USER_AGENT = 'secops-app/1.0'
