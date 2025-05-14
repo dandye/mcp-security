@@ -19,15 +19,16 @@ security operations tasks using Chronicle, including natural language search.
 
 import logging
 import os
+from pathlib import Path
 from typing import Any, Optional
 
 #from fastmcp import Context
-
+from mcp.server.fastmcp.resources import FileResource
 from mcp.server.fastmcp import FastMCP
 from secops import SecOpsClient
 
 # Initialize FastMCP server with a descriptive name
-server = FastMCP('Google Security Operations MCP server', log_level="ERROR")
+server = FastMCP('Google Security Operations MCP server', log_level="DEBUG")
 
 ACTIVE_PERSONA = None
 
@@ -48,14 +49,14 @@ async def persona_active_get() -> dict:
             "persona": "soc_analyst_tier1",
         }
 
-@server.resource("resource://persona-active-set")
-async def persona_active_set(persona: str) -> dict:
-    """Sets the active persona."""
-    global ACTIVE_PERSONA
-    ACTIVE_PERSONA = persona
-    return {
-        "persona": ACTIVE_PERSONA,
-    }
+#@server.resource("resource://persona-active-set")
+#async def persona_active_set(persona: str) -> dict:
+#    """Sets the active persona."""
+#    global ACTIVE_PERSONA
+#    ACTIVE_PERSONA = persona
+#    return {
+#        "persona": ACTIVE_PERSONA,
+#    }
 
 @server.resource("resource://personas-available-list")
 async def personas_available_list() -> dict:
@@ -68,6 +69,47 @@ async def personas_available_list() -> dict:
             "ciso",
         ]
     }
+
+# 1. Exposing a static file directly
+readme_path = Path("../README.md").resolve()
+if readme_path.exists():
+    # Use a file:// URI scheme
+    readme_resource = FileResource(
+        uri=f"file://{readme_path.as_posix()}",
+        path=readme_path, # Path to the actual file
+        name="README File",
+        description="The project's README.",
+        mime_type="text/markdown",
+        tags={"documentation"}
+    )
+    server.add_resource(readme_resource)
+
+readme_path = Path("../README.md").resolve()
+if readme_path.exists():
+    # Use a file:// URI scheme
+    readme_resource = FileResource(
+        uri=f"file://{readme_path.as_posix()}",
+        path=readme_path, # Path to the actual file
+        name="README File",
+        description="The project's README.",
+        mime_type="text/markdown",
+        tags={"documentation"}
+    )
+    server.add_resource(readme_resource)
+
+th_path = Path("/Users/dandye/Projects/agentic_runbooks/clinerules-bank/personas/threat_hunter.md").resolve()
+if th_path.exists():
+    # Use a file:// URI scheme
+    threat_hunter_resource = FileResource(
+        uri=f"file://{th_path.as_posix()}",
+        path=readme_path, # Path to the actual file
+        name="Threat Hunter Persona File",
+        description="The Persona File for Threat Hunter",
+        mime_type="text/markdown",
+        tags={"persona"}
+    )
+    server.add_resource(readme_resource)
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
