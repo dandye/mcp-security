@@ -111,6 +111,57 @@ if personas_dir_path.is_dir():
             )
             server.add_resource(persona_resource)
 
+# Dynamically register all runbook files
+runbooks_dir_path = Path("/Users/dandye/Projects/agentic_runbooks/clinerules-bank/run_books/")
+if runbooks_dir_path.is_dir():
+    for runbook_file_path in runbooks_dir_path.rglob("*.md"): # Use rglob for recursive search
+        resolved_runbook_path = runbook_file_path.resolve()
+        if resolved_runbook_path.exists():
+            # For runbooks, the name can be derived from the file path to ensure uniqueness and clarity
+            relative_path_parts = runbook_file_path.relative_to(runbooks_dir_path).parts
+            # Capitalize each part and join with " - " for readability, remove .md extension
+            formatted_runbook_name_parts = [part.replace("_", " ").capitalize() for part in relative_path_parts[:-1]]
+            file_stem_capitalized = runbook_file_path.stem.replace("_", " ").capitalize()
+            if formatted_runbook_name_parts:
+                 formatted_runbook_name = " - ".join(formatted_runbook_name_parts) + " - " + file_stem_capitalized
+            else:
+                 formatted_runbook_name = file_stem_capitalized
+
+            resource_name = f"{formatted_runbook_name} Runbook"
+            resource_description = f"The Runbook for {formatted_runbook_name}"
+            # ToDo: add IRP and common_step tags if they are in the path
+            runbook_resource = FileResource(
+                uri=f"file://{resolved_runbook_path.as_posix()}",
+                path=resolved_runbook_path,
+                name=resource_name,
+                description=resource_description,
+                mime_type="text/markdown",
+                tags={"runbook"}
+            )
+            server.add_resource(runbook_resource)
+
+# Dynamically register all report files
+reports_dir_path = Path("/Users/dandye/Projects/agentic_runbooks/reports/")
+if reports_dir_path.is_dir():
+    for report_file_path in reports_dir_path.rglob("*.*"): # Use rglob for recursive search, accept any extension
+        resolved_report_path = report_file_path.resolve()
+        if resolved_report_path.exists() and resolved_report_path.is_file():
+            # For reports, the name can be derived from the file name
+            report_name = report_file_path.name
+
+            resource_name = f"Report File"
+            resource_description = f"Report file {report_name}"
+
+            report_resource = FileResource(
+                uri=f"file://{resolved_report_path.as_posix()}",
+                path=resolved_report_path,
+                name=resource_name,
+                description=resource_description,
+                mime_type="application/octet-stream", # Generic MIME type, can be refined if needed
+                tags={"report"}
+            )
+            server.add_resource(report_resource)
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
