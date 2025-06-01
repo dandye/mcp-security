@@ -26,6 +26,10 @@ class Endpoints:
     BASE_SPECIFIC_CASE_URL = BASE_CASE_URL + "/{CASE_ID}"
     BASE_CASE_COMMENTS_URL = BASE_SPECIFIC_CASE_URL + "/comments"
     BASE_ALERT_URL = "/api/1p/external/v1.0/cases/{CASE_ID}/alerts"
+
+    # Returns a list of the case close root cause configured in the system.
+    CASE_ROOT_CAUSE_LIST = "/api/external/v1/settings/GetRootCauseCloseRecords"
+
     LIST_ALERT_GROUP_IDENTIFIERS_BY_CASE = (
         BASE_ALERT_URL + "?$select=alertGroupIdentifier"
     )
