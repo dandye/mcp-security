@@ -6,9 +6,10 @@ This guide provides instructions on how to run and deploy the prebuilt ADK (Agen
 
 1.  [Quick Start: Deploy to Cloud Run](#1-quick-start-deploy-to-cloud-run)
 2.  [Quick Start: Deploy to AgentSpace (via Agent Engine)](#2-quick-start-deploy-to-agentspace-via-agent-engine)
-3.  [Detailed Local Setup Guide](#3-detailed-local-setup-guide)
-4.  [Makefile Commands Reference](#4-makefile-commands-reference)
-5.  [Advanced Topics](#5-advanced-topics)
+3.  [Local Development Workflow](#3-local-development-workflow)
+4.  [Detailed Local Setup Guide](#4-detailed-local-setup-guide)
+5.  [Makefile Commands Reference](#5-makefile-commands-reference)
+6.  [Advanced Topics](#6-advanced-topics)
     - [Improving Performance and Optimizing Costs](#improving-performance-and-optimizing-costs)
     - [Integrating Custom MCP Servers](#integrating-custom-mcp-servers)
     - [Additional Features](#additional-features)
@@ -92,7 +93,42 @@ This path is for users who want to integrate the agent with the full AgentSpace 
 
 ---
 
-## 3. Detailed Local Setup Guide
+## 3. Local Development Workflow
+
+For active development with rapid iteration and testing, use the modern development workflow with auto-reload capabilities.
+
+### Quick Start for Development
+
+```bash
+# Set up development environment (one-time)
+make local-dev-setup
+
+# Run development server with auto-reload
+make local-dev-run
+```
+
+Access the development interface at `http://localhost:8080`.
+
+### Development Features
+
+- **Auto-reload**: Changes to code automatically restart the server
+- **FastAPI/Uvicorn**: Modern web framework with better debugging
+- **Virtual environment checks**: Ensures clean dependency management
+- **Separated dev dependencies**: Development tools don't interfere with production
+
+### Complete Development Cycle
+
+For a comprehensive guide covering the full development-to-deployment workflow, see the [Development Workflow Guide](../docs/run_with_google_adk/development_workflow.md).
+
+The guide covers:
+- Initial setup and environment configuration
+- Local development with auto-reload
+- Testing strategies (local → Cloud Run → AgentSpace)
+- Best practices and troubleshooting
+
+---
+
+## 4. Detailed Local Setup Guide
 
 For development purposes, you can run the agent entirely on your local machine.
 
@@ -133,7 +169,7 @@ You can now access the agent's web interface at `http://localhost:8000`.
 
 ---
 
-## 4. Makefile Commands Reference
+## 5. Makefile Commands Reference
 
 This project uses a `Makefile` to simplify common operations. Run `make help` to see all available commands.
 
@@ -169,7 +205,7 @@ This project uses a `Makefile` to simplify common operations. Run `make help` to
 
 ---
 
-## 5. Advanced Topics
+## 6. Advanced Topics
 
 ### Improving Performance and Optimizing Costs
 You can control the number of previous interactions sent to the LLM by setting the `MAX_PREV_USER_INTERACTIONS` variable in your `.env` file. A lower number (default is 3) reduces context size, which can improve performance and lower costs.

@@ -31,3 +31,9 @@ This project uses a `Makefile` to simplify common operations. Run `make help` to
 - `make cloudrun-test`: Test the deployed Cloud Run service.
 - `make cloudrun-logs`: View logs for the Cloud Run service.
 - `make cloudrun-url`: Get the URL for the Cloud Run service.
+
+### Local Development
+- `make local-dev-setup`: Set up development environment (venv check, install deps).
+- `make local-dev-run`: Run uvicorn app locally for development with auto-reload.
+- `make local-podman-build`: Build the local Podman image.
+- `make local-podman-run`: Run the local Podman container.

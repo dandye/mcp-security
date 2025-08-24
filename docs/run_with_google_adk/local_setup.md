@@ -32,7 +32,41 @@ cp agents/google_mcp_security_agent/.env.template agents/google_mcp_security_age
 # Authenticate for Google Cloud APIs
 gcloud auth application-default login
 
-# Run the agent with the ADK Web UI
+# Option 1: Run with the new development server (recommended for development)
+make local-dev-run
+# This will:
+# - Check your virtual environment
+# - Install development dependencies
+# - Run uvicorn with auto-reload at http://localhost:8080
+
+# Option 2: Run the agent with the ADK Web UI (legacy approach)
 ./scripts/run-adk-agent.sh adk_web
 ```
-You can now access the agent's web interface at `http://localhost:8000`.
+
+## Development Options
+
+### Option 1: Modern Development Server (Recommended)
+The new development workflow uses FastAPI/Uvicorn with auto-reload for better development experience:
+
+```bash
+# Set up development environment (one-time setup)
+make local-dev-setup
+
+# Run the development server with auto-reload
+make local-dev-run
+```
+
+- **URL**: `http://localhost:8080`
+- **Features**: Auto-reload on file changes, better error handling
+- **Best for**: Active development and debugging
+
+### Option 2: Legacy ADK Web UI
+The original approach using ADK's built-in web server:
+
+```bash
+./scripts/run-adk-agent.sh adk_web
+```
+
+- **URL**: `http://localhost:8000`  
+- **Features**: Standard ADK web interface
+- **Best for**: Quick testing without modifications
