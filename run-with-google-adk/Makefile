@@ -20,7 +20,7 @@ MANAGE_AGENTS := $(PYTHON) scripts/manage_agents.py
 ENV_FILE_PATH := agents/google_mcp_security_agent/.env
 ENV_MANAGER := $(PYTHON) scripts/env_manager.py
 
-.PHONY: help env-setup env-check env-update config-show oauth-client oauth-uri oauth-link oauth-verify oauth-setup docs agents-list agents-delete multi-agent-setup multi-agent-run multi-agent-web cookiecutter-setup cookiecutter-run cookiecutter-new-agent adk-deploy adk-redeploy agentspace-register agentspace-update agentspace-verify agentspace-delete agentspace-url cloudrun-deploy cloudrun-run cloudrun-test cloudrun-logs cloudrun-url cloudrun-delete gcloud-proxy test-agent
+.PHONY: help env-setup env-check env-update config-show oauth-client oauth-uri oauth-link oauth-verify oauth-setup docs agents-list agents-delete multi-agent-setup multi-agent-run multi-agent-web cookiecutter-setup cookiecutter-run cookiecutter-new-agent adk-deploy adk-redeploy agentspace-register agentspace-update agentspace-verify agentspace-delete agentspace-url cloudrun-deploy cloudrun-run cloudrun-test cloudrun-logs cloudrun-url cloudrun-delete gcloud-proxy test-agent podman-build-local podman-run-local
 
 # Put it first so that "make" without argument is like "make help".
 help:
@@ -75,6 +75,10 @@ help:
 	@echo "  cookiecutter-run - Run the cookiecutter web builder"
 	@echo "  cookiecutter-new-agent - Create new agent from template"
 	@echo ""
+	@echo "Local Development:"
+	@echo "  podman-build-local - Build the local Podman image"
+	@echo "  podman-run-local   - Run the local Podman container"
+	@echo ""
 	@echo "Environment variables from .env will be automatically loaded."
 	@echo ""
 	@echo "Examples:"
@@ -88,6 +92,8 @@ help:
 	@echo "  make agentspace-register"
 	@echo "  make agentspace-verify"
 	@echo "  make agentspace-url"
+	@echo "  make podman-build-local"
+	@echo "  make podman-run-local"
 
 # Environment Management targets
 env-setup:
@@ -297,6 +303,13 @@ adk-deploy:
 	echo "  STAGING_BUCKET: $$BUCKET_TO_USE"; \
 	echo "  AGENT_DIR: $(AGENT_DIR)"; \
 	echo ""; \
+	echo "Verifying staging bucket..."; \
+	if [ -n "$$BUCKET_TO_USE" ]; then \
+		$(PYTHON) scripts/bucket_manager.py verify --bucket "$$BUCKET_TO_USE" --env-file $(ENV_FILE_PATH) || exit 1; \
+	else \
+		$(PYTHON) scripts/bucket_manager.py verify --env-file $(ENV_FILE_PATH) || exit 1; \
+	fi; \
+	echo ""; \
 	echo "Deploying agent to Agent Engine..."; \
 	adk deploy agent_engine \
 		--project $(PROJECT) \
@@ -319,12 +332,27 @@ adk-deploy:
 	@echo "3. Test the agent: make test-agent"
 	@echo "4. Register with AgentSpace: make agentspace-register"
 
+# Bucket management targets
+BUCKET_MANAGER := $(PYTHON) scripts/bucket_manager.py
+
+bucket-check:
+	@echo "Checking GCS staging bucket..."
+	@$(BUCKET_MANAGER) check --env-file $(ENV_FILE_PATH)
+
+bucket-verify:
+	@echo "Verifying GCS staging bucket..."
+	@$(BUCKET_MANAGER) verify --env-file $(ENV_FILE_PATH)
+
+bucket-create:
+	@echo "Creating GCS staging bucket..."
+	@$(BUCKET_MANAGER) create --env-file $(ENV_FILE_PATH)
+
 # AgentSpace management targets
 AGENTSPACE_MANAGER := $(PYTHON) scripts/agentspace_manager.py
 
 agentspace-register: env-validate-agentspace
 	@echo "Registering agent with AgentSpace..."
-	@$(AGENTSPACE_MANAGER) register --env-file $(ENV_FILE_PATH) $(if $(FORCE),--force)
+	@$(AGENTSPACE_MANAGER) register --force --env-file $(ENV_FILE_PATH) $(if $(FORCE),--force)
 
 agentspace-update: env-validate-agentspace
 	@echo "Updating AgentSpace registration..."
@@ -463,20 +491,32 @@ endif
 	@echo "Running test_deployed_agent.py..."
 	@AGENT_ENGINE_RESOURCE="$(RESOURCE)" $(PYTHON) scripts/test_deployed_agent.py "$(MSG)"
 
+# Local Development targets
+podman-build-local:
+	@echo "Building local Podman image..."
+	@podman build -t google-adk-app-local -f run-with-google-adk/Dockerfile.local .
+
+podman-run-local:
+	@echo "Running local Podman container..."
+	@./run-with-google-adk/scripts/run_local_podman.sh
+
 # Combined workflow targets
 
 deploy: env-check
 	@echo "Choose deployment target:"
 	@echo "1. Agent Engine (Vertex AI)"
 	@echo "2. Cloud Run"
+	@echo "3. Local Podman"
 	@echo ""
-	@read -p "Enter choice (1 or 2): " choice; \
+	@read -p "Enter choice (1, 2, or 3): " choice; \
 	if [ "$$choice" = "1" ]; then \
 		$(MAKE) adk-deploy; \
 	elif [ "$$choice" = "2" ]; then \
 		$(MAKE) cloudrun-deploy; \
+	elif [ "$$choice" = "3" ]; then \
+		$(MAKE) podman-run-local; \
 	else \
-		echo "Invalid choice. Use 'make adk-deploy' or 'make cloudrun-deploy'"; \
+		echo "Invalid choice. Use 'make adk-deploy', 'make cloudrun-deploy', or 'make podman-run-local'"; \
 		exit 1; \
 	fi
 

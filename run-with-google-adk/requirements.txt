@@ -1,4 +1,4 @@
-google-cloud-aiplatform==1.97.0
+google-cloud-aiplatform==1.101.0
 markdown
 uv
 google-adk[eval]>=1.5.0,<1.6.0
