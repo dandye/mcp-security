@@ -20,7 +20,7 @@ MANAGE_AGENTS := $(PYTHON) scripts/manage_agents.py
 ENV_FILE_PATH := agents/google_mcp_security_agent/.env
 ENV_MANAGER := $(PYTHON) scripts/env_manager.py
 
-.PHONY: help env-setup env-check env-update config-show oauth-client oauth-uri oauth-link oauth-verify oauth-setup docs agents-list agents-delete multi-agent-setup multi-agent-run multi-agent-web cookiecutter-setup cookiecutter-run cookiecutter-new-agent adk-deploy adk-redeploy agentspace-register agentspace-update agentspace-verify agentspace-delete agentspace-url cloudrun-deploy cloudrun-run cloudrun-test cloudrun-logs cloudrun-url cloudrun-delete gcloud-proxy test-agent podman-build-local podman-run-local
+.PHONY: help env-setup env-check env-update config-show oauth-client oauth-uri oauth-link oauth-verify oauth-setup docs agents-list agents-delete multi-agent-setup multi-agent-run multi-agent-web cookiecutter-setup cookiecutter-run cookiecutter-new-agent adk-deploy adk-redeploy agentspace-register agentspace-update agentspace-verify agentspace-delete agentspace-url cloudrun-deploy cloudrun-run cloudrun-test cloudrun-logs cloudrun-url cloudrun-delete gcloud-proxy test-agent podman-build-local podman-run-local dev-setup local-dev-run
 
 # Put it first so that "make" without argument is like "make help".
 help:
@@ -76,6 +76,8 @@ help:
 	@echo "  cookiecutter-new-agent - Create new agent from template"
 	@echo ""
 	@echo "Local Development:"
+	@echo "  dev-setup          - Set up development environment (venv check, install deps)"
+	@echo "  local-dev-run      - Run uvicorn app locally for development"
 	@echo "  podman-build-local - Build the local Podman image"
 	@echo "  podman-run-local   - Run the local Podman container"
 	@echo ""
@@ -499,6 +501,49 @@ podman-build-local:
 podman-run-local:
 	@echo "Running local Podman container..."
 	@./run-with-google-adk/scripts/run_local_podman.sh
+
+# Development setup target
+dev-setup:
+	@echo "Setting up development environment..."
+	@# Check if virtual environment is active
+	@if [ -z "$$VIRTUAL_ENV" ]; then \
+		echo "Warning: No virtual environment detected."; \
+		echo "Consider activating a virtual environment first:"; \
+		echo "  python -m venv .venv && source .venv/bin/activate"; \
+		echo ""; \
+		read -p "Continue anyway? (y/N) " confirm; \
+		if [ "$$confirm" != "y" ] && [ "$$confirm" != "Y" ]; then \
+			echo "Aborted. Please activate a virtual environment and try again."; \
+			exit 1; \
+		fi; \
+	else \
+		echo "Using virtual environment: $$VIRTUAL_ENV"; \
+	fi
+	@echo "Installing development dependencies..."
+	@pip install -r requirements-dev.txt
+	@echo "✓ Development environment ready"
+
+local-dev-run: dev-setup env-check
+	@echo "Starting local development server with uvicorn..."
+	@echo "Environment: Development"
+	@echo "Host: localhost"
+	@echo "Port: 8080"
+	@echo "URL: http://localhost:8080"
+	@echo ""
+	@# Check if required directories exist
+	@if [ ! -d "ui" ]; then \
+		echo "Error: ui directory not found"; \
+		exit 1; \
+	fi
+	@if [ ! -d "agents/google_mcp_security_agent" ]; then \
+		echo "Error: agents/google_mcp_security_agent directory not found"; \
+		exit 1; \
+	fi
+	@# Set PYTHONPATH to include required directories
+	@echo "Setting PYTHONPATH..."
+	@export PYTHONPATH="$$PWD/agents:$$PWD/libs:$$PYTHONPATH" && \
+	cd ui && \
+	uvicorn main:app --host localhost --port 8080 --reload
 
 # Combined workflow targets
 
