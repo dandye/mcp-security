@@ -395,6 +395,12 @@ cloudrun-run: env-check
 	@echo "Running Cloud Run service locally..."
 	@cd .. && bash ./run-with-google-adk/scripts/cloudrun_deploy_run.sh run
 
+# Simplified Cloud Run deployment using Podman-built image
+cloudrun-deploy-podman: env-check
+	@echo "Deploying to Cloud Run using Podman-built image..."
+	@echo "This uses the image built with 'make local-podman-build'"
+	@./scripts/cloudrun_deploy_podman.sh
+
 cloudrun-test:
 	@echo "Testing Cloud Run service..."
 	$(eval PROJECT := $(or $(PROJECT),$(GOOGLE_CLOUD_PROJECT)))
@@ -502,7 +508,7 @@ local-podman-build:
 
 local-podman-run:
 	@echo "Running local Podman container..."
-	@./run-with-google-adk/scripts/run_local_podman.sh
+	@cd .. && run-with-google-adk/scripts/run_local_podman.sh
 
 local-dev-setup:
 	@echo "Setting up development environment..."
