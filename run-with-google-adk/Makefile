@@ -1,7 +1,7 @@
 # Makefile for ADK Runbooks project
 #
 
-# Environment file is now loaded by the env_manager.py script
+# Environment manager script for validation and configuration
 
 # Python executable (use activated venv if available)
 PYTHON := python3
@@ -20,7 +20,7 @@ MANAGE_AGENTS := $(PYTHON) scripts/manage_agents.py
 ENV_FILE_PATH := agents/google_mcp_security_agent/.env
 ENV_MANAGER := $(PYTHON) scripts/env_manager.py
 
-.PHONY: help env-setup env-check env-update config-show oauth-client oauth-uri oauth-link oauth-verify oauth-setup docs agents-list agents-delete multi-agent-setup multi-agent-run multi-agent-web cookiecutter-setup cookiecutter-run cookiecutter-new-agent adk-deploy adk-redeploy agentspace-register agentspace-update agentspace-verify agentspace-delete agentspace-url cloudrun-deploy cloudrun-run cloudrun-test cloudrun-logs cloudrun-url cloudrun-delete gcloud-proxy test-agent podman-build-local podman-run-local dev-setup local-dev-run
+.PHONY: help env-setup env-check env-update config-show oauth-client oauth-uri oauth-link oauth-verify oauth-setup docs agents-list agents-delete multi-agent-setup multi-agent-run multi-agent-web cookiecutter-setup cookiecutter-run cookiecutter-new-agent adk-deploy adk-redeploy agentspace-register agentspace-update agentspace-verify agentspace-delete agentspace-url cloudrun-deploy cloudrun-run cloudrun-test cloudrun-logs cloudrun-url cloudrun-delete gcloud-proxy test-agent local-dev-run local-dev-setup local-podman-build local-podman-run
 
 # Put it first so that "make" without argument is like "make help".
 help:
@@ -76,10 +76,10 @@ help:
 	@echo "  cookiecutter-new-agent - Create new agent from template"
 	@echo ""
 	@echo "Local Development:"
-	@echo "  dev-setup          - Set up development environment (venv check, install deps)"
 	@echo "  local-dev-run      - Run uvicorn app locally for development"
-	@echo "  podman-build-local - Build the local Podman image"
-	@echo "  podman-run-local   - Run the local Podman container"
+	@echo "  local-dev-setup    - Set up development environment (venv check, install deps)"
+	@echo "  local-podman-build - Build the local Podman image"
+	@echo "  local-podman-run   - Run the local Podman container"
 	@echo ""
 	@echo "Environment variables from .env will be automatically loaded."
 	@echo ""
@@ -94,13 +94,15 @@ help:
 	@echo "  make agentspace-register"
 	@echo "  make agentspace-verify"
 	@echo "  make agentspace-url"
-	@echo "  make podman-build-local"
-	@echo "  make podman-run-local"
+	@echo "  make local-podman-build"
+	@echo "  make local-podman-run"
 
 # Environment Management targets
 env-setup:
-	@echo "Creating .env file from example..."
-	@if [ -f "agents/google_mcp_security_agent/.env.example" ]; then \
+	@if [ -f "agents/google_mcp_security_agent/.env" ]; then \
+		echo ".env file already exists. Skipping creation."; \
+	elif [ -f "agents/google_mcp_security_agent/.env.example" ]; then \
+		echo "Creating .env file from example..."; \
 		cp agents/google_mcp_security_agent/.env.example agents/google_mcp_security_agent/.env; \
 		echo "✓ .env file created successfully."; \
 		echo "Please review and update the values in agents/google_mcp_security_agent/.env"; \
@@ -493,17 +495,16 @@ endif
 	@echo "Running test_deployed_agent.py..."
 	@AGENT_ENGINE_RESOURCE="$(RESOURCE)" $(PYTHON) scripts/test_deployed_agent.py "$(MSG)"
 
-# Local Development targets
-podman-build-local:
+# Local development targets
+local-podman-build:
 	@echo "Building local Podman image..."
 	@podman build -t google-adk-app-local -f run-with-google-adk/Dockerfile.local .
 
-podman-run-local:
+local-podman-run:
 	@echo "Running local Podman container..."
 	@./run-with-google-adk/scripts/run_local_podman.sh
 
-# Development setup target
-dev-setup:
+local-dev-setup:
 	@echo "Setting up development environment..."
 	@# Check if virtual environment is active
 	@if [ -z "$$VIRTUAL_ENV" ]; then \
@@ -523,7 +524,7 @@ dev-setup:
 	@pip install -r requirements-dev.txt
 	@echo "✓ Development environment ready"
 
-local-dev-run: dev-setup env-check
+local-dev-run: local-dev-setup env-check
 	@echo "Starting local development server with uvicorn..."
 	@echo "Environment: Development"
 	@echo "Host: localhost"
@@ -559,9 +560,9 @@ deploy: env-check
 	elif [ "$$choice" = "2" ]; then \
 		$(MAKE) cloudrun-deploy; \
 	elif [ "$$choice" = "3" ]; then \
-		$(MAKE) podman-run-local; \
+		$(MAKE) local-podman-run; \
 	else \
-		echo "Invalid choice. Use 'make adk-deploy', 'make cloudrun-deploy', or 'make podman-run-local'"; \
+		echo "Invalid choice. Use 'make adk-deploy', 'make cloudrun-deploy', or 'make local-podman-run'"; \
 		exit 1; \
 	fi
 

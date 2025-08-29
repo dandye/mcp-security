@@ -6,11 +6,9 @@ This script manages environment variables for the Google MCP Security Agent,
 including validation, template generation, and configuration display.
 """
 
-import os
-import sys
 import uuid
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import typer
 from typing_extensions import Annotated
@@ -71,7 +69,8 @@ class EnvManager:
             env_file: Path to the environment file.
         """
         self.env_file = Path(env_file)
-        print(f"DEBUG: Loading env file from: {self.env_file.resolve()}")
+        # Keep track of which variables came from the .env file
+        self.env_file_vars = set()
         self.env_vars = self._load_env()
 
     def _is_uuid(self, value: str) -> bool:
@@ -83,8 +82,8 @@ class EnvManager:
             return False
 
     def _load_env(self) -> Dict[str, str]:
-        """Load environment variables from file and system environment."""
-        env_vars = dict(os.environ)
+        """Load environment variables from .env file only."""
+        env_vars = {}
 
         if self.env_file.exists():
             with open(self.env_file, "r") as f:
@@ -96,7 +95,10 @@ class EnvManager:
                             value = value[1:-1]
                         elif value.startswith('"') and value.endswith('"'):
                             value = value[1:-1]
-                        env_vars[key.strip()] = value.strip()
+                        key = key.strip()
+                        env_vars[key] = value.strip()
+                        # Track which variables came from the .env file
+                        self.env_file_vars.add(key)
         return env_vars
 
     def validate(self, deployment_type: str = "base") -> Tuple[bool, List[str]]:
@@ -224,6 +226,8 @@ class EnvManager:
     def update_env(self, key: str, value: str) -> None:
         """Update a single environment variable in the .env file."""
         self.env_vars[key] = value
+        # Track this variable as belonging to the .env file
+        self.env_file_vars.add(key)
         self._save_env()
         typer.echo(f"✓ Updated {key}")
 
@@ -238,7 +242,7 @@ class EnvManager:
             stripped = line.strip()
             if stripped and not stripped.startswith("#") and "=" in stripped:
                 line_key = stripped.split("=", 1)[0].strip()
-                if line_key in self.env_vars:
+                if line_key in self.env_vars and line_key in self.env_file_vars:
                     if line_key == "DEFAULT_PROMPT":
                         new_lines.append(f"{line_key}='{self.env_vars[line_key]}'")
                     else:
@@ -249,8 +253,10 @@ class EnvManager:
             else:
                 new_lines.append(line)
 
-        for key, value in self.env_vars.items():
-            if key not in updated_keys and not key.startswith("_") and key.isupper():
+        # Only add new variables that should be in the .env file
+        for key in self.env_file_vars:
+            if key not in updated_keys and key in self.env_vars:
+                value = self.env_vars[key]
                 if key == "DEFAULT_PROMPT":
                     new_lines.append(f"\n{key}='{value}'")
                 else:
