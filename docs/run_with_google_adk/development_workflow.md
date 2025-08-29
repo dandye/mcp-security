@@ -287,11 +287,8 @@ This command:
 # Open containerized app in browser
 open http://localhost:8080
 
-# Test health endpoint
-curl -f http://localhost:8080/health || echo "Health check failed"
-
-# Test authentication inside container
-podman exec -it $(podman ps -q) python test_chronicle_auth.py --auth-mode=container --verbose
+# The web interface should load and you can test MCP tools through it
+# to validate that authentication is working correctly
 ```
 
 #### Container Authentication Testing
@@ -309,12 +306,11 @@ gcloud auth application-default login \
 make local-podman-build
 make local-podman-run
 
-# Validate authentication inside running container
-# Container mode expects pre-configured environment from container runtime
-podman exec -it $(podman ps -q) python test_chronicle_auth.py --auth-mode=container
+# Verify the container is running
+podman ps
 
-# You can also test specific auth modes inside the container
-podman exec -it $(podman ps -q) python test_chronicle_auth.py --auth-mode=adc
+# Check container logs if needed
+podman logs $(podman ps -q)
 ```
 
 ### Container Testing Checklist
@@ -322,9 +318,9 @@ podman exec -it $(podman ps -q) python test_chronicle_auth.py --auth-mode=adc
 - [ ] Container builds successfully
 - [ ] Container starts without errors
 - [ ] Application accessible on http://localhost:8080
-- [ ] Health endpoint returns success
-- [ ] Authentication test passes inside container
-- [ ] All MCP tools are accessible
+- [ ] Web interface loads properly
+- [ ] MCP tools are functional through the web interface
+- [ ] Authentication works (test by using MCP tools)
 - [ ] Error handling works correctly
 - [ ] Performance is acceptable
 
@@ -472,8 +468,8 @@ make agentspace-url
 **Before Cloud Deployment:**
 - Build and test container with `make local-podman-build` and `make local-podman-run`
 - Validate containerized authentication with service account impersonation
-- Run container auth tests: `podman exec -it $(podman ps -q) python test_chronicle_auth.py --auth-mode=container`
-- Test specific auth modes: `podman exec -it $(podman ps -q) python test_chronicle_auth.py --auth-mode=impersonation --service-account=...`
+- Test MCP tools through the web interface at http://localhost:8080
+- Check container logs if issues arise: `podman logs $(podman ps -q)`
 
 **For Cloud Deployment:**
 - Deploy to Cloud Run first for cloud-specific testing
