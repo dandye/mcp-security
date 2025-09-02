@@ -21,8 +21,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY run-with-google-adk/agents/google_mcp_security_agent/ /app/agents/google_mcp_security_agent/
 COPY run-with-google-adk/libs/ /app/libs/
 COPY run-with-google-adk/ui/ /app/ui/
-COPY run-with-google-adk/scripts/local_startup.sh /app/local_startup.sh
-COPY . .
+COPY server /app/server
 
 ENV PYTHONPATH=/app/agents:/app/libs
 
