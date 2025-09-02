@@ -504,7 +504,7 @@ endif
 # Local development targets
 local-podman-build:
 	@echo "Building local Podman image..."
-	@cd .. && podman build -t google-adk-app-local -f run-with-google-adk/Dockerfile.local .
+	@cd .. && podman build --platform linux/amd64 -t google-adk-app-local -f run-with-google-adk/Dockerfile.local .
 
 local-podman-run:
 	@echo "Running local Podman container..."
