@@ -24,8 +24,6 @@ COPY run-with-google-adk/ui/ /app/ui/
 COPY run-with-google-adk/scripts/local_startup.sh /app/local_startup.sh
 COPY . .
 
-RUN chmod +x /app/local_startup.sh
-
 ENV PYTHONPATH=/app/agents:/app/libs
 
-ENTRYPOINT ["/app/local_startup.sh"]
+CMD ["sh", "-c", "python -m uvicorn ui.main:app --host 0.0.0.0 --port ${PORT:-8080}"]

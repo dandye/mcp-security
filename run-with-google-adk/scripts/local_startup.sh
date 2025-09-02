@@ -15,22 +15,8 @@
 # limitations under the License.
 
 # Startup script for local Podman container
-# Mimics Cloud Run's behavior of creating .env file from environment variables
 
 echo "Local container startup..."
-
-# Create /tmp/.env file from environment variables (like Cloud Run does)
-echo "Creating /tmp/.env from environment variables..."
-env > /tmp/.env
-
-# Also create the .env file in the expected location for the agent
-# The agent looks for it in multiple places including /app/agents/google_mcp_security_agent/.env
-if [ ! -d "/app/agents/google_mcp_security_agent" ]; then
-    mkdir -p /app/agents/google_mcp_security_agent
-fi
-cp /tmp/.env /app/agents/google_mcp_security_agent/.env
-
-echo "Environment file created. Starting application..."
 
 # Log MCP server configuration
 echo "MCP Server Configuration:"
