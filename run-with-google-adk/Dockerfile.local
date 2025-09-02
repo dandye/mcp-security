@@ -25,4 +25,4 @@ COPY server /app/server
 
 ENV PYTHONPATH=/app/agents:/app/libs
 
-CMD ["sh", "-c", "python -m uvicorn ui.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "python -m uvicorn ui.main:app --log-level debug --host 0.0.0.0 --port ${PORT:-8080}"]
