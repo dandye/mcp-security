@@ -119,15 +119,15 @@ def _create_mcp_toolset(
     # Map server names to environment variable names
     env_var_mapping = {
         "scc": "LOAD_SCC_MCP",
-        "secops/secops_mcp": "LOAD_SECOPS_MCP", 
+        "secops/secops_mcp": "LOAD_SECOPS_MCP",
         "gti/gti_mcp": "LOAD_GTI_MCP",
         "secops-soar/secops_soar_mcp": "LOAD_SECOPS_SOAR_MCP"
     }
-    
+
     load_var = env_var_mapping.get(server_name, f"LOAD_{server_name.upper().replace('/', '_').replace('-', '_')}_MCP")
     load_value = os.environ.get(load_var, "false")
     logging.info(f"Checking {load_var}: {load_value}")
-    
+
     if load_value.lower() != "true":
         logging.info(f"Skipping {server_name} - not enabled")
         return None
@@ -143,7 +143,9 @@ def _create_mcp_toolset(
     args = ["--directory", str(server_path), "run"]
     if env_file_path.exists():
         args.extend(["--env-file", str(env_file_path)])
-    
+    else:
+        args.append("--no-env-file")
+
     # Different servers have different entry points
     if server_name == "scc":
         args.append("scc_mcp.py")
@@ -165,7 +167,7 @@ def get_all_tools() -> List[MCPToolset]:
     """Get Tools from All MCP servers."""
     logging.info("Attempting to connect to MCP servers...")
     timeout = float(os.environ.get("STDIO_PARAM_TIMEOUT", "60.0"))
-    
+
     # Try different paths for the .env file
     possible_env_paths = [
         BASE_DIR / "agents" / "google_mcp_security_agent" / ".env",
@@ -176,7 +178,7 @@ def get_all_tools() -> List[MCPToolset]:
         # Additional fallback paths
         Path("./google_mcp_security_agent/.env"),
     ]
-    
+
     env_file_path = None
     logging.info("=" * 80)
     logging.info("🔍 SEARCHING FOR .ENV FILE...")
@@ -188,7 +190,7 @@ def get_all_tools() -> List[MCPToolset]:
             break
         else:
             logging.info(f"❌ Not found: {path.absolute()}")
-    
+
     if not env_file_path:
         logging.error("=" * 80)
         logging.error("🚨 CRITICAL ERROR: No .env file found!")
@@ -205,7 +207,7 @@ def get_all_tools() -> List[MCPToolset]:
             logging.error(f"🚨   Error listing directory: {e}")
         logging.error("=" * 80)
         logging.warning("No .env file found, using environment variables only")
-        env_file_path = Path("/tmp/.env")  # Use a dummy path
+        #env_file_path = Path("/tmp/.env")  # Use a dummy path. # NO: need to be Falsey to disable --env flag entirely
     else:
         # Load environment variables from the found .env file
         if HAS_DOTENV:
@@ -213,7 +215,7 @@ def get_all_tools() -> List[MCPToolset]:
                 logging.info(f"🔧 Loading environment variables from: {env_file_path}")
                 dotenv.load_dotenv(env_file_path, override=False)
                 logging.info("✅ Environment variables loaded successfully")
-                
+
                 # Log MCP server statuses
                 mcp_vars = ["LOAD_SCC_MCP", "LOAD_SECOPS_MCP", "LOAD_GTI_MCP", "LOAD_SECOPS_SOAR_MCP"]
                 enabled_count = 0
@@ -223,12 +225,12 @@ def get_all_tools() -> List[MCPToolset]:
                     logging.info(f"   {var}: {value} ({status})")
                     if value.lower() == "true":
                         enabled_count += 1
-                
+
                 if enabled_count == 0:
                     logging.error("🚨 WARNING: NO MCP servers are enabled! Check your .env file.")
                 else:
                     logging.info(f"📊 {enabled_count}/{len(mcp_vars)} MCP servers enabled")
-                
+
             except Exception as e:
                 logging.error(f"🚨 Error loading .env file: {e}")
                 logging.error("🚨 Will use existing environment variables")
@@ -281,7 +283,7 @@ def create_agent() -> LlmAgent:
         "DEFAULT_PROMPT",
         "Help user investigate security issues using Google Secops SIEM, SOAR, Security Command Center(SCC) and Google Threat Intel Tools."
     )
-    
+
     return LlmAgent(
         model=model,
         name="google_mcp_security_agent",
