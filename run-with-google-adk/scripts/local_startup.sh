@@ -52,5 +52,7 @@ if [ -n "$CHRONICLE_PROJECT_ID" ]; then
 fi
 
 # Start the application
-echo "Starting uvicorn server..."
-exec uvicorn ui.main:app --host 0.0.0.0 --port 8080
+# Use PORT environment variable if set (for Cloud Run), otherwise default to 8080
+PORT=${PORT:-8080}
+echo "Starting uvicorn server on port $PORT..."
+exec uvicorn ui.main:app --host 0.0.0.0 --port $PORT

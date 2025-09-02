@@ -116,7 +116,7 @@ if os.environ.get("SESSION_SERVICE","in_memory") == "db":
 # Artifact service might not be needed for this example
 print(f"Artifact Service Type - {os.environ.get("ARTIFACT_SERVICE","in_memory")}")
 artifacts_service = InMemoryArtifactService()
-if os.environ.get("ARTIFACT_SERVICE","gcs") == "gcs":
+if os.environ.get("ARTIFACT_SERVICE","in_memory") == "gcs":
     artifacts_service = GcsArtifactService(bucket_name=os.environ.get("GCS_ARTIFACT_SERVICE_BUCKET"))
 
 # Create 'static' directory if it doesn't exist
