@@ -33,6 +33,7 @@ class Endpoints:
     FETCH_FULL_UNIQUE_ENTITY = "/api/external/v1/entities/GetEntityData"
     SEARCH_ENTITY = "/api/external/v1.0/entity-search/entities"
     GET_SCOPES = "/api/external/v1/settings/GetScopes"
+    GET_CASE_CLOSE_DEFINITIONS = "/api/external/v1/settings/GetCaseCloseDefinitions"
     GET_ALERT_GROUP_IDENTIFIERS_ENTITIES = (
         "/api/external/v1/case-overview/GetAlertsEntities"
     )

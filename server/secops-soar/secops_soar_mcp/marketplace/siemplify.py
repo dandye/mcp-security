@@ -37,7 +37,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -54,7 +54,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -64,12 +64,12 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Rule Generator"] = rule_generator
             script_params["Port"] = port
@@ -80,7 +80,7 @@ dict: A dictionary containing the result of the action execution.
                 script_params["Include Open Cases"] = include_open_cases
             if include_closed_cases is not None:
                 script_params["Include Closed Cases"] = include_closed_cases
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -96,7 +96,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -123,7 +123,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -140,7 +140,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -150,14 +150,14 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -173,7 +173,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -200,7 +200,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -217,7 +217,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -227,16 +227,16 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Entity Field"] = entity_field
             script_params["Field Value"] = field_value
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -252,7 +252,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -279,7 +279,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -296,7 +296,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -306,15 +306,15 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Priority"] = priority
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -330,7 +330,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -354,7 +354,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -371,7 +371,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -381,14 +381,14 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -404,7 +404,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -431,7 +431,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -448,7 +448,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -458,15 +458,15 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Risk Score"] = risk_score
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -482,7 +482,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -509,7 +509,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -526,7 +526,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -536,17 +536,17 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Custom Fields Data"] = custom_fields_data
             if append_values is not None:
                 script_params["Append Values"] = append_values
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -562,7 +562,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -589,7 +589,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -606,7 +606,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -616,18 +616,18 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["SLA Period"] = sla_period
             script_params["SLA Time Unit"] = sla_time_unit
             script_params["SLA Time To Critical Period"] = sla_time_to_critical_period
             script_params["SLA Time To Critical Unit"] = sla_time_to_critical_unit
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -643,7 +643,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -670,7 +670,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -687,7 +687,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -697,15 +697,15 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Category"] = category
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -721,7 +721,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -745,7 +745,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -762,7 +762,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -772,19 +772,19 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Endpoint URL"] = endpoint_url
             script_params["HTTP Method"] = http_method
             if body is not None:
                 script_params["Body"] = body
             script_params["Verify SSL"] = verify_ssl
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -800,7 +800,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -827,7 +827,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -844,7 +844,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -854,15 +854,15 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Tag"] = tag
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -878,7 +878,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -905,7 +905,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -922,7 +922,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -932,12 +932,12 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Reason"] = reason
             script_params["Root Cause"] = root_cause
@@ -946,7 +946,7 @@ dict: A dictionary containing the result of the action execution.
                 script_params["Assign To User"] = assign_to_user
             if tags is not None:
                 script_params["Tags"] = tags
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -962,7 +962,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -989,7 +989,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -1006,7 +1006,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -1016,15 +1016,15 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Category"] = category
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -1040,7 +1040,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -1067,7 +1067,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -1084,7 +1084,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -1094,15 +1094,15 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Comment"] = comment
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -1118,7 +1118,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -1145,7 +1145,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -1162,7 +1162,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -1172,12 +1172,12 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Permitted Start Time"] = permitted_start_time
             script_params["Permitted End Time"] = permitted_end_time
@@ -1196,7 +1196,7 @@ dict: A dictionary containing the result of the action execution.
             if sunday is not None:
                 script_params["Sunday"] = sunday
             script_params["Input Timezone"] = input_timezone
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -1212,7 +1212,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -1239,7 +1239,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -1256,7 +1256,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -1266,16 +1266,16 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Title"] = title
             script_params["URL"] = url
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -1291,7 +1291,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -1318,7 +1318,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -1335,7 +1335,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -1345,15 +1345,15 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Stage"] = stage
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -1369,7 +1369,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -1396,7 +1396,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -1413,7 +1413,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -1423,18 +1423,18 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Title"] = title
             script_params["Message"] = message
             if triggered_by is not None:
                 script_params["Triggered By"] = triggered_by
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -1450,7 +1450,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -1474,7 +1474,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -1491,7 +1491,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -1501,14 +1501,14 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -1524,7 +1524,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -1551,7 +1551,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -1568,7 +1568,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -1578,15 +1578,15 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Instruction"] = instruction
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -1602,7 +1602,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -1629,7 +1629,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -1646,7 +1646,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -1656,14 +1656,14 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -1679,7 +1679,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -1703,7 +1703,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -1720,7 +1720,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -1730,18 +1730,18 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             if fields_to_return is not None:
                 script_params["Fields to Return"] = fields_to_return
             if nested_keys_delimiter is not None:
                 script_params["Nested Keys Delimiter"] = nested_keys_delimiter
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -1757,7 +1757,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -1781,7 +1781,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -1798,7 +1798,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -1808,17 +1808,17 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Context Scope"] = context_scope
             script_params["Key Name"] = key_name
             script_params["Key Value"] = key_value
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -1834,7 +1834,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -1861,7 +1861,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -1878,7 +1878,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -1888,12 +1888,12 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Rule Generator"] = rule_generator
             script_params["Port"] = port
@@ -1901,7 +1901,7 @@ dict: A dictionary containing the result of the action execution.
             script_params["Entity Identifier"] = entity_identifier
             script_params["Days Back"] = days_back
             script_params["Tags"] = tags
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -1917,7 +1917,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -1944,7 +1944,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -1961,7 +1961,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -1971,15 +1971,15 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Message"] = message
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -1995,7 +1995,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -2022,7 +2022,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -2039,7 +2039,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -2049,17 +2049,17 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Playbook Name"] = playbook_name
             if allow_duplicates is not None:
                 script_params["Allow Duplicates"] = allow_duplicates
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -2075,7 +2075,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -2102,7 +2102,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -2119,7 +2119,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -2129,17 +2129,17 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Reason"] = reason
             script_params["Root Cause"] = root_cause
             script_params["Comment"] = comment
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -2155,7 +2155,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -2182,7 +2182,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -2199,7 +2199,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -2209,15 +2209,15 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Assigned User"] = assigned_user
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -2233,7 +2233,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -2260,7 +2260,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -2277,7 +2277,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -2287,15 +2287,15 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Custom Fields Data"] = custom_fields_data
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -2311,7 +2311,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -2338,7 +2338,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -2355,7 +2355,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -2365,12 +2365,12 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Entities Identifies"] = entities_identifies
             if delimiter is not None:
@@ -2378,7 +2378,7 @@ dict: A dictionary containing the result of the action execution.
             script_params["Entity Type"] = entity_type
             script_params["Is Internal"] = is_internal
             script_params["Is Suspicious"] = is_suspicious
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -2394,7 +2394,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -2421,7 +2421,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -2438,7 +2438,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -2448,15 +2448,15 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Description"] = description
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -2472,7 +2472,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -2499,7 +2499,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -2516,7 +2516,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -2526,16 +2526,16 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             if soc_role is not None:
                 script_params["Soc Role"] = soc_role
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -2551,7 +2551,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -2575,7 +2575,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -2592,7 +2592,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -2602,12 +2602,12 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Publisher Name"] = publisher_name
             script_params["Remote Integration Name"] = remote_integration_name
@@ -2618,7 +2618,7 @@ dict: A dictionary containing the result of the action execution.
             script_params["Installed Integrations Shared Folder"] = installed_integrations_shared_folder
             if verify_ssl is not None:
                 script_params["Verify SSL"] = verify_ssl
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -2634,7 +2634,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -2658,7 +2658,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -2675,7 +2675,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -2685,16 +2685,16 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             if message is not None:
                 script_params["Message"] = message
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -2710,7 +2710,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -2737,7 +2737,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -2754,7 +2754,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -2764,15 +2764,15 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Category"] = category
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -2788,7 +2788,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -2815,7 +2815,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -2832,7 +2832,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -2842,15 +2842,15 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Alert Priority"] = alert_priority
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -2866,7 +2866,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -2893,7 +2893,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -2910,7 +2910,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -2920,18 +2920,18 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["SLA Period"] = sla_period
             script_params["SLA Time Unit"] = sla_time_unit
             script_params["SLA Time To Critical Period"] = sla_time_to_critical_period
             script_params["SLA Time To Critical Unit"] = sla_time_to_critical_unit
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -2947,7 +2947,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -2974,7 +2974,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -2991,7 +2991,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -3001,18 +3001,18 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Connector Identifier"] = connector_identifier
             script_params["Key Name"] = key_name
             if create_case_wall_table is not None:
                 script_params["Create Case Wall Table"] = create_case_wall_table
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -3028,7 +3028,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -3055,7 +3055,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -3072,7 +3072,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -3082,18 +3082,18 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Context Scope"] = context_scope
             script_params["Key Name"] = key_name
             if create_case_wall_table is not None:
                 script_params["Create Case Wall Table"] = create_case_wall_table
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -3109,7 +3109,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -3136,7 +3136,7 @@ dict: A dictionary containing the result of the action execution.
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
-    
+
         if target_entities:
             # Specific target entities provided, ignore scope parameter
             final_target_entities = target_entities
@@ -3153,7 +3153,7 @@ dict: A dictionary containing the result of the action execution.
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
-    
+
         # Fetch integration instance identifier
         try:
             instance_response = await bindings.http_client.get(
@@ -3163,15 +3163,15 @@ dict: A dictionary containing the result of the action execution.
         except Exception as e:
             print(f"Error fetching instance for Siemplify: {e}")
             return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
-    
+
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
                 return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
-    
+
             script_params = {}
             script_params["Tag"] = tag
-    
+
             # Prepare data model for the API request
             action_data = ApiManualActionDataModel(
                 alertGroupIdentifiers=alert_group_identifiers,
@@ -3187,7 +3187,7 @@ dict: A dictionary containing the result of the action execution.
                     "ScriptParametersEntityFields": json.dumps(script_params)
                 }
             )
-    
+
             try:
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION,
@@ -3195,8 +3195,23 @@ dict: A dictionary containing the result of the action execution.
                 )
                 return execution_response
             except Exception as e:
-                print(f"Error executing action Siemplify_Remove Tag for Siemplify: {e}")
                 return {"Status": "Failed", "Message": f"Error executing action: {e}"}
         else:
             print(f"Warning: No active integration instance found for Siemplify")
             return {"Status": "Failed", "Message": "No active instance found."}
+
+    @mcp.tool()
+    async def siemplify_get_case_close_definitions() -> dict:
+        """
+        Get the available case close definitions (reasons and root causes).
+
+        Returns:
+            dict: A dictionary containing the list of valid case close reasons and root causes.
+        """
+        try:
+            response = await bindings.http_client.get(Endpoints.GET_CASE_CLOSE_DEFINITIONS)
+            return response
+        except Exception as e:
+            print(f"Error fetching case close definitions for Siemplify: {e}")
+            return {"Status": "Failed", "Message": f"Error fetching case close definitions: {e}"}
+

@@ -28,6 +28,8 @@ async def search_security_events(
     text: str,
     project_id: str = None,
     customer_id: str = None,
+    start_time: str = None,
+    end_time: str = None,
     hours_back: int = 24,
     max_events: int = 100,
     region: str = None,
@@ -62,6 +64,8 @@ async def search_security_events(
         text (str): Natural language description of the events you want to find.
         project_id (Optional[str]): Google Cloud project ID. Defaults to environment configuration.
         customer_id (Optional[str]): Chronicle customer ID. Defaults to environment configuration.
+        start_time (Optional[str]): Start time in ISO 8601 format (e.g., "2023-01-01T00:00:00Z").
+        end_time (Optional[str]): End time in ISO 8601 format. Defaults to now if start_time is set.
         hours_back (int): How many hours back from the current time to search. Defaults to 24.
         max_events (int): Maximum number of event records to return. Defaults to 100.
         region (Optional[str]): Chronicle region (e.g., "us", "europe"). Defaults to environment configuration.
@@ -113,15 +117,25 @@ async def search_security_events(
     """
     try:
         logger.info(
-            f'Searching security events with natural language query: {text}'
+            f'Searching security events with natural language query: {text}, '
+            f'start={start_time}, end={end_time}, hours_back={hours_back}'
         )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
-        end_time = datetime.now(timezone.utc)
-        start_time = end_time - timedelta(hours=hours_back)
+        if start_time:
+            # Parse ISO strings
+            # Handle 'Z' manually for broader python compatibility
+            s_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+            if end_time:
+                e_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+            else:
+                e_time = datetime.now(timezone.utc)
+        else:
+            e_time = datetime.now(timezone.utc)
+            s_time = e_time - timedelta(hours=hours_back)
 
-        logger.info(f'Search time range: {start_time} to {end_time}')
+        logger.info(f'Search time range: {s_time} to {e_time}')
 
         # Use the new natural language search method
         udm_query = chronicle.translate_nl_to_udm(text)
@@ -129,8 +143,8 @@ async def search_security_events(
 
         events = chronicle.search_udm(
             query=udm_query,
-            start_time=start_time,
-            end_time=end_time,
+            start_time=s_time,
+            end_time=e_time,
             max_events=max_events,
         )
 
@@ -159,3 +173,98 @@ async def search_security_events(
             'udm_query': None,
             'events': {'error': str(e), 'events': [], 'total_events': 0},
         }
+
+
+@server.tool()
+async def search_security_events_8601(
+    text: str,
+    project_id: str = None,
+    customer_id: str = None,
+    start_time: str = None,
+    end_time: str = None,
+    hours_back: int = 24,
+    max_events: int = 100,
+    region: str = None,
+) -> Dict[str, Any]:
+    """Search for security events in Chronicle SIEM using natural language and explicit time ranges.
+
+    This is an enhanced version of search_security_events that supports explicit
+    start_time and end_time parameters for precise historical searching.
+
+    Args:
+        text (str): Natural language description of the events you want to find.
+        project_id (Optional[str]): Google Cloud project ID. Defaults to environment configuration.
+        customer_id (Optional[str]): Chronicle customer ID. Defaults to environment configuration.
+        start_time (Optional[str]): Start time in ISO 8601 format (e.g., "2023-01-01T00:00:00Z").
+        end_time (Optional[str]): End time in ISO 8601 format. Defaults to now if start_time is set.
+        hours_back (int): Fallback hours back if start_time is not provided. Defaults to 24.
+        max_events (int): Maximum number of event records to return. Defaults to 100.
+        region (Optional[str]): Chronicle region (e.g., "us", "europe"). Defaults to environment configuration.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing:
+            - 'udm_query' (str | None): The translated UDM query used for the search, or None if translation failed.
+            - 'events' (Dict): A dictionary containing the search results:
+                - 'events' (List[Dict]): The list of UDM event records found.
+                - 'total_events' (int): The total number of events matching the query.
+                - 'error' (str | None): An error message if the search failed.
+    """
+    try:
+        logger.info(
+            f'Searching security events (v2) with query: {text}, '
+            f'start={start_time}, end={end_time}, hours_back={hours_back}'
+        )
+
+        chronicle = get_chronicle_client(project_id, customer_id, region)
+
+        if start_time:
+            # Parse ISO strings
+            # Handle 'Z' manually for broader python compatibility
+            s_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+            if end_time:
+                e_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+            else:
+                e_time = datetime.now(timezone.utc)
+        else:
+            e_time = datetime.now(timezone.utc)
+            s_time = e_time - timedelta(hours=hours_back)
+
+        logger.info(f'Search time range: {s_time} to {e_time}')
+
+        # Use the new natural language search method
+        udm_query = chronicle.translate_nl_to_udm(text)
+        logger.info(f'YL2 UDM Query: {udm_query}')
+
+        events = chronicle.search_udm(
+            query=udm_query,
+            start_time=s_time,
+            end_time=e_time,
+            max_events=max_events,
+        )
+
+        # For compatibility with old format, check if we need to transform response
+        if isinstance(events, dict) and 'events' in events:
+            total_events = events.get('total_events', 0)
+            event_list = events.get('events', [])
+        else:
+            # This might be the case with the standard library format
+            event_list = events if isinstance(events, list) else []
+            total_events = len(event_list)
+            events = {'events': event_list, 'total_events': total_events}
+
+        logger.info(
+            f'Search results: {total_events} total events,'
+            f' {len(event_list)} returned'
+        )
+
+        # Return a new dictionary with UDM query first, then events data
+        return {'udm_query': udm_query, 'events': events}
+
+    except Exception as e:
+        logger.error(f'Error searching security events: {str(e)}', exc_info=True)
+        # Return an error object that can be processed by the model
+        return {
+            'udm_query': None,
+            'events': {'error': str(e), 'events': [], 'total_events': 0},
+        }
+
