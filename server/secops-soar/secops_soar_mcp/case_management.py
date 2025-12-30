@@ -20,6 +20,7 @@ from logger_utils import get_logger
 from typing import Annotated, Optional, List
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
+from secops_soar_mcp.utils.toon import to_toon
 
 logger = get_logger(__name__)
 
@@ -232,6 +233,8 @@ def register_tools(mcp: FastMCP):
                   typically containing a list of event objects (potentially in UDM format)
                   related to the specified alert.
 
+            str: (Modified) Returns a TOON-formatted string to save tokens.
+
         **Workflow Integration:**
         - Use after identifying a specific alert of interest within a SOAR case (e.g., via `list_alerts_by_case`).
         - Provides the ground truth event data (often from the SIEM) needed to validate the alert
@@ -246,17 +249,26 @@ def register_tools(mcp: FastMCP):
         - Document findings in the relevant case management system using a commenting tool.
         """
         if next_page_token:
-            return await bindings.http_client.get(
+            raw_response = await bindings.http_client.get(
                 Endpoints.LIST_INVOLVED_EVENTS_BY_ALERT.format(
                     CASE_ID=case_id, ALERT_ID=alert_id
                 ),
                 params={"pageToken": next_page_token},
             )
-        return await bindings.http_client.get(
-            Endpoints.LIST_INVOLVED_EVENTS_BY_ALERT.format(
-                CASE_ID=case_id, ALERT_ID=alert_id
+        else:
+            raw_response = await bindings.http_client.get(
+                Endpoints.LIST_INVOLVED_EVENTS_BY_ALERT.format(
+                    CASE_ID=case_id, ALERT_ID=alert_id
+                )
             )
-        )
+
+        # The API returns a dict, likely with a key 'involved_events' or similar based on previous inspection
+        # Inspecting payload from logs: { "involved_events": [ ... ] }
+        if isinstance(raw_response, dict) and 'involved_events' in raw_response:
+             events_list = raw_response['involved_events']
+             return f"TOON_FORMATTED_EVENTS:\n{to_toon(events_list)}"
+
+        return raw_response
 
     @mcp.tool()
     async def change_case_priority(
@@ -528,8 +540,8 @@ def register_tools(mcp: FastMCP):
         Returns:
             dict: A dictionary containing the aggregated results from three separate API calls:
                   - 'case_details': The raw API response for the basic case information.
-                  - 'case_alerts': The raw API response containing the list of alerts associated with the case.
-                  - 'case_comments': The raw API response containing the list of comments for the case.
+                  - 'case_alerts': (Modified) A TOON-formatted string list of alerts.
+                  - 'case_comments': (Modified) A TOON-formatted string list of comments.
                   **Triage Note:** Use the `priority` field as an initial guide only. Analyze the combined details (alerts, comments, entities involved, potential impact, related threat intelligence) gathered by this tool and others to determine the true importance and urgency of the case.
 
         **Workflow Integration:**
@@ -556,8 +568,19 @@ def register_tools(mcp: FastMCP):
             Endpoints.BASE_CASE_COMMENTS_URL.format(CASE_ID=case_id)
         )
         results = await asyncio.gather(case_coro, case_alerts_coro, case_comments_coro)
+
+        # Optimize output size using TOON
+        case_alerts_list = results[1] if isinstance(results[1], list) else []
+        case_comments_list = results[2] if isinstance(results[2], list) else []
+
+        # Sometimes the API wraps lists in a dict
+        if isinstance(results[1], dict) and 'items' in results[1]:
+            case_alerts_list = results[1]['items']
+        if isinstance(results[2], dict) and 'items' in results[2]:
+            case_comments_list = results[2]['items']
+
         return {
             "case_details:": results[0],
-            "case_alerts": results[1],
-            "case_comments": results[2],
+            "case_alerts": f"TOON_FORMATTED_ALERTS:\n{to_toon(case_alerts_list)}",
+            "case_comments": f"TOON_FORMATTED_COMMENTS:\n{to_toon(case_comments_list)}",
         }
