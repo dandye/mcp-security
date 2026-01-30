@@ -1,6 +1,6 @@
 # Function Calling vs. MCP Tools
 
-This document explains the difference between OpenAI Function Calling and the Model Context Protocol (MCP), and why we provide both implementations for certain tools in this repository.
+This document explains the difference between OpenAI Function Calling and the Model Context Protocol (MCP), and why we provide both implementations for tools in this repository.
 
 ## What is Function Calling?
 
@@ -34,7 +34,7 @@ In an MCP workflow:
 
 ## When to use Function Calling?
 
-You might prefer the **Function Calling** implementation (e.g., `server/secops/secops_mcp/tools/list_rules_function_calling.py`) when:
+You might prefer the **Function Calling** implementation (files ending in `_function_calling.py`) when:
 
 1.  **Building Custom Agents**: You are writing your own Python application using the OpenAI SDK (or similar) and need direct access to the tool definitions to pass to `client.chat.completions.create()`.
 2.  **No MCP Client**: You are not using an MCP-compatible interface (like Claude Desktop) and are instead interacting with the model programmatically.
@@ -42,28 +42,47 @@ You might prefer the **Function Calling** implementation (e.g., `server/secops/s
 
 ## When to use MCP Tools?
 
-You should use the **MCP Tool** implementation (e.g., `server/secops/secops_mcp/tools/security_rules.py`) when:
+You should use the **MCP Tool** implementation (files like `security_rules.py`) when:
 
 1.  **Using Claude Desktop / IDEs**: You want to give the AI assistant in your IDE or Desktop app access to your security tools without writing any glue code.
 2.  **Standardization**: You want a solution that works across different tools and clients that support MCP.
 
-## Example: List Rules
+## Available Tools
 
-We provide two versions of the "List Security Rules" functionality:
+We provide parallel implementations for all major toolsets. The core logic is deduplicated in shared `_logic.py` modules.
+
+| Tool Category | MCP Module | Function Calling Module |
+| :--- | :--- | :--- |
+| **Security Rules** | `security_rules.py` | `rules_function_calling.py` |
+| **Security Alerts** | `security_alerts.py` | `alerts_function_calling.py` |
+| **Security Events** | `security_events.py` | `security_events_function_calling.py` |
+| **Entity Lookup** | `entity_lookup.py` | `entity_function_calling.py` |
+| **IoC Matches** | `ioc_matches.py` | `ioc_function_calling.py` |
+| **Threat Intelligence** | `threat_intel.py` | `threat_intel_function_calling.py` |
+| **UDM Search & Export** | `udm_search.py`, `search.py` | `udm_search_function_calling.py`, `search_function_calling.py` |
+| **Log Ingestion** | `log_ingestion.py` | `log_ingestion_function_calling.py` |
+| **Parser Management** | `parser_management.py` | `parser_function_calling.py` |
+| **Data Tables** | `data_table_management.py` | `data_table_function_calling.py` |
+| **Reference Lists** | `reference_list_management.py` | `reference_list_function_calling.py` |
+| **Feed Management** | `feed_management.py` | `feed_function_calling.py` |
+
+## Example: List Rules
 
 1.  **MCP Version** (`security_rules.py`):
     ```python
     @server.tool()
     async def list_security_rules(...):
+        # Calls list_rules_impl from rules_logic.py
         ...
     ```
     *Use this when running the `secops_mcp` server.*
 
-2.  **Function Calling Version** (`list_rules_function_calling.py`):
+2.  **Function Calling Version** (`rules_function_calling.py`):
     ```python
     LIST_RULES_SCHEMA = { ... }
 
     async def execute_list_rules_tool(arguments):
+        # Calls list_rules_impl from rules_logic.py
         ...
     ```
     *Use this when importing the tool into your own OpenAI API script.*

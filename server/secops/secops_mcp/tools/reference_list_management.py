@@ -16,8 +16,12 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from secops.chronicle import ReferenceListView
-from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.server import server
+from secops_mcp.tools.reference_list_logic import (
+    create_reference_list_impl,
+    get_reference_list_impl,
+    update_reference_list_impl,
+)
 
 # Configure logging
 logger = logging.getLogger('secops-mcp')
@@ -110,49 +114,15 @@ async def create_reference_list(
         - Create detection rules that leverage the list for enhanced threat detection.
         - Set up automated processes to maintain the list with current threat intelligence.
     """
-    try:
-        logger.info(f'Creating reference list: {name} with {len(entries)} entries')
-
-        
-        
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Create the reference list
-        reference_list = chronicle.create_reference_list(
-            name=name,
-            description=description,
-            entries=entries,
-            syntax_type=syntax_type
-        )
-
-        # Extract list details from the response
-        list_name = reference_list.get("name", "").split("/")[-1]
-        create_time = reference_list.get("createTime", "Unknown")
-        entry_count = len(reference_list.get("entries", []))
-        
-        result = f'Successfully created reference list: {name}\n'
-        result += f'List ID: {list_name}\n'
-        result += f'Description: {description}\n'
-        result += f'Syntax Type: {syntax_type}\n'
-        result += f'Created: {create_time}\n'
-        result += f'Entries: {entry_count}\n'
-        
-        # Show sample entries
-        if entries:
-            result += '\nSample entries:\n'
-            for i, entry in enumerate(entries[:5]):  # Show first 5 entries
-                result += f'  - {entry}\n'
-            
-            if len(entries) > 5:
-                result += f'  ... and {len(entries) - 5} more entries\n'
-        
-        result += f'\nThe list can now be referenced in detection rules as: reference_list.{name}'
-        
-        return result
-
-    except Exception as e:
-        logger.error(f'Error creating reference list {name}: {str(e)}', exc_info=True)
-        return f'Error creating reference list {name}: {str(e)}'
+    return create_reference_list_impl(
+        name=name,
+        description=description,
+        entries=entries,
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+        syntax_type=syntax_type,
+    )
 
 @server.tool()
 async def get_reference_list(
@@ -220,75 +190,13 @@ async def get_reference_list(
         - Document the list contents and update procedures for operational teams.
         - Set up regular reviews to maintain data quality and relevance.
     """
-    try:
-        logger.info(f'Getting reference list: {name}')
-
-        
-        
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Determine view based on include_entries parameter
-        view = (
-            ReferenceListView.FULL
-            if include_entries
-            else ReferenceListView.BASIC
-        )
-        
-        # Get the reference list
-        reference_list = chronicle.get_reference_list(name, view=view)
-
-        if not reference_list:
-            return f'Reference list "{name}" was not found.'
-
-        # Extract list details
-        list_name = reference_list.get("name", "").split("/")[-1]
-        description = reference_list.get("description", "No description")
-        create_time = reference_list.get("createTime", "Unknown")
-        syntax_type = reference_list.get("syntaxType", "Unknown")
-        
-        result = f'Reference List: {name}\n'
-        result += f'List ID: {list_name}\n'
-        result += f'Description: {description}\n'
-        result += f'Syntax Type: {syntax_type}\n'
-        result += f'Created: {create_time}\n'
-
-        # Show entries if requested
-        if include_entries:
-            entries = reference_list.get("entries", [])
-            entry_count = len(entries)
-            result += f'Total entries: {entry_count}\n\n'
-            
-            if entries:
-                result += 'Entries:\n'
-                for i, entry in enumerate(entries):
-                    if isinstance(entry, str):
-                        entry_value = entry
-                    elif isinstance(entry, dict):
-                        entry_value = entry.get("value", "Unknown")
-                    elif hasattr(entry, "value"):
-                        entry_value = entry.value
-                    else:
-                        entry_value = str(entry)
-                    result += f'  {i+1}. {entry_value}\n'
-
-                    # Limit display for very large lists
-                    if i >= 49:  # Show first 50 entries
-                        remaining = entry_count - 50
-                        if remaining > 0:
-                            result += f'  ... and {remaining} more entries\n'
-                        break
-            else:
-                result += 'No entries found in this reference list.\n'
-        else:
-            # Just show count if entries are not included
-            entries = reference_list.get("entries", [])
-            result += f'Total entries: {len(entries)} (entries not displayed)\n'
-        
-        return result
-
-    except Exception as e:
-        logger.error(f'Error getting reference list {name}: {str(e)}', exc_info=True)
-        return f'Error getting reference list {name}: {str(e)}'
+    return get_reference_list_impl(
+        name=name,
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+        include_entries=include_entries,
+    )
 
 @server.tool()
 async def update_reference_list(
@@ -373,49 +281,11 @@ async def update_reference_list(
         - Document the reason for updates for audit and operational tracking.
         - Communicate significant changes to teams that rely on the reference list.
     """
-    try:
-        # Validate that at least one update parameter is provided
-        if entries is None and description is None:
-            return "Error: Either entries or description must be provided for update."
-
-        logger.info(f'Updating reference list: {name}')
-
-        
-        
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Prepare update parameters
-        update_params = {"name": name}
-        if entries is not None:
-            update_params["entries"] = entries
-        if description is not None:
-            update_params["description"] = description
-
-        # Update the reference list
-        updated_list = chronicle.update_reference_list(**update_params)
-
-        result = f'Successfully updated reference list: {name}\n'
-        
-        # Show what was updated
-        if entries is not None:
-            result += f'Entries updated: {len(entries)} total entries\n'
-            
-            # Show sample of new entries
-            if entries:
-                result += '\nSample of updated entries:\n'
-                for i, entry in enumerate(entries[:5]):  # Show first 5 entries
-                    result += f'  - {entry}\n'
-                
-                if len(entries) > 5:
-                    result += f'  ... and {len(entries) - 5} more entries\n'
-        
-        if description is not None:
-            result += f'Description updated: {description}\n'
-        
-        result += f'\nThe updated list can be used in detection rules as: reference_list.{name}'
-        
-        return result
-
-    except Exception as e:
-        logger.error(f'Error updating reference list {name}: {str(e)}', exc_info=True)
-        return f'Error updating reference list {name}: {str(e)}' 
+    return update_reference_list_impl(
+        name=name,
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+        entries=entries,
+        description=description,
+    )

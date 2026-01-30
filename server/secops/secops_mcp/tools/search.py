@@ -14,11 +14,10 @@
 """Security Operations MCP tools for UDM search."""
 
 import logging
-from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
-from secops_mcp.server import get_chronicle_client, server
-from secops_mcp.utils import parse_time_range
+from secops_mcp.server import server
+from secops_mcp.tools.search_logic import search_udm_impl
 
 
 # Configure logging
@@ -50,31 +49,13 @@ async def search_udm(
     Returns:
         Dict containing the search results with events.
     """
-    try:
-        try:
-            start_dt, end_dt = parse_time_range(start_time, end_time, hours_back)
-        except ValueError as e:
-            logger.error(f'Error parsing date format: {str(e)}', exc_info=True)
-            return {'error': f"Error parsing date format: {str(e)}. Use ISO 8601 format (e.g., 2023-01-01T12:00:00Z)", 'events': []}
-
-        logger.info(
-            f'Searching UDM events - Query: {query}, Effective Time Range: {start_dt} to {end_dt}'
-        )
-
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Call the search_udm method on the chronicle client
-        search_results = chronicle.search_udm(
-            query=query,
-            start_time=start_dt,
-            end_time=end_dt,
-            max_events=max_events,
-        )
-
-        logger.info(f'Successfully found {search_results.get("total_events", 0)} events.')
-
-        return search_results
-
-    except Exception as e:
-        logger.error(f'Error searching UDM events: {str(e)}', exc_info=True)
-        return {'error': str(e), 'events': []}
+    return search_udm_impl(
+        query=query,
+        hours_back=hours_back,
+        start_time=start_time,
+        end_time=end_time,
+        max_events=max_events,
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+    )

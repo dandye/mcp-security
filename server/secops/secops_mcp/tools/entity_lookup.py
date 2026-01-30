@@ -14,10 +14,10 @@
 """Security Operations MCP tools for entity lookup."""
 
 import logging
-from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.server import server
+from secops_mcp.tools.entity_logic import lookup_entity_impl
 
 
 # Configure logging
@@ -82,112 +82,10 @@ async def lookup_entity(
           cloud posture findings, user risk scores) via their respective MCP tools.
         - Document findings in a relevant case management or ticketing system using an appropriate MCP tool.
     """
-    try:
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        end_time = datetime.now(timezone.utc)
-        start_time = end_time - timedelta(hours=hours_back)
-
-        entity_summary = chronicle.summarize_entity(
-            value=entity_value,
-            start_time=start_time,
-            end_time=end_time,
-        )
-
-        # Handle case where no entity was found
-        if not entity_summary or (
-            hasattr(entity_summary, 'primary_entity') and
-            not entity_summary.primary_entity
-        ):
-            return f'No information found for entity: {entity_value}'
-
-        result = f'Entity Summary for {entity_value}:\n\n'
-
-        # Process primary entity
-        primary_entity = None
-        if hasattr(entity_summary, 'primary_entity'):
-            primary_entity = entity_summary.primary_entity
-
-        if primary_entity:
-            result += f'Primary Entity:\n'
-
-            # Get entity type
-            entity_type = 'Unknown'
-            if hasattr(primary_entity, 'metadata') and hasattr(primary_entity.metadata, 'entity_type'):
-                entity_type = primary_entity.metadata.entity_type
-
-            # Get metrics
-            first_seen = 'Unknown'
-            last_seen = 'Unknown'
-            if hasattr(primary_entity, 'metric') and primary_entity.metric:
-                if hasattr(primary_entity.metric, 'first_seen'):
-                    first_seen = primary_entity.metric.first_seen
-                if hasattr(primary_entity.metric, 'last_seen'):
-                    last_seen = primary_entity.metric.last_seen
-
-            result += f'Entity Type: {entity_type}\n'
-            result += f'First Seen: {first_seen}\n'
-            result += f'Last Seen: {last_seen}\n\n'
-
-        # Process related entities if available
-        related_entities = []
-        if hasattr(entity_summary, 'related_entities'):
-            related_entities = entity_summary.related_entities
-
-        if related_entities:
-            result += f'Related Entities ({len(related_entities)}):\n'
-            for i, entity in enumerate(related_entities[:5], 1):  # Limit to 5 related entities
-                entity_type = 'Unknown'
-                if hasattr(entity, 'metadata') and hasattr(entity.metadata, 'entity_type'):
-                    entity_type = entity.metadata.entity_type
-
-                result += f'{i}. Type: {entity_type}\n'
-
-            if len(related_entities) > 5:
-                result += f'... and {len(related_entities) - 5} more related entities\n'
-
-            result += '\n'
-
-        # Process alerts if available
-        alert_counts = []
-        if hasattr(entity_summary, 'alert_counts'):
-            alert_counts = entity_summary.alert_counts
-
-        if alert_counts:
-            result += 'Associated Alerts:\n'
-            for alert in alert_counts:
-                rule = 'Unknown'
-                count = 0
-
-                if hasattr(alert, 'rule'):
-                    rule = alert.rule
-                if hasattr(alert, 'count'):
-                    count = alert.count
-
-                result += f'- Rule: {rule}, Count: {count}\n'
-
-            # Add info about pagination if more alerts are available
-            if hasattr(entity_summary, 'has_more_alerts') and entity_summary.has_more_alerts:
-                result += '(More alerts available)\n'
-
-            result += '\n'
-
-        # Add timeline information if available
-        if hasattr(entity_summary, 'timeline') and entity_summary.timeline:
-            timeline = entity_summary.timeline
-            if hasattr(timeline, 'buckets') and timeline.buckets:
-                total_events = sum(bucket.event_count for bucket in timeline.buckets if hasattr(bucket, 'event_count'))
-                total_alerts = sum(bucket.alert_count for bucket in timeline.buckets if hasattr(bucket, 'alert_count'))
-
-                result += 'Timeline Summary:\n'
-                result += f'Total Events: {total_events}\n'
-                result += f'Total Alerts: {total_alerts}\n\n'
-
-        # Add prevalence information if available
-        if hasattr(entity_summary, 'prevalence') and entity_summary.prevalence:
-            result += 'Prevalence Information Available\n\n'
-
-        return result
-    except Exception as e:
-        logger.error(f'Error looking up entity: {str(e)}', exc_info=True)
-        return f'Error looking up entity: {str(e)}'
+    return lookup_entity_impl(
+        entity_value=entity_value,
+        project_id=project_id,
+        customer_id=customer_id,
+        hours_back=hours_back,
+        region=region,
+    )

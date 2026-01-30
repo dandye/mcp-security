@@ -14,11 +14,10 @@
 """Security Operations MCP tools for searching security events."""
 
 import logging
-from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
-from secops_mcp.server import get_chronicle_client, server
-from secops_mcp.utils import parse_time_range
+from secops_mcp.server import server
+from secops_mcp.tools.security_events_logic import search_security_events_impl
 
 
 # Configure logging
@@ -117,55 +116,13 @@ async def search_security_events(
         *   *Returned `udm_query`: `email = "charlie.brown@cymbalgroup.com"`*
         *   *Result: 6 events (Success!)* - This indicates the user identifier was primarily in an `email` field, not the generic `user` field, and removing the `USER_LOGIN` constraint helped.
     """
-    try:
-        try:
-            start_dt, end_dt = parse_time_range(start_time, end_time, hours_back)
-        except ValueError as e:
-            logger.error(f'Error parsing date format: {str(e)}', exc_info=True)
-            return {
-                'udm_query': None,
-                'events': {'error': f"Error parsing date format: {str(e)}. Use ISO 8601 format (e.g., 2023-01-01T12:00:00Z)", 'events': [], 'total_events': 0},
-            }
-
-        logger.info(
-            f'Searching security events - Query: {text}, Effective Time Range: {start_dt} to {end_dt}'
-        )
-
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Use the new natural language search method
-        udm_query = chronicle.translate_nl_to_udm(text)
-        logger.info(f'YL2 UDM Query: {udm_query}')
-
-        events = chronicle.search_udm(
-            query=udm_query,
-            start_time=start_dt,
-            end_time=end_dt,
-            max_events=max_events,
-        )
-
-        # For compatibility with old format, check if we need to transform response
-        if isinstance(events, dict) and 'events' in events:
-            total_events = events.get('total_events', 0)
-            event_list = events.get('events', [])
-        else:
-            # This might be the case with the standard library format
-            event_list = events if isinstance(events, list) else []
-            total_events = len(event_list)
-            events = {'events': event_list, 'total_events': total_events}
-
-        logger.info(
-            f'Search results: {total_events} total events,'
-            f' {len(event_list)} returned'
-        )
-
-        # Return a new dictionary with UDM query first, then events data
-        return {'udm_query': udm_query, 'events': events}
-
-    except Exception as e:
-        logger.error(f'Error searching security events: {str(e)}', exc_info=True)
-        # Return an error object that can be processed by the model
-        return {
-            'udm_query': None,
-            'events': {'error': str(e), 'events': [], 'total_events': 0},
-        }
+    return search_security_events_impl(
+        text=text,
+        project_id=project_id,
+        customer_id=customer_id,
+        hours_back=hours_back,
+        start_time=start_time,
+        end_time=end_time,
+        max_events=max_events,
+        region=region,
+    )

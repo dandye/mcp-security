@@ -122,9 +122,24 @@ Chronicle Security Operations suite.
 
 ### Function Calling Support
 
-For users building custom agents or applications directly with the OpenAI API (or compatible LLMs), we provide a standalone implementation of select tools in the Function Calling format (OpenAI Tool format).
+For users building custom agents or applications directly with the OpenAI API (or compatible LLMs), we provide standalone implementations of our tools in the Function Calling format (OpenAI Tool format).
 
-- **`list_security_rules`**: Available in `server/secops/secops_mcp/tools/list_rules_function_calling.py`.
+These implementations share the same core logic as the MCP tools but are designed to be imported and used directly in your Python applications.
+
+Available modules in `server/secops/secops_mcp/tools/`:
+- `rules_function_calling.py`: Security rules management
+- `alerts_function_calling.py`: Security alerts retrieval and updates
+- `security_events_function_calling.py`: Natural language event search
+- `entity_function_calling.py`: Entity enrichment
+- `ioc_function_calling.py`: IoC matching
+- `threat_intel_function_calling.py`: Threat intelligence queries
+- `udm_search_function_calling.py`: UDM search and export
+- `search_function_calling.py`: Raw UDM search
+- `log_ingestion_function_calling.py`: Log ingestion
+- `parser_function_calling.py`: Parser management
+- `data_table_function_calling.py`: Data table management
+- `reference_list_function_calling.py`: Reference list management
+- `feed_function_calling.py`: Feed management
 
 See [docs/function_calling.md](../../docs/function_calling.md) for a detailed comparison between Function Calling and MCP Tools, and guidance on when to use each.
 
