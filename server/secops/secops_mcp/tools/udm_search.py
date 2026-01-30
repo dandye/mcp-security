@@ -13,13 +13,14 @@
 # limitations under the License.
 """Security Operations MCP tools for UDM search and export."""
 
-import json
 import logging
-from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from secops_mcp.server import get_chronicle_client, server
-from secops_mcp.utils import parse_time_range
+from secops_mcp.server import server
+from secops_mcp.tools.udm_search_logic import (
+    export_udm_search_csv_impl,
+    find_udm_field_values_impl,
+)
 
 # Configure logging
 logger = logging.getLogger("secops-mcp")
@@ -127,76 +128,17 @@ async def export_udm_search_csv(
     - Check field names against Chronicle's UDM schema for correct paths.
     - Use case_insensitive=False for exact matching when needed.
     """
-    try:
-        try:
-            start_dt, end_dt = parse_time_range(start_time, end_time, hours_back)
-        except ValueError as e:
-            logger.error(f'Error parsing date format: {str(e)}', exc_info=True)
-            return f"Error parsing date format: {str(e)}. Use ISO 8601 format (e.g., 2023-01-01T12:00:00Z)"
-
-        logger.info(
-            f"Exporting UDM search results to CSV - Query: {query}, "
-            f"Fields: {fields}, Effective Time Range: {start_dt} to {end_dt}"
-        )
-
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Call the fetch_udm_search_csv method on the chronicle client
-        csv_results = chronicle.fetch_udm_search_csv(
-            query=query,
-            start_time=start_dt,
-            end_time=end_dt,
-            fields=fields,
-            case_insensitive=case_insensitive,
-        )
-
-        # SDK/Wrapper is returning JSON string directly instead of CSV
-        if isinstance(csv_results, str):
-            try:
-                csv_results = json.loads(csv_results)   
-            except json.JSONDecodeError:
-                return csv_results
-
-        if isinstance(csv_results, list):
-            csv_results = csv_results[0]
-            
-        if (
-            csv_results.get("queryValidationErrors")
-            or csv_results.get("runtimeErrors")
-            or csv_results.get("failureCsvFieldValidations")
-        ):
-
-            export_errors = (
-                csv_results.get("queryValidationErrors")
-                or csv_results.get("runtimeErrors")
-                or csv_results.get("failureCsvFieldValidations")
-            )
-
-            logger.error(
-                f"Error exporting UDM search to CSV: {export_errors}",
-                exc_info=True,
-            )
-            return f"Error exporting UDM search results: {export_errors}"
-
-        row_count = 0
-        if (
-            "csv" in csv_results
-            and csv_results["csv"]
-            and csv_results["csv"].get("row")
-        ):
-            row_count = len(csv_results["csv"]["row"])
-            logger.info(f"Successfully exported {row_count} rows to CSV format")
-            # Returning CSV as a string
-            return "\n".join(csv_results["csv"]["row"])
-
-        # Return raw response as default
-        return "No results found"
-
-    except Exception as e:
-        logger.error(
-            f"Error exporting UDM search to CSV: {str(e)}", exc_info=True
-        )
-        return f"Error exporting UDM search results: {str(e)}"
+    return export_udm_search_csv_impl(
+        query=query,
+        fields=fields,
+        hours_back=hours_back,
+        start_time=start_time,
+        end_time=end_time,
+        case_insensitive=case_insensitive,
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+    )
 
 
 @server.tool()
@@ -282,31 +224,10 @@ async def find_udm_field_values(
     - Combine with search_security_events to understand context around values.
     - Regular use helps maintain awareness of data patterns in your environment.
     """
-    try:
-        logger.info(f"Finding UDM field values matching: {query}")
-
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Call the aliased library function
-        results = chronicle.find_udm_field_values(
-            query=query, page_size=page_size
-        )
-
-        # Log success
-        if isinstance(results, dict):
-            # Try to extract count information if available
-            if "values" in results:
-                count = len(results["values"])
-            elif "fieldValues" in results:
-                count = len(results["fieldValues"])
-            else:
-                count = "unknown number of"
-            logger.info(f"Found {count} matching field values")
-        else:
-            logger.info("Field value search completed")
-
-        return results
-
-    except Exception as e:
-        logger.error(f"Error finding UDM field values: {str(e)}", exc_info=True)
-        return {"error": str(e), "values": []}
+    return find_udm_field_values_impl(
+        query=query,
+        page_size=page_size,
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+    )

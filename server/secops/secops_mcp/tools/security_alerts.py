@@ -13,12 +13,15 @@
 # limitations under the License.
 """Security Operations MCP tools for security alerts."""
 
-import json
 import logging
-from datetime import datetime, timedelta, timezone
-
 from typing import Any, Dict, Optional
-from secops_mcp.server import get_chronicle_client, server
+
+from secops_mcp.server import server
+from secops_mcp.tools.alerts_logic import (
+    do_update_security_alert_impl,
+    get_security_alert_by_id_impl,
+    get_security_alerts_impl,
+)
 
 
 # Configure logging
@@ -74,80 +77,14 @@ async def get_security_alerts(
         - Use SIEM event search tools (like `search_security_events`) to find related raw logs.
         - Correlate alert information with findings from other security tools (EDR, Cloud Posture, TI) via their MCP tools.
     """
-    try:
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        end_time = datetime.now(timezone.utc)
-        start_time = end_time - timedelta(hours=hours_back)
-
-        alert_response = chronicle.get_alerts(
-            start_time=start_time,
-            end_time=end_time,
-            snapshot_query=status_filter,
-            max_alerts=max_alerts,
-        )
-
-        # The response format depends on the secops library version
-        # Try to handle both formats
-        if isinstance(alert_response, dict):
-            alert_list = alert_response.get('alerts', {}).get('alerts', [])
-        else:
-            # Might be a direct list of alerts in the standard library
-            alert_list = alert_response if isinstance(alert_response, list) else []
-
-        if not alert_list:
-            return 'No security alerts found for the specified time range.'
-
-        result = f'Found {len(alert_list)} security alerts:\n\n'
-
-        for i, alert in enumerate(alert_list, 1):
-            # Try to access fields with different possible structures
-            rule_name = None
-            if (
-                'detection' in alert
-                and isinstance(alert['detection'], list)
-                and len(alert['detection']) > 0
-            ):
-                rule_name = alert['detection'][0].get('ruleName', 'Unknown Rule')
-            else:
-                rule_name = alert.get('ruleName', 'Unknown Rule')
-
-            created_time = alert.get('createdTime', 'Unknown')
-
-            # Try different possible status field paths
-            status = 'Unknown'
-            if 'feedbackSummary' in alert and isinstance(
-                alert['feedbackSummary'], dict
-            ):
-                status = alert['feedbackSummary'].get('status', 'Unknown')
-            elif 'status' in alert:
-                status = alert.get('status', 'Unknown')
-
-            # Try different possible severity field paths
-            severity = 'Unknown'
-            if 'feedbackSummary' in alert and isinstance(
-                alert['feedbackSummary'], dict
-            ):
-                severity = alert['feedbackSummary'].get('severityDisplay', 'Unknown')
-            elif 'severity' in alert:
-                severity = alert.get('severity', 'Unknown')
-
-            result += f'Alert {i}:\n'
-            result += f'Rule: {rule_name}\n'
-            result += f'Created: {created_time}\n'
-            result += f'Status: {status}\n'
-            result += f'Severity: {severity}\n'
-
-            # Add case information if available
-            case_name = alert.get('caseName')
-            if case_name:
-                result += f'Associated Case: {case_name}\n'
-
-            result += '\n'
-
-        return json.dumps(result)
-    except Exception as e:
-        return f'Error retrieving security alerts: {str(e)}'
+    return get_security_alerts_impl(
+        project_id=project_id,
+        customer_id=customer_id,
+        hours_back=hours_back,
+        max_alerts=max_alerts,
+        status_filter=status_filter,
+        region=region,
+    )
 
 @server.tool()
 async def get_security_alert_by_id(
@@ -195,14 +132,13 @@ async def get_security_alert_by_id(
         - Use SIEM event search tools (like `search_security_events`) to find related raw logs.
         - Correlate alert information with findings from other security tools (EDR, Cloud Posture, TI) via their MCP tools.
     """
-
-    try:
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-        response = chronicle.get_alert(alert_id, include_detections)
-    except Exception as e:
-        return f'Error retrieving security alert for {alert_id}: {str(e)}'
-
-    return json.dumps(response)
+    return get_security_alert_by_id_impl(
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+        alert_id=alert_id,
+        include_detections=include_detections,
+    )
 
 @server.tool()
 async def do_update_security_alert(
@@ -280,10 +216,16 @@ Next Steps (using MCP-enabled tools):
     - Ensure that any corresponding ticket or case in an external case management or SOAR system is updated to reflect the changes made in Chronicle.
     - Communicate significant updates (e.g., confirmed breach, critical false positive) to relevant teams or stakeholders as per incident response procedures.
     """
-    try:
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-        response = chronicle.update_alert(alert_id, reason=reason, status=status, verdict=verdict, comment=comment, root_cause=root_cause, priority=priority, severity=severity)
-    except Exception as e:
-        return f'Error retrieving security alert for {alert_id}: {str(e)}'
-
-    return json.dumps(response)
+    return do_update_security_alert_impl(
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+        alert_id=alert_id,
+        reason=reason,
+        priority=priority,
+        status=status,
+        verdict=verdict,
+        severity=severity,
+        comment=comment,
+        root_cause=root_cause,
+    )

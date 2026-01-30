@@ -16,7 +16,17 @@
 import logging
 from typing import Any, Dict, Optional
 
-from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.server import server
+from secops_mcp.tools.feed_logic import (
+    create_feed_impl,
+    delete_feed_impl,
+    disable_feed_impl,
+    enable_feed_impl,
+    generate_feed_secret_impl,
+    get_feed_impl,
+    list_feeds_impl,
+    update_feed_impl,
+)
 
 
 # Configure logging
@@ -70,36 +80,11 @@ async def list_feeds(
         - Review feed configurations for proper log type mappings
         - Use parser management tools to verify parsers for these feeds
     """
-    try:
-        logger.info("Listing feeds")
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Get all feeds
-        feeds = chronicle.list_feeds()
-
-        # Process feeds into a structured response
-        result = {
-            "feeds": [],
-            "total_feeds": len(feeds),
-            "active_feeds": 0,
-            "disabled_feeds": 0,
-        }
-
-        # Count active and disabled feeds
-        for feed in feeds:
-            feed_state = feed.get("state", "UNKNOWN")
-            if feed_state == "ACTIVE":
-                result["active_feeds"] += 1
-            elif feed_state == "INACTIVE":
-                result["disabled_feeds"] += 1
-
-            # Add feed details to result
-            result["feeds"].append(feed)
-
-        return result
-    except Exception as e:
-        logger.error(f"Error listing feeds: {e}", exc_info=True)
-        return {"error": f"Error listing feeds: {e}"}
+    return list_feeds_impl(
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+    )
 
 
 @server.tool()
@@ -150,20 +135,12 @@ async def get_feed(
         - Verify log parsing is working correctly using parser management tools
         - Search for recent events from this feed using security events search
     """
-    try:
-        logger.info(f"Getting details for feed with ID: {feed_id}")
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Get feed details
-        feed = chronicle.get_feed(feed_id)
-
-        if not feed:
-            return {"error": f"Feed with ID {feed_id} not found"}
-
-        return feed
-    except Exception as e:
-        logger.error(f"Error getting feed: {e}", exc_info=True)
-        return {"error": f"Error getting feed: {e}"}
+    return get_feed_impl(
+        feed_id=feed_id,
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+    )
 
 
 @server.tool()
@@ -228,18 +205,13 @@ async def create_feed(
         - Configure alert rules for the new data source
         - Document the new data source in your security operations runbook
     """
-    try:
-        logger.info(f"Creating new feed: {display_name}")
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Create the feed
-        return chronicle.create_feed(
-            display_name=display_name, details=feed_details
-        )
-
-    except Exception as e:
-        logger.error(f"Error creating feed: {e}", exc_info=True)
-        return {"error": f"Error creating feed: {e}"}
+    return create_feed_impl(
+        display_name=display_name,
+        feed_details=feed_details,
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+    )
 
 
 @server.tool()
@@ -302,19 +274,14 @@ async def update_feed(
         - Update documentation to reflect the changes
         - Monitor the feed for any issues after the update
     """
-    try:
-        logger.info(f"Updating feed with ID: {feed_id}")
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Update the feed
-        return chronicle.update_feed(
-            feed_id=feed_id,
-            display_name=display_name,
-            details=feed_details or {},
-        )
-    except Exception as e:
-        logger.error(f"Error updating feed: {e}", exc_info=True)
-        return {"error": f"Error updating feed: {e}"}
+    return update_feed_impl(
+        feed_id=feed_id,
+        display_name=display_name,
+        feed_details=feed_details,
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+    )
 
 
 @server.tool()
@@ -362,24 +329,12 @@ async def enable_feed(
         - Update any incident tickets or maintenance records
         - Monitor the feed for any issues after enabling
     """
-    try:
-        logger.info(f"Enabling feed with ID: {feed_id}")
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Enable the feed
-        enabled_feed = chronicle.enable_feed(feed_id)
-
-        # Format the response
-        result = {
-            "id": feed_id,
-            "state": enabled_feed.get("state", "UNKNOWN"),
-            "message": "Feed enabled successfully",
-        }
-
-        return result
-    except Exception as e:
-        logger.error(f"Error enabling feed: {e}", exc_info=True)
-        return {"error": f"Error enabling feed: {e}"}
+    return enable_feed_impl(
+        feed_id=feed_id,
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+    )
 
 
 @server.tool()
@@ -427,24 +382,12 @@ async def disable_feed(
         - Set a reminder to re-enable the feed when appropriate
         - Document the reason for disabling in your security operations runbook
     """
-    try:
-        logger.info(f"Disabling feed with ID: {feed_id}")
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Disable the feed
-        disabled_feed = chronicle.disable_feed(feed_id)
-
-        # Format the response
-        result = {
-            "id": feed_id,
-            "state": disabled_feed.get("state", "UNKNOWN"),
-            "message": "Feed disabled successfully",
-        }
-
-        return result
-    except Exception as e:
-        logger.error(f"Error disabling feed: {e}", exc_info=True)
-        return {"error": f"Error disabling feed: {e}"}
+    return disable_feed_impl(
+        feed_id=feed_id,
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+    )
 
 
 @server.tool()
@@ -492,20 +435,12 @@ async def delete_feed(
         - Review any rules or dashboards that may have depended on this data
         - Consider archiving historical data if needed
     """
-    try:
-        logger.info(f"Deleting feed with ID: {feed_id}")
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Delete the feed
-        chronicle.delete_feed(feed_id)
-
-        # Format the response
-        result = {"id": feed_id, "message": "Feed deleted successfully"}
-
-        return result
-    except Exception as e:
-        logger.error(f"Error deleting feed: {e}", exc_info=True)
-        return {"error": f"Error deleting feed: {e}"}
+    return delete_feed_impl(
+        feed_id=feed_id,
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+    )
 
 
 @server.tool()
@@ -554,21 +489,9 @@ async def generate_feed_secret(
         - Document the secret rotation in your security operations runbook
         - Set a reminder for next credential rotation
     """
-    try:
-        logger.info(f"Generating secret for feed with ID: {feed_id}")
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Generate the secret
-        secret_result = chronicle.generate_secret(feed_id)
-
-        # Format the response
-        result = {"id": feed_id, "message": "Secret generated successfully"}
-
-        # Add secret to response if returned by the API
-        if secret_result and "secret" in secret_result:
-            result["secret"] = secret_result["secret"]
-
-        return result
-    except Exception as e:
-        logger.error(f"Error generating feed secret: {e}", exc_info=True)
-        return {"error": f"Error generating feed secret: {e}"}
+    return generate_feed_secret_impl(
+        feed_id=feed_id,
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+    )

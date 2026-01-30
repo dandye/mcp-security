@@ -13,13 +13,15 @@
 # limitations under the License.
 """Security Operations MCP tools for log ingestion."""
 
-import json
 import logging
-import uuid
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
-from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.server import server
+from secops_mcp.tools.log_ingestion_logic import (
+    get_available_log_types_impl,
+    ingest_raw_log_impl,
+    ingest_udm_events_impl,
+)
 
 
 # Configure logging
@@ -101,46 +103,17 @@ async def ingest_raw_log(
         - Set up alerting for important events found in the ingested logs.
         - Use entity lookup tools to analyze indicators found in the ingested data.
     """
-    try:
-        logger.info(f'Ingesting raw log of type: {log_type}')
-
-        
-        
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Prepare ingestion parameters
-        ingestion_params = {
-            'log_type': log_type,
-            'log_message': log_message
-        }
-
-        if forwarder_id:
-            ingestion_params['forwarder_id'] = forwarder_id
-        if labels:
-            ingestion_params['labels'] = labels
-        if log_entry_time:
-            ingestion_params['log_entry_time'] = datetime.fromisoformat(log_entry_time.replace('Z', '+00:00'))
-        if collection_time:
-            ingestion_params['collection_time'] = datetime.fromisoformat(collection_time.replace('Z', '+00:00'))
-
-        # Ingest the log(s)
-        result = chronicle.ingest_log(**ingestion_params)
-
-        # Format response
-        operation = result.get('operation', 'Unknown operation')
-        log_count = len(log_message) if isinstance(log_message, list) else 1
-        
-        response = f'Successfully ingested {log_count} log(s) of type {log_type}.\n'
-        response += f'Operation: {operation}'
-        
-        if labels:
-            response += f'\nLabels applied: {labels}'
-        
-        return response
-
-    except Exception as e:
-        logger.error(f'Error ingesting raw log: {str(e)}', exc_info=True)
-        return f'Error ingesting raw log: {str(e)}'
+    return ingest_raw_log_impl(
+        log_type=log_type,
+        log_message=log_message,
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+        forwarder_id=forwarder_id,
+        labels=labels,
+        log_entry_time=log_entry_time,
+        collection_time=collection_time,
+    )
 
 @server.tool()
 async def ingest_udm_events(
@@ -253,43 +226,12 @@ async def ingest_udm_events(
         - Monitor Chronicle's ingestion metrics to ensure events are being processed correctly.
         - Create detection rules specifically targeting the custom event types you're ingesting.
     """
-    try:
-        logger.info('Ingesting UDM events')
-
-        
-        
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Auto-generate IDs for events that don't have them
-        events_to_ingest = udm_events if isinstance(udm_events, list) else [udm_events]
-        
-        for event in events_to_ingest:
-            if 'metadata' in event and 'id' not in event['metadata']:
-                event['metadata']['id'] = str(uuid.uuid4())
-
-        # Ingest the UDM events
-        result = chronicle.ingest_udm(udm_events=udm_events)
-
-        # Format response
-        event_count = len(events_to_ingest)
-        response = f'Successfully ingested {event_count} UDM event(s).\n'
-        
-        # Add event IDs if available
-        event_ids = []
-        for event in events_to_ingest:
-            if 'metadata' in event and 'id' in event['metadata']:
-                event_ids.append(event['metadata']['id'])
-        
-        if event_ids:
-            response += f'Event IDs: {", ".join(event_ids[:5])}'  # Show first 5 IDs
-            if len(event_ids) > 5:
-                response += f' (and {len(event_ids) - 5} more)'
-        
-        return response
-
-    except Exception as e:
-        logger.error(f'Error ingesting UDM events: {str(e)}', exc_info=True)
-        return f'Error ingesting UDM events: {str(e)}'
+    return ingest_udm_events_impl(
+        udm_events=udm_events,
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+    )
 
 @server.tool()
 async def get_available_log_types(
@@ -347,36 +289,9 @@ async def get_available_log_types(
         - Check if custom parsers exist for your specific log format using parser management tools.
         - Create custom parsers if your log format isn't supported natively.
     """
-    try:
-        logger.info(f'Getting available log types, search term: {search_term}')
-
-        
-        
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        if search_term:
-            # Search for specific log types
-            log_types = chronicle.search_log_types(search_term)
-        else:
-            # Get all log types (limit to first 50 to avoid overwhelming output)
-            log_types = chronicle.get_all_log_types()[:50]
-
-        if not log_types:
-            return f'No log types found{" matching search term: " + search_term if search_term else ""}.'
-
-        result = f'Found {len(log_types)} log type(s):\n\n'
-        
-        for log_type in log_types:
-            log_id = getattr(log_type, 'id', 'Unknown ID')
-            description = getattr(log_type, 'description', 'No description available')
-            result += f'ID: {log_id}\n'
-            result += f'Description: {description}\n\n'
-
-        if len(log_types) == 50 and not search_term:
-            result += '\nNote: Only showing first 50 log types. Use search_term to filter results.'
-
-        return result
-
-    except Exception as e:
-        logger.error(f'Error getting available log types: {str(e)}', exc_info=True)
-        return f'Error getting available log types: {str(e)}' 
+    return get_available_log_types_impl(
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+        search_term=search_term,
+    )

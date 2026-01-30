@@ -14,10 +14,10 @@
 """Security Operations MCP tools for IoC matches."""
 
 import logging
-from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.server import server
+from secops_mcp.tools.ioc_logic import get_ioc_matches_impl
 
 
 # Configure logging
@@ -69,54 +69,10 @@ async def get_ioc_matches(
         - Check if related cases exist in your case management/SOAR system or create one if the match indicates a significant threat.
         - Correlate IoC match details with findings from other security tools (EDR, Network, Cloud) via their MCP tools.
     """
-    try:
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        end_time = datetime.now(timezone.utc)
-        start_time = end_time - timedelta(hours=hours_back)
-
-        iocs = chronicle.list_iocs(
-            start_time=start_time, end_time=end_time, max_matches=max_matches
-        )
-
-        # Handle different possible response formats
-        matches = []
-        if isinstance(iocs, dict) and 'matches' in iocs:
-            matches = iocs.get('matches', [])
-        elif isinstance(iocs, list):
-            matches = iocs
-
-        if not matches:
-            return 'No IoC matches found for the specified time range.'
-
-        result = f'Found {len(matches)} IoC matches:\n\n'
-
-        for i, match in enumerate(matches, 1):
-            # Get the indicator information
-            indicator_type = 'Unknown'
-            indicator_value = 'Unknown'
-            sources = []
-
-            # Try to extract artifactIndicator differently based on response format
-            if isinstance(match, dict):
-                if 'artifactIndicator' in match and isinstance(
-                    match['artifactIndicator'], dict
-                ):
-                    # Get the first key-value pair from artifactIndicator
-                    indicator_dict = match.get('artifactIndicator', {})
-                    if indicator_dict:
-                        indicator_type = next(iter(indicator_dict.keys()), 'Unknown')
-                        indicator_value = next(iter(indicator_dict.values()), 'Unknown')
-
-                sources = match.get('sources', [])
-
-            sources_str = ', '.join(sources) if sources else 'Unknown'
-
-            result += f'IoC {i}:\n'
-            result += f'Type: {indicator_type}\n'
-            result += f'Value: {indicator_value}\n'
-            result += f'Sources: {sources_str}\n\n'
-
-        return result
-    except Exception as e:
-        return f'Error retrieving IoC matches: {str(e)}'
+    return get_ioc_matches_impl(
+        project_id=project_id,
+        customer_id=customer_id,
+        hours_back=hours_back,
+        max_matches=max_matches,
+        region=region,
+    )

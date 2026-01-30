@@ -13,11 +13,11 @@
 # limitations under the License.
 """Security Operations MCP tools for threat intelligence."""
 
-import json
 import logging
 from typing import Optional
 
-from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.server import server
+from secops_mcp.tools.threat_intel_logic import get_threat_intel_impl
 
 
 # Configure logging
@@ -69,36 +69,9 @@ async def get_threat_intel(
         - Correlate the threat intelligence with specific alerts or findings from other security tools (EDR, Network, Cloud).
         - Document relevant findings in the appropriate case management or ticketing system using an MCP tool.
     """
-    try:
-        logger.info(f'Getting threat intelligence for query: {query}')
-
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Call the Gemini method from the SecOps SDK
-        response = chronicle.gemini(query)
-
-        # Handle GeminiResponse object
-        if hasattr(response, 'get_text_content'):
-            # This is a GeminiResponse object, extract text content
-            return response.get_text_content()
-        elif hasattr(response, 'blocks') and isinstance(response.blocks, list):
-            # Handle direct access to blocks if get_text_content isn't available
-            text_content = []
-            for block in response.blocks:
-                if hasattr(block, 'block_type') and hasattr(block, 'content'):
-                    if block.block_type == "TEXT":
-                        text_content.append(block.content)
-            return "\n\n".join(text_content) if text_content else "No text content found in response."
-        elif isinstance(response, dict) and 'answer' in response:
-            # Legacy format or different API response
-            return response.get('answer', 'No answer was provided by the model.')
-        elif isinstance(response, str):
-            # Direct string response
-            return response
-        else:
-            # If response is in an unexpected format, try to convert it to string
-            return json.dumps(response)
-
-    except Exception as e:
-        logger.error(f'Error getting threat intelligence: {str(e)}', exc_info=True)
-        return f'Error retrieving threat intelligence: {str(e)}'
+    return get_threat_intel_impl(
+        query=query,
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+    )
