@@ -41,7 +41,7 @@ Function Calling vs MCP Tool:
 import logging
 from typing import Any, Dict, Optional
 
-from secops_mcp.server import get_chronicle_client
+from secops_mcp.tools.rules_logic import list_rules_impl
 
 # Configure logging
 logger = logging.getLogger("secops-mcp-fc")
@@ -99,27 +99,10 @@ async def execute_list_rules_tool(arguments: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         A dictionary containing the results from the Chronicle API or an error message.
     """
-    project_id = arguments.get("project_id")
-    customer_id = arguments.get("customer_id")
-    region = arguments.get("region")
-    page_size = arguments.get("page_size", 100)
-    page_token = arguments.get("page_token")
-
-    # Basic validation
-    if page_size > 1000:
-        logger.warning("page_size cannot exceed 1000. Setting to 1000.")
-        page_size = 1000
-
-    try:
-        # Initialize the Chronicle client
-        # This reuses the same helper from the main server module
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-
-        # Call the API
-        rules_response = chronicle.list_rules(
-            page_size=page_size, page_token=page_token
-        )
-        return rules_response
-    except Exception as e:
-        logger.error(f"Error listing security rules (Function Calling): {str(e)}", exc_info=True)
-        return {"error": str(e), "rules": []}
+    return list_rules_impl(
+        project_id=arguments.get("project_id"),
+        customer_id=arguments.get("customer_id"),
+        region=arguments.get("region"),
+        page_size=arguments.get("page_size", 100),
+        page_token=arguments.get("page_token"),
+    )

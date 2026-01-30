@@ -17,6 +17,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.tools.rules_logic import list_rules_impl
 
 
 # Configure logging
@@ -67,19 +68,13 @@ async def list_security_rules(
         - Use insights for rule optimization, false positive analysis, or developing related detections.
         - Document relevant rule information in associated cases using a case management tool.
     """
-    try:
-        if page_size > 1000:
-            logger.warning("page_size cannot exceed 1000. Setting to 1000.")
-            page_size = 1000
-
-        chronicle = get_chronicle_client(project_id, customer_id, region)
-        rules_response = chronicle.list_rules(
-            page_size=page_size, page_token=page_token
-        )
-        return rules_response
-    except Exception as e:
-        logger.error(f"Error listing security rules: {str(e)}", exc_info=True)
-        return {"error": str(e), "rules": []}
+    return list_rules_impl(
+        project_id=project_id,
+        customer_id=customer_id,
+        region=region,
+        page_size=page_size,
+        page_token=page_token,
+    )
 
 
 @server.tool()
