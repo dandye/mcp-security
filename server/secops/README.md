@@ -120,6 +120,14 @@ Chronicle Security Operations suite.
 - **`generate_feed_secret(feed_id, project_id=None, customer_id=None, region=None)`**
     - Creates a new authentication secret for feeds that support authentication (e.g., HTTP feeds with basic auth). This replaces any existing secret.
 
+### Function Calling Support
+
+For users building custom agents or applications directly with the OpenAI API (or compatible LLMs), we provide a standalone implementation of select tools in the Function Calling format (OpenAI Tool format).
+
+- **`list_security_rules`**: Available in `server/secops/secops_mcp/tools/list_rules_function_calling.py`.
+
+See [docs/function_calling.md](../../docs/function_calling.md) for a detailed comparison between Function Calling and MCP Tools, and guidance on when to use each.
+
 ### API Capabilities
 
 The MCP server provides the following capabilities:
