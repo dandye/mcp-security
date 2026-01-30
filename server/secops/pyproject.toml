@@ -19,7 +19,8 @@ dependencies = [
     "secops>=0.34.0",
     "google-auth>=2.47.0",
     "google-auth-httplib2>=0.3.0",
-    "google-api-python-client>=2.187.0"
+    "google-api-python-client>=2.187.0",
+    "typer>=0.9.0"
 ]
 
 [project.urls]
@@ -36,6 +37,7 @@ test = [
 
 [project.scripts]
 secops_mcp = "secops_mcp.server:main"
+secops-cli = "secops_mcp.cli:main"
 
 [project.entry-points.mcp]
 secops_mcp = "secops_mcp.server:main"

@@ -143,6 +143,35 @@ Available modules in `server/secops/secops_mcp/tools/`:
 
 See [docs/function_calling.md](../../docs/function_calling.md) for a detailed comparison between Function Calling and MCP Tools, and guidance on when to use each.
 
+### CLI Usage
+
+The package includes a unified Command Line Interface (CLI) `secops-cli` that provides access to all tools.
+
+**Installation:**
+
+```bash
+pip install .
+```
+
+**Usage:**
+
+```bash
+# List all available commands
+secops-cli --help
+
+# List security rules
+secops-cli rules list
+
+# Search security events
+secops-cli events search-nl "Find login attempts for user admin"
+
+# Get threat intelligence
+secops-cli intel ask "Who is APT41?"
+
+# Ingest a log
+secops-cli ingest log "OKTA" '{"eventType": "user.session.start"}'
+```
+
 ### API Capabilities
 
 The MCP server provides the following capabilities:
