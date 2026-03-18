@@ -1,0 +1,10 @@
+{
+  "example-gcp-project-id": {
+    "customer_id": "01234567-abcd-4321-1234-0123456789ab",
+    "region": "us"
+  },
+  "another-gcp-project-id": {
+    "customer_id": "abcd5678-1234-dcba-6789-ba9876543210",
+    "region": "europe"
+  }
+}
