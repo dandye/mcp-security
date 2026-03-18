@@ -30,6 +30,8 @@ async def lookup_entity(
     customer_id: Optional[str] = None,
     hours_back: int = 24,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> str:
     """Look up an entity (IP, domain, hash, user, etc.) in Chronicle SIEM for enrichment.
 
@@ -65,6 +67,8 @@ async def lookup_entity(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to environment configuration.
         hours_back (int): How many hours of historical data to consider for the summary. Defaults to 24.
         region (Optional[str]): Chronicle region (e.g., "us", "europe"). Defaults to environment configuration.
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
 
     Returns:
         str: A formatted string summarizing the entity information found in Chronicle within the specified time window,
@@ -83,7 +87,7 @@ async def lookup_entity(
         - Document findings in a relevant case management or ticketing system using an appropriate MCP tool.
     """
     try:
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=hours_back)

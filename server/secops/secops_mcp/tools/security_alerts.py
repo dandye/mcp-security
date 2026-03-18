@@ -32,6 +32,8 @@ async def get_security_alerts(
     max_alerts: int = 10,
     status_filter: str = 'feedback_summary.status != "CLOSED"',
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> str:
     """Get security alerts directly from Chronicle SIEM.
 
@@ -59,6 +61,8 @@ async def get_security_alerts(
         status_filter (str): Query string to filter alerts by status (e.g., 'feedback_summary.status != "CLOSED"').
                              Defaults to excluding closed alerts.
         region (Optional[str]): Chronicle region (e.g., "us", "europe"). Defaults to environment configuration.
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
 
     Returns:
         str: A formatted string summarizing the retrieved security alerts, including rule name,
@@ -75,7 +79,7 @@ async def get_security_alerts(
         - Correlate alert information with findings from other security tools (EDR, Cloud Posture, TI) via their MCP tools.
     """
     try:
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=hours_back)
@@ -154,6 +158,8 @@ async def get_security_alert_by_id(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
     alert_id: Optional[str] = None,
     include_detections: bool = True
 ) -> str:
@@ -179,6 +185,8 @@ async def get_security_alert_by_id(
         project_id (Optional[str]): Google Cloud project ID. Defaults to environment configuration.
         customer_id (Optional[str]): Chronicle customer ID. Defaults to environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe"). Defaults to environment configuration.
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
         alert_id (Optional[str]): The unique identifier of the alert to retrieve.
         include_detections (bool): Whether to include detection details in the response. Defaults to True.
 
@@ -197,7 +205,7 @@ async def get_security_alert_by_id(
     """
 
     try:
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
         response = chronicle.get_alert(alert_id, include_detections)
     except Exception as e:
         return f'Error retrieving security alert for {alert_id}: {str(e)}'
@@ -209,6 +217,8 @@ async def do_update_security_alert(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
     alert_id: Optional[str] = None,
     reason: Optional[str] = None,
     priority: Optional[str] = None,
@@ -244,6 +254,8 @@ Args:
     project_id (Optional[str]): Google Cloud project ID associated with the Chronicle instance. Defaults to environment configuration if not provided.
     customer_id (Optional[str]): The Chronicle customer ID. Defaults to environment configuration if not provided.
     region (Optional[str]): The Google Cloud region where the Chronicle instance is hosted (e.g., "us", "europe"). Defaults to environment configuration if not provided.
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
     reason: Reason for closing an alert. Valid values:
         - "REASON_UNSPECIFIED"
         - "REASON_NOT_MALICIOUS"
@@ -281,7 +293,7 @@ Next Steps (using MCP-enabled tools):
     - Communicate significant updates (e.g., confirmed breach, critical false positive) to relevant teams or stakeholders as per incident response procedures.
     """
     try:
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
         response = chronicle.update_alert(alert_id, reason=reason, status=status, verdict=verdict, comment=comment, root_cause=root_cause, priority=priority, severity=severity)
     except Exception as e:
         return f'Error retrieving security alert for {alert_id}: {str(e)}'

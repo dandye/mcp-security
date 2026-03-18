@@ -29,6 +29,8 @@ async def list_investigations(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List all investigations in Chronicle instance.
 
@@ -58,6 +60,8 @@ async def list_investigations(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -75,7 +79,7 @@ async def list_investigations(
         - Use entity lookup tools on indicators found in investigations
     """
     try:
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
         print(f"Listing investigations (page_size={page_size})...")
 
         result = chronicle.list_investigations(
@@ -98,6 +102,8 @@ async def get_investigation(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Retrieve specific investigation by ID.
 
@@ -124,6 +130,8 @@ async def get_investigation(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -148,7 +156,7 @@ async def get_investigation(
                 )
             }
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
         print(f"Retrieving investigation: {investigation_id}...")
 
         investigation = chronicle.get_investigation(
@@ -178,6 +186,8 @@ async def trigger_investigation(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create new investigation for a specific alert.
 
@@ -203,6 +213,8 @@ async def trigger_investigation(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -225,7 +237,7 @@ async def trigger_investigation(
                 "error": "alert_id parameter is required and cannot be empty"
             }
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
         print(f"Triggering investigation for alert: {alert_id}...")
 
         investigation = chronicle.trigger_investigation(alert_id=alert_id)
@@ -270,6 +282,8 @@ async def fetch_associated_investigations(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Retrieve investigations associated with alerts or cases.
 
@@ -303,6 +317,8 @@ async def fetch_associated_investigations(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -357,7 +373,7 @@ async def fetch_associated_investigations(
                 )
             }
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         detection_label = "alert" if is_alert_type else "case"
         ids = alert_ids if is_alert_type else case_ids

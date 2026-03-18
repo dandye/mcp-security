@@ -34,6 +34,8 @@ async def search_udm(
     project_id: str = None,
     customer_id: str = None,
     region: str = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Search UDM events using UDM query in Chronicle.
 
@@ -46,6 +48,8 @@ async def search_udm(
         project_id (Optional[str]): Google Cloud project ID.
         customer_id (Optional[str]): Chronicle customer ID.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
 
     Returns:
         Dict containing the search results with events.
@@ -61,7 +65,7 @@ async def search_udm(
             f'Searching UDM events - Query: {query}, Effective Time Range: {start_dt} to {end_dt}'
         )
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Call the search_udm method on the chronicle client
         search_results = chronicle.search_udm(

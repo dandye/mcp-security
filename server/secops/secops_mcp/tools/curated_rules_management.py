@@ -28,6 +28,8 @@ async def list_curated_rules(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
     page_size: int = 100,
     page_token: Optional[str] = None,
     as_list: bool = False,
@@ -57,6 +59,8 @@ async def list_curated_rules(
         customer_id (Optional[str]): Chronicle customer ID. Defaults
             to environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us",
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             "europe"). Defaults to environment configuration.
         page_size (int): Maximum number of rules to return per page.
             Defaults to 100.
@@ -90,7 +94,7 @@ async def list_curated_rules(
     try:
         logger.info(f"Listing curated rules (page_size={page_size})")
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         if as_list:
             rules = chronicle.list_curated_rules(as_list=True)
@@ -111,6 +115,8 @@ async def get_curated_rule(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Retrieve specific curated rule details by rule ID.
 
@@ -139,6 +145,8 @@ async def get_curated_rule(
         customer_id (Optional[str]): Chronicle customer ID. Defaults
             to environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us",
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             "europe"). Defaults to environment configuration.
 
     Returns:
@@ -158,7 +166,7 @@ async def get_curated_rule(
     try:
         logger.info(f"Retrieving curated rule: {rule_id}")
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
         rule = chronicle.get_curated_rule(rule_id)
 
         logger.info(f"Successfully retrieved curated rule: {rule_id}")
@@ -181,6 +189,8 @@ async def get_curated_rule_by_name(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Find curated rule by display name.
 
@@ -206,6 +216,8 @@ async def get_curated_rule_by_name(
         customer_id (Optional[str]): Chronicle customer ID. Defaults
             to environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us",
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             "europe"). Defaults to environment configuration.
 
     Returns:
@@ -220,7 +232,7 @@ async def get_curated_rule_by_name(
     try:
         logger.info(f"Searching for curated rule by name: {display_name}")
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
         rule = chronicle.get_curated_rule_by_name(display_name)
 
         if rule:
@@ -251,6 +263,8 @@ async def search_curated_detections(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
     list_basis: Optional[str] = None,
     alert_state: Optional[str] = None,
     page_size: int = 100,
@@ -287,6 +301,8 @@ async def search_curated_detections(
         customer_id (Optional[str]): Chronicle customer ID. Defaults
             to environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us",
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             "europe"). Defaults to environment configuration.
         list_basis (Optional[str]): Basis for listing detections.
             Valid values: "DETECTION_TIME", "CREATED_TIME".
@@ -316,7 +332,7 @@ async def search_curated_detections(
             f"from {start_time} to {end_time}"
         )
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
         end_dt = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
@@ -362,6 +378,8 @@ async def list_curated_rule_sets(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
     page_size: int = 100,
     page_token: Optional[str] = None,
     as_list: bool = False,
@@ -391,6 +409,8 @@ async def list_curated_rule_sets(
         customer_id (Optional[str]): Chronicle customer ID. Defaults
             to environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us",
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             "europe"). Defaults to environment configuration.
         page_size (int): Maximum number of rule sets to return.
             Defaults to 100.
@@ -426,7 +446,7 @@ async def list_curated_rule_sets(
     try:
         logger.info(f"Listing curated rule sets (page_size={page_size})")
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         if as_list:
             rule_sets = chronicle.list_curated_rule_sets(as_list=True)
@@ -451,6 +471,8 @@ async def get_curated_rule_set(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Retrieve specific curated rule set details by ID.
 
@@ -479,6 +501,8 @@ async def get_curated_rule_set(
         customer_id (Optional[str]): Chronicle customer ID. Defaults
             to environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us",
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             "europe"). Defaults to environment configuration.
 
     Returns:
@@ -499,7 +523,7 @@ async def get_curated_rule_set(
     try:
         logger.info(f"Retrieving curated rule set: {rule_set_id}")
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
         rule_set = chronicle.get_curated_rule_set(rule_set_id)
 
         logger.info(f"Successfully retrieved curated rule set: {rule_set_id}")
@@ -521,6 +545,8 @@ async def list_curated_rule_set_deployments(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
     page_size: int = 100,
     page_token: Optional[str] = None,
     as_list: bool = False,
@@ -550,6 +576,8 @@ async def list_curated_rule_set_deployments(
         customer_id (Optional[str]): Chronicle customer ID. Defaults
             to environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us",
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             "europe"). Defaults to environment configuration.
         page_size (int): Maximum number of deployments to return.
             Defaults to 100.
@@ -587,7 +615,7 @@ async def list_curated_rule_set_deployments(
             f"Listing curated rule set deployments " f"(page_size={page_size})"
         )
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         if as_list:
             deployments = chronicle.list_curated_rule_set_deployments(
@@ -618,6 +646,8 @@ async def update_curated_rule_set_deployment(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Update deployment configuration for a curated rule set.
 
@@ -658,6 +688,8 @@ async def update_curated_rule_set_deployment(
         customer_id (Optional[str]): Chronicle customer ID. Defaults
             to environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us",
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             "europe"). Defaults to environment configuration.
 
     Returns:
@@ -679,7 +711,7 @@ async def update_curated_rule_set_deployment(
             f"alerting={alerting})"
         )
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         valid_precision_values = ["broad", "precise"]
         if precision not in valid_precision_values:

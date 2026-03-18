@@ -35,6 +35,8 @@ async def search_security_events(
     end_time: Optional[str] = None,
     max_events: int = 100,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Search for security events in Chronicle SIEM using natural language.
 
@@ -71,6 +73,8 @@ async def search_security_events(
         end_time (Optional[str]): End time in ISO 8601 format. Defaults to current time if not provided.
         max_events (int): Maximum number of event records to return. Defaults to 100.
         region (Optional[str]): Chronicle region (e.g., "us", "europe"). Defaults to environment configuration.
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
 
     Returns:
         Dict[str, Any]: A dictionary containing:
@@ -131,7 +135,7 @@ async def search_security_events(
             f'Searching security events - Query: {text}, Effective Time Range: {start_dt} to {end_dt}'
         )
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Use the new natural language search method
         udm_query = chronicle.translate_nl_to_udm(text)

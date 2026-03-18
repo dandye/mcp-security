@@ -31,6 +31,8 @@ async def create_parser(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
     validated_on_empty_logs: bool = True,
 ) -> str:
     """Create a new parser for a specific log type in Chronicle.
@@ -60,6 +62,8 @@ async def create_parser(
         project_id (str): Google Cloud project ID (required).
         customer_id (str): Chronicle customer ID (required).
         region (str): Chronicle region (e.g., "us", "europe") (required).
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
         validated_on_empty_logs (bool): Whether to validate the parser even on empty log samples. Defaults to True.
 
     Returns:
@@ -116,7 +120,7 @@ async def create_parser(
 
         
         
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Create the parser
         parser = chronicle.create_parser(
@@ -149,6 +153,8 @@ async def get_parser(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> str:
     """Get details of a specific parser in Chronicle.
 
@@ -177,6 +183,8 @@ async def get_parser(
         project_id (str): Google Cloud project ID (required).
         customer_id (str): Chronicle customer ID (required).
         region (str): Chronicle region (e.g., "us", "europe") (required).
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
 
     Returns:
         str: Formatted parser details including ID, state, and configuration code.
@@ -202,7 +210,7 @@ async def get_parser(
 
         
         
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Get the parser
         parser = chronicle.get_parser(log_type=log_type, id=parser_id)
@@ -245,6 +253,8 @@ async def activate_parser(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> str:
     """Activate a parser for a specific log type in Chronicle.
 
@@ -272,6 +282,8 @@ async def activate_parser(
         project_id (str): Google Cloud project ID (required).
         customer_id (str): Chronicle customer ID (required).
         region (str): Chronicle region (e.g., "us", "europe") (required).
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
 
     Returns:
         str: Success message confirming parser activation.
@@ -298,7 +310,7 @@ async def activate_parser(
 
         
         
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Activate the parser
         chronicle.activate_parser(log_type=log_type, id=parser_id)
@@ -320,6 +332,8 @@ async def deactivate_parser(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> str:
     """Deactivate a parser for a specific log type in Chronicle.
 
@@ -352,6 +366,8 @@ async def deactivate_parser(
         project_id (str): Google Cloud project ID (required).
         customer_id (str): Chronicle customer ID (required).
         region (str): Chronicle region (e.g., "us", "europe") (required).
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
 
     Returns:
         str: Success message confirming parser deactivation.
@@ -377,7 +393,7 @@ async def deactivate_parser(
 
         
         
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Deactivate the parser
         chronicle.deactivate_parser(log_type=log_type, id=parser_id)
@@ -400,6 +416,8 @@ async def run_parser_against_sample_logs(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
     parser_extension_code: Optional[str] = None,
     statedump_allowed: bool = False,
 ) -> str:
@@ -437,6 +455,8 @@ async def run_parser_against_sample_logs(
         project_id (str): Google Cloud project ID (required).
         customer_id (str): Chronicle customer ID (required).
         region (str): Chronicle region (e.g., "us", "europe") (required).
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
         parser_extension_code (Optional[str]): Additional parser extension code if needed.
         statedump_allowed (bool): Whether to allow statedump filters in the parser. Defaults to False.
 
@@ -513,7 +533,7 @@ async def run_parser_against_sample_logs(
 
         
         
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Run the parser
         result = chronicle.run_parser(

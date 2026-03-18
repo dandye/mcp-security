@@ -30,6 +30,8 @@ async def create_data_table(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
     rows: Optional[List[List[str]]] = None,
 ) -> str:
     """Create a new data table in Chronicle SIEM.
@@ -67,6 +69,8 @@ async def create_data_table(
         project_id (str): Google Cloud project ID (required).
         customer_id (str): Chronicle customer ID (required).
         region (str): Chronicle region (e.g., "us", "europe") (required).
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
         rows (Optional[List[List[str]]]): Initial rows to populate the table. Each row should match the header columns.
 
     Returns:
@@ -119,7 +123,7 @@ async def create_data_table(
 
         
         
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Create the data table
         data_table = chronicle.create_data_table(
@@ -168,6 +172,8 @@ async def add_rows_to_data_table(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> str:
     """Add rows to an existing data table in Chronicle SIEM.
 
@@ -201,6 +207,8 @@ async def add_rows_to_data_table(
         project_id (str): Google Cloud project ID (required).
         customer_id (str): Chronicle customer ID (required).
         region (str): Chronicle region (e.g., "us", "europe") (required).
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
 
     Returns:
         str: Success message with details about the added rows.
@@ -245,7 +253,7 @@ async def add_rows_to_data_table(
 
         
         
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Add rows to the data table
         result_response = chronicle.create_data_table_rows(table_name, rows)
@@ -276,6 +284,8 @@ async def list_data_table_rows(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
     max_rows: int = 50,
 ) -> str:
     """List rows in a data table in Chronicle SIEM.
@@ -304,6 +314,8 @@ async def list_data_table_rows(
         project_id (str): Google Cloud project ID (required).
         customer_id (str): Chronicle customer ID (required).
         region (str): Chronicle region (e.g., "us", "europe") (required).
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
         max_rows (int): Maximum number of rows to return. Defaults to 50.
 
     Returns:
@@ -340,7 +352,7 @@ async def list_data_table_rows(
 
         
         
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # List rows in the data table
         rows = chronicle.list_data_table_rows(table_name)
@@ -380,6 +392,8 @@ async def delete_data_table_rows(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> str:
     """Delete specific rows from a data table in Chronicle SIEM.
 
@@ -414,6 +428,8 @@ async def delete_data_table_rows(
         project_id (str): Google Cloud project ID (required).
         customer_id (str): Chronicle customer ID (required).
         region (str): Chronicle region (e.g., "us", "europe") (required).
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
 
     Returns:
         str: Success message confirming the deletion of specified rows.
@@ -453,7 +469,7 @@ async def delete_data_table_rows(
 
         
         
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Delete rows from the data table
         chronicle.delete_data_table_rows(table_name, row_ids)

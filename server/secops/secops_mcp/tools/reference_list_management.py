@@ -30,6 +30,8 @@ async def create_reference_list(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
     syntax_type: str = "STRING",
 ) -> str:
     """Create a new reference list in Chronicle SIEM.
@@ -63,6 +65,8 @@ async def create_reference_list(
         project_id (str): Google Cloud project ID (required).
         customer_id (str): Chronicle customer ID (required).
         region (str): Chronicle region (e.g., "us", "europe") (required).
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
         syntax_type (str): Type of matching to use. Valid values: "STRING", "CIDR", "REGEX". Defaults to "STRING".
 
     Returns:
@@ -115,7 +119,7 @@ async def create_reference_list(
 
         
         
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Create the reference list
         reference_list = chronicle.create_reference_list(
@@ -160,6 +164,8 @@ async def get_reference_list(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
     include_entries: bool = True,
 ) -> str:
     """Get details and contents of a reference list in Chronicle SIEM.
@@ -188,6 +194,8 @@ async def get_reference_list(
         project_id (str): Google Cloud project ID (required).
         customer_id (str): Chronicle customer ID (required).
         region (str): Chronicle region (e.g., "us", "europe") (required).
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
         include_entries (bool): Whether to include the full list of entries. Defaults to True.
 
     Returns:
@@ -225,7 +233,7 @@ async def get_reference_list(
 
         
         
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Determine view based on include_entries parameter
         view = (
@@ -296,6 +304,8 @@ async def update_reference_list(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
     entries: Optional[List[str]] = None,
     description: Optional[str] = None,
 ) -> str:
@@ -330,6 +340,8 @@ async def update_reference_list(
         project_id (str): Google Cloud project ID (required).
         customer_id (str): Chronicle customer ID (required).
         region (str): Chronicle region (e.g., "us", "europe") (required).
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
         entries (Optional[List[str]]): New list of entries to replace existing ones. If provided, completely replaces current entries.
         description (Optional[str]): New description for the reference list.
 
@@ -382,7 +394,7 @@ async def update_reference_list(
 
         
         
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Prepare update parameters
         update_params = {"name": name}

@@ -32,6 +32,8 @@ async def ingest_raw_log(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
     forwarder_id: Optional[str] = None,
     labels: Optional[Dict[str, str]] = None,
     log_entry_time: Optional[str] = None,
@@ -65,6 +67,8 @@ async def ingest_raw_log(
         project_id (str): Google Cloud project ID (required).
         customer_id (str): Chronicle customer ID (required).
         region (str): Chronicle region (e.g., "us", "europe") (required).
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
         forwarder_id (Optional[str]): Custom forwarder ID for log routing. If not provided, uses default forwarder.
         labels (Optional[Dict[str, str]]): Custom labels to attach to ingested logs for categorization.
         log_entry_time (Optional[str]): ISO 8601 timestamp when the log was originally generated.
@@ -106,7 +110,7 @@ async def ingest_raw_log(
 
         
         
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Prepare ingestion parameters
         ingestion_params = {
@@ -148,6 +152,8 @@ async def ingest_udm_events(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> str:
     """Ingest UDM events directly into Chronicle SIEM.
 
@@ -181,6 +187,8 @@ async def ingest_udm_events(
         project_id (str): Google Cloud project ID (required).
         customer_id (str): Chronicle customer ID (required).
         region (str): Chronicle region (e.g., "us", "europe") (required).
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
 
     Returns:
         str: Success message with details about the ingested events, including any generated event IDs.
@@ -258,7 +266,7 @@ async def ingest_udm_events(
 
         
         
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Auto-generate IDs for events that don't have them
         events_to_ingest = udm_events if isinstance(udm_events, list) else [udm_events]
@@ -296,6 +304,8 @@ async def get_available_log_types(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
     search_term: Optional[str] = None,
 ) -> str:
     """Get available log types supported by Chronicle for ingestion.
@@ -320,6 +330,8 @@ async def get_available_log_types(
         project_id (str): Google Cloud project ID (required).
         customer_id (str): Chronicle customer ID (required).
         region (str): Chronicle region (e.g., "us", "europe") (required).
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
         search_term (Optional[str]): Filter log types by name or description containing this term.
 
     Returns:
@@ -352,7 +364,7 @@ async def get_available_log_types(
 
         
         
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         if search_term:
             # Search for specific log types
