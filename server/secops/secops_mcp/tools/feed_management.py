@@ -28,6 +28,8 @@ async def list_feeds(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List all feeds configured in Chronicle.
 
@@ -55,6 +57,8 @@ async def list_feeds(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -72,7 +76,7 @@ async def list_feeds(
     """
     try:
         logger.info("Listing feeds")
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Get all feeds
         feeds = chronicle.list_feeds()
@@ -108,6 +112,8 @@ async def get_feed(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Get detailed information about a specific feed.
 
@@ -135,6 +141,8 @@ async def get_feed(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -152,7 +160,7 @@ async def get_feed(
     """
     try:
         logger.info(f"Getting details for feed with ID: {feed_id}")
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Get feed details
         feed = chronicle.get_feed(feed_id)
@@ -173,6 +181,8 @@ async def create_feed(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create a new feed in Chronicle.
 
@@ -202,6 +212,8 @@ async def create_feed(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -230,7 +242,7 @@ async def create_feed(
     """
     try:
         logger.info(f"Creating new feed: {display_name}")
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Create the feed
         return chronicle.create_feed(
@@ -250,6 +262,8 @@ async def update_feed(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Update an existing feed in Chronicle.
 
@@ -278,6 +292,8 @@ async def update_feed(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -304,7 +320,7 @@ async def update_feed(
     """
     try:
         logger.info(f"Updating feed with ID: {feed_id}")
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Update the feed
         return chronicle.update_feed(
@@ -323,6 +339,8 @@ async def enable_feed(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Enable a inactive feed in Chronicle.
 
@@ -347,6 +365,8 @@ async def enable_feed(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -364,7 +384,7 @@ async def enable_feed(
     """
     try:
         logger.info(f"Enabling feed with ID: {feed_id}")
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Enable the feed
         enabled_feed = chronicle.enable_feed(feed_id)
@@ -388,6 +408,8 @@ async def disable_feed(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Disable an active feed in Chronicle.
 
@@ -412,6 +434,8 @@ async def disable_feed(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -429,7 +453,7 @@ async def disable_feed(
     """
     try:
         logger.info(f"Disabling feed with ID: {feed_id}")
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Disable the feed
         disabled_feed = chronicle.disable_feed(feed_id)
@@ -453,6 +477,8 @@ async def delete_feed(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Delete a feed from Chronicle.
 
@@ -477,6 +503,8 @@ async def delete_feed(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -494,7 +522,7 @@ async def delete_feed(
     """
     try:
         logger.info(f"Deleting feed with ID: {feed_id}")
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Delete the feed
         chronicle.delete_feed(feed_id)
@@ -514,6 +542,8 @@ async def generate_feed_secret(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Generate authentication secret for a feed.
 
@@ -538,6 +568,8 @@ async def generate_feed_secret(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -556,7 +588,7 @@ async def generate_feed_secret(
     """
     try:
         logger.info(f"Generating secret for feed with ID: {feed_id}")
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Generate the secret
         secret_result = chronicle.generate_secret(feed_id)

@@ -31,6 +31,8 @@ async def create_watchlist(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create a new watchlist in Chronicle SIEM.
 
@@ -63,6 +65,8 @@ async def create_watchlist(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -105,7 +109,7 @@ async def create_watchlist(
             f"{multiplying_factor}"
         )
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Create the watchlist and return SDK response directly
         return chronicle.create_watchlist(
@@ -133,6 +137,8 @@ async def update_watchlist(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Update an existing watchlist in Chronicle SIEM.
 
@@ -167,6 +173,8 @@ async def update_watchlist(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -204,7 +212,7 @@ async def update_watchlist(
     try:
         logger.info(f"Updating watchlist: {watchlist_id}")
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Update the watchlist and return SDK response directly
         return chronicle.update_watchlist(
@@ -230,6 +238,8 @@ async def delete_watchlist(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Delete a watchlist from Chronicle SIEM.
 
@@ -262,6 +272,8 @@ async def delete_watchlist(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -296,7 +308,7 @@ async def delete_watchlist(
     try:
         logger.info(f"Deleting watchlist: {watchlist_id} (force={force})")
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Delete the watchlist
         result = chronicle.delete_watchlist(watchlist_id, force=force)
@@ -324,6 +336,8 @@ async def get_watchlist(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Get detailed information about a specific watchlist.
 
@@ -353,6 +367,8 @@ async def get_watchlist(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -383,7 +399,7 @@ async def get_watchlist(
     try:
         logger.info(f"Getting watchlist details: {watchlist_id}")
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Get watchlist details
         watchlist = chronicle.get_watchlist(watchlist_id)
@@ -407,6 +423,8 @@ async def list_watchlists(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List all watchlists in Chronicle SIEM.
 
@@ -440,6 +458,8 @@ async def list_watchlists(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -479,7 +499,7 @@ async def list_watchlists(
     try:
         logger.info("Listing watchlists")
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Build parameters for list_watchlists call
         kwargs = {}

@@ -30,6 +30,8 @@ async def get_ioc_matches(
     hours_back: int = 24,
     max_matches: int = 20,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> str:
     """Get Indicators of Compromise (IoCs) matches from Chronicle SIEM.
 
@@ -56,6 +58,8 @@ async def get_ioc_matches(
         hours_back (int): How many hours back to look for IoC matches. Defaults to 24.
         max_matches (int): Maximum number of IoC matches to return. Defaults to 20.
         region (Optional[str]): Chronicle region (e.g., "us", "europe"). Defaults to environment configuration.
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
 
     Returns:
         str: A formatted string summarizing the IoC matches found, including the IoC type,
@@ -70,7 +74,7 @@ async def get_ioc_matches(
         - Correlate IoC match details with findings from other security tools (EDR, Network, Cloud) via their MCP tools.
     """
     try:
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=hours_back)

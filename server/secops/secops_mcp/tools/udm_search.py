@@ -36,6 +36,8 @@ async def export_udm_search_csv(
     project_id: str = None,
     customer_id: str = None,
     region: str = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> str:
     """Export UDM search results to CSV format for analysis and reporting.
 
@@ -82,6 +84,8 @@ async def export_udm_search_csv(
         project_id (Optional[str]): Google Cloud project ID. Defaults to environment configuration.
         customer_id (Optional[str]): Chronicle customer ID. Defaults to environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe"). Defaults to environment configuration.
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
 
     Returns:
         str: CSV formatted string with header row and data rows. Empty result returns header row only.
@@ -139,7 +143,7 @@ async def export_udm_search_csv(
             f"Fields: {fields}, Effective Time Range: {start_dt} to {end_dt}"
         )
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Call the fetch_udm_search_csv method on the chronicle client
         csv_results = chronicle.fetch_udm_search_csv(
@@ -206,6 +210,8 @@ async def find_udm_field_values(
     project_id: str = None,
     customer_id: str = None,
     region: str = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Find and autocomplete UDM field values in Chronicle SIEM.
 
@@ -242,6 +248,8 @@ async def find_udm_field_values(
         project_id (Optional[str]): Google Cloud project ID. Defaults to environment configuration.
         customer_id (Optional[str]): Chronicle customer ID. Defaults to environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe"). Defaults to environment configuration.
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
 
     Returns:
         Dict[str, Any]: A dictionary containing:
@@ -285,7 +293,7 @@ async def find_udm_field_values(
     try:
         logger.info(f"Finding UDM field values matching: {query}")
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Call the aliased library function
         results = chronicle.find_udm_field_values(

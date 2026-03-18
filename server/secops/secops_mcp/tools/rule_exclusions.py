@@ -31,6 +31,8 @@ async def create_rule_exclusion(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create a new rule exclusion in Chronicle SIEM.
 
@@ -64,6 +66,8 @@ async def create_rule_exclusion(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -107,7 +111,7 @@ async def create_rule_exclusion(
             f"{refinement_type}"
         )
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Create the rule exclusion and return SDK response directly
         return chronicle.create_rule_exclusion(
@@ -133,6 +137,8 @@ async def get_rule_exclusion(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Get detailed information about a specific rule exclusion.
 
@@ -162,6 +168,8 @@ async def get_rule_exclusion(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -196,7 +204,7 @@ async def get_rule_exclusion(
     try:
         logger.info(f"Getting rule exclusion details: {exclusion_id}")
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Get exclusion details
         exclusion = chronicle.get_rule_exclusion(exclusion_id)
@@ -222,6 +230,8 @@ async def list_rule_exclusions(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List all rule exclusions in Chronicle SIEM.
 
@@ -251,6 +261,8 @@ async def list_rule_exclusions(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -291,7 +303,7 @@ async def list_rule_exclusions(
     try:
         logger.info("Listing rule exclusions")
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Build parameters for list_rule_exclusions call
         kwargs = {}
@@ -323,6 +335,8 @@ async def patch_rule_exclusion(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Update an existing rule exclusion in Chronicle SIEM.
 
@@ -357,6 +371,8 @@ async def patch_rule_exclusion(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -395,7 +411,7 @@ async def patch_rule_exclusion(
     try:
         logger.info(f"Patching rule exclusion: {exclusion_id}")
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Update the exclusion and return SDK response directly
         return chronicle.patch_rule_exclusion(
@@ -425,6 +441,8 @@ async def update_rule_exclusion_deployment(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Manage deployment settings for a rule exclusion.
 
@@ -461,6 +479,8 @@ async def update_rule_exclusion_deployment(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -512,7 +532,7 @@ async def update_rule_exclusion_deployment(
             f"(enabled={enabled}, archived={archived})"
         )
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Update deployment settings
         return chronicle.update_rule_exclusion_deployment(
@@ -542,6 +562,8 @@ async def compute_rule_exclusion_activity(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    access_token: Optional[str] = None,
+    service_account_file: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Calculate activity statistics for a rule exclusion.
 
@@ -573,6 +595,8 @@ async def compute_rule_exclusion_activity(
         customer_id (Optional[str]): Chronicle customer ID. Defaults to
             environment configuration.
         region (Optional[str]): Chronicle region (e.g., "us", "europe").
+        access_token (Optional[str]): OAuth access token for ADK authentication delegation.
+        service_account_file (Optional[str]): Path to a specific service account JSON file.
             Defaults to environment configuration.
 
     Returns:
@@ -623,7 +647,7 @@ async def compute_rule_exclusion_activity(
             f"{start_time} to {end_time}"
         )
 
-        chronicle = get_chronicle_client(project_id, customer_id, region)
+        chronicle = get_chronicle_client(project_id, customer_id, region, access_token=access_token, service_account_file=service_account_file)
 
         # Compute exclusion activity
         activity = chronicle.compute_rule_exclusion_activity(
