@@ -14,7 +14,6 @@
 """Security Operations MCP tools for entity lookup."""
 
 import logging
-from mcp.types import Context
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -31,7 +30,6 @@ async def lookup_entity(
     customer_id: Optional[str] = None,
     hours_back: int = 24,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> str:
     """Look up an entity (IP, domain, hash, user, etc.) in Chronicle SIEM for enrichment.
 

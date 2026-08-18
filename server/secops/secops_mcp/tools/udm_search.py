@@ -15,7 +15,6 @@
 
 import json
 import logging
-from mcp.types import Context
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -37,7 +36,6 @@ async def export_udm_search_csv(
     project_id: str = None,
     customer_id: str = None,
     region: str = None,
-    ctx: Optional[Context] = None,
 ) -> str:
     """Export UDM search results to CSV format for analysis and reporting.
 
@@ -208,7 +206,6 @@ async def find_udm_field_values(
     project_id: str = None,
     customer_id: str = None,
     region: str = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Find and autocomplete UDM field values in Chronicle SIEM.
 

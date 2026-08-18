@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from mcp.types import Context
 from secops_soar_mcp import bindings
 from mcp.server.fastmcp import FastMCP
 from secops_soar_mcp.utils.consts import Endpoints
@@ -26,7 +25,7 @@ def register_tools(mcp: FastMCP):
     # This function registers all tools (actions) for the FireEyeEX integration.
 
     @mcp.tool()
-    async def fire_eye_ex_release_quarantined_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], queue_id: Annotated[str, Field(..., description="Specify the queue id of the email that needs to be released.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")], ctx: Optional[Context] = None) -> dict:
+    async def fire_eye_ex_release_quarantined_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], queue_id: Annotated[str, Field(..., description="Specify the queue id of the email that needs to be released.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Releases quarantined email.
 
         Returns:
@@ -101,7 +100,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def fire_eye_ex_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")], ctx: Optional[Context] = None) -> dict:
+    async def fire_eye_ex_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Test connectivity to the FireEye EX with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -175,7 +174,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def fire_eye_ex_delete_quarantined_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], queue_id: Annotated[str, Field(..., description="Specify the queue id of the email that needs to be deleted.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")], ctx: Optional[Context] = None) -> dict:
+    async def fire_eye_ex_delete_quarantined_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], queue_id: Annotated[str, Field(..., description="Specify the queue id of the email that needs to be deleted.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Deletes quarantined email.
 
         Returns:
@@ -250,7 +249,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def fire_eye_ex_download_alert_artifacts(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_uuid: Annotated[str, Field(..., description="Specify the alert uuid from where we need to download artifacts.")], download_path: Annotated[str, Field(..., description="Specify where the action should save the files. If nothing is specified, action will not save the file on the disk.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")], ctx: Optional[Context] = None) -> dict:
+    async def fire_eye_ex_download_alert_artifacts(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_uuid: Annotated[str, Field(..., description="Specify the alert uuid from where we need to download artifacts.")], download_path: Annotated[str, Field(..., description="Specify where the action should save the files. If nothing is specified, action will not save the file on the disk.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Download alert artifacts.
 
         Returns:
@@ -326,7 +325,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def fire_eye_ex_download_quarantined_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], queue_id: Annotated[str, Field(..., description="Specify the queue id of the email that needs to be downloaded.")], download_path: Annotated[str, Field(..., description="Specify where the action should save the files. If nothing is specified, action will not save the file on the disk.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")], ctx: Optional[Context] = None) -> dict:
+    async def fire_eye_ex_download_quarantined_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], queue_id: Annotated[str, Field(..., description="Specify the queue id of the email that needs to be downloaded.")], download_path: Annotated[str, Field(..., description="Specify where the action should save the files. If nothing is specified, action will not save the file on the disk.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Downloads quarantined email.
 
         Returns:
@@ -402,7 +401,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def fire_eye_ex_list_quarantined_emails(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], start_time: Annotated[str, Field(default=None, description="If specified, only emails that were created after start time will be returned. If Start Time and End Time are not specified, action returns quarantined emails from the last 24 hours. Format: YYYY-MM-DD'T'HH:MM:SS.SSS-HHMM")], end_time: Annotated[str, Field(default=None, description="If specified, only emails that were created before end time will be returned.  If Start Time and End Time are not specified, action returns quarantined emails from the last 24 hours. Format: YYYY-MM-DD'T'HH:MM:SS.SSS-HHMM")], sender_filter: Annotated[str, Field(default=None, description="If specified, returns all of the quarantined emails only from this sender.")], subject_filter: Annotated[str, Field(default=None, description="If specified, returns all of the quarantined emails only with this subject.")], max_email_to_return: Annotated[str, Field(default=None, description="Specify how many emails to return. Limit is 10000. This is FireEye EX limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")], ctx: Optional[Context] = None) -> dict:
+    async def fire_eye_ex_list_quarantined_emails(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], start_time: Annotated[str, Field(default=None, description="If specified, only emails that were created after start time will be returned. If Start Time and End Time are not specified, action returns quarantined emails from the last 24 hours. Format: YYYY-MM-DD'T'HH:MM:SS.SSS-HHMM")], end_time: Annotated[str, Field(default=None, description="If specified, only emails that were created before end time will be returned.  If Start Time and End Time are not specified, action returns quarantined emails from the last 24 hours. Format: YYYY-MM-DD'T'HH:MM:SS.SSS-HHMM")], sender_filter: Annotated[str, Field(default=None, description="If specified, returns all of the quarantined emails only from this sender.")], subject_filter: Annotated[str, Field(default=None, description="If specified, returns all of the quarantined emails only with this subject.")], max_email_to_return: Annotated[str, Field(default=None, description="Specify how many emails to return. Limit is 10000. This is FireEye EX limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """List quarantined emails.
 
         Returns:

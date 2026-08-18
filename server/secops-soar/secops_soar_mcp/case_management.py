@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
-from mcp.types import Context
 from secops_soar_mcp import bindings
 from mcp.server.fastmcp import FastMCP
 from secops_soar_mcp.utils.consts import Endpoints
@@ -35,7 +34,6 @@ def register_tools(mcp: FastMCP):
                 description="The nextPageToken to fetch the next page of results.",
             ),
         ],
-        ctx: Optional[Context] = None,
     ) -> dict:
         """List cases available in the Security Orchestration, Automation, and Response (SOAR) platform.
 
@@ -74,7 +72,6 @@ def register_tools(mcp: FastMCP):
         comment: Annotated[
             str, Field(..., description="The comment we wish to add to the case.")
         ],
-        ctx: Optional[Context] = None,
     ) -> dict:
         """Post a comment to a specific case within the SOAR platform.
 
@@ -118,7 +115,6 @@ def register_tools(mcp: FastMCP):
                 description="The nextPageToken to fetch the next page of results.",
             ),
         ],
-        ctx: Optional[Context] = None,
     ) -> dict:
         """List the security alerts associated with a specific case ID in the SOAR platform.
 
@@ -169,7 +165,6 @@ def register_tools(mcp: FastMCP):
                 description="The nextPageToken to fetch the next page of results.",
             ),
         ],
-        ctx: Optional[Context] = None,
     ):
         """List alert group identifiers associated with a specific case ID in the SOAR platform.
 
@@ -219,7 +214,6 @@ def register_tools(mcp: FastMCP):
                 description="The nextPageToken to fetch the next page of results.",
             ),
         ],
-        ctx: Optional[Context] = None,
     ):
         """List the underlying security events associated with a specific alert within a given case.
 
@@ -283,7 +277,6 @@ def register_tools(mcp: FastMCP):
                 ]
             }
         )],
-        ctx: Optional[Context] = None,
     ):
         """Change the priority level of a specific case in the SOAR platform.
 
@@ -325,7 +318,6 @@ def register_tools(mcp: FastMCP):
         alert_group_identifiers: Annotated[
             List[str], Field(..., description="Identifiers for the alert groups.")
         ],
-        ctx: Optional[Context] = None,
     ):
         """Retrieve entities (e.g., IP addresses, hostnames, users) involved in specific alert groups within a case.
 
@@ -373,7 +365,6 @@ def register_tools(mcp: FastMCP):
         entity_environment: Annotated[
             str, Field(..., description="The environment of the entity.")
         ],
-        ctx: Optional[Context] = None,
     ):
         """Fetch detailed information about a specific entity known to the SOAR platform.
 
@@ -469,7 +460,6 @@ def register_tools(mcp: FastMCP):
                 description="The environment name",
             ),
         ],
-        ctx: Optional[Context] = None,
     ):
         """Search for entities within the SOAR platform based on various criteria.
 
@@ -522,7 +512,6 @@ def register_tools(mcp: FastMCP):
     @mcp.tool()
     async def get_case_full_details(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
-        ctx: Optional[Context] = None,
     ):
         """Retrieve comprehensive details for a specific case by aggregating its core information, associated alerts, and comments.
 

@@ -15,7 +15,6 @@
 
 import json
 import logging
-from mcp.types import Context
 from datetime import datetime, timedelta, timezone
 
 from typing import Any, Dict, Optional
@@ -33,7 +32,6 @@ async def get_security_alerts(
     max_alerts: int = 10,
     status_filter: str = 'feedback_summary.status != "CLOSED"',
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> str:
     """Get security alerts directly from Chronicle SIEM.
 
@@ -157,8 +155,7 @@ async def get_security_alert_by_id(
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
     alert_id: Optional[str] = None,
-    include_detections: bool = True,
-    ctx: Optional[Context] = None
+    include_detections: bool = True
 ) -> str:
     """Get security alert by ID directly from Chronicle SIEM.
 
@@ -219,8 +216,7 @@ async def do_update_security_alert(
     verdict: Optional[str] = None,
     severity: Optional[int] = None,
     comment: Optional[str] = None,
-    root_cause: Optional[str] = None,
-    ctx: Optional[Context] = None
+    root_cause: Optional[str] = None
 ) -> str:
     """
         Update security alert attributes directly in Chronicle SIEM.

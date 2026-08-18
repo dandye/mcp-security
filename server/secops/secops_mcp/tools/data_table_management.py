@@ -16,7 +16,6 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from mcp.types import Context
 from secops_mcp.server import get_chronicle_client, server
 
 
@@ -32,7 +31,6 @@ async def create_data_table(
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
     rows: Optional[List[List[str]]] = None,
-    ctx: Optional[Context] = None,
 ) -> str:
     """Create a new data table in Chronicle SIEM.
 
@@ -170,7 +168,6 @@ async def add_rows_to_data_table(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> str:
     """Add rows to an existing data table in Chronicle SIEM.
 
@@ -280,7 +277,6 @@ async def list_data_table_rows(
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
     max_rows: int = 50,
-    ctx: Optional[Context] = None,
 ) -> str:
     """List rows in a data table in Chronicle SIEM.
 
@@ -384,7 +380,6 @@ async def delete_data_table_rows(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> str:
     """Delete specific rows from a data table in Chronicle SIEM.
 

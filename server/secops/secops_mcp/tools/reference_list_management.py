@@ -16,7 +16,6 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from mcp.types import Context
 from secops.chronicle import ReferenceListView
 from secops_mcp.server import get_chronicle_client, server
 
@@ -32,7 +31,6 @@ async def create_reference_list(
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
     syntax_type: str = "STRING",
-    ctx: Optional[Context] = None,
 ) -> str:
     """Create a new reference list in Chronicle SIEM.
 
@@ -163,7 +161,6 @@ async def get_reference_list(
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
     include_entries: bool = True,
-    ctx: Optional[Context] = None,
 ) -> str:
     """Get details and contents of a reference list in Chronicle SIEM.
 
@@ -301,7 +298,6 @@ async def update_reference_list(
     region: Optional[str] = None,
     entries: Optional[List[str]] = None,
     description: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> str:
     """Update an existing reference list in Chronicle SIEM.
 

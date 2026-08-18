@@ -16,7 +16,6 @@
 import logging
 from typing import Any, Dict, Optional
 
-from mcp.types import Context
 from secops_mcp.server import get_chronicle_client, server
 
 
@@ -29,7 +28,6 @@ async def list_feeds(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """List all feeds configured in Chronicle.
 
@@ -110,7 +108,6 @@ async def get_feed(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Get detailed information about a specific feed.
 
@@ -176,7 +173,6 @@ async def create_feed(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Create a new feed in Chronicle.
 
@@ -254,7 +250,6 @@ async def update_feed(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Update an existing feed in Chronicle.
 
@@ -328,7 +323,6 @@ async def enable_feed(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Enable a inactive feed in Chronicle.
 
@@ -394,7 +388,6 @@ async def disable_feed(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Disable an active feed in Chronicle.
 
@@ -460,7 +453,6 @@ async def delete_feed(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Delete a feed from Chronicle.
 
@@ -522,7 +514,6 @@ async def generate_feed_secret(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Generate authentication secret for a feed.
 

@@ -16,7 +16,6 @@
 import logging
 from typing import Any, Dict, Optional
 
-from mcp.types import Context
 from secops_mcp.server import get_chronicle_client, server
 
 # Configure logging
@@ -32,7 +31,6 @@ async def create_watchlist(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Create a new watchlist in Chronicle SIEM.
 
@@ -135,7 +133,6 @@ async def update_watchlist(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Update an existing watchlist in Chronicle SIEM.
 
@@ -233,7 +230,6 @@ async def delete_watchlist(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Delete a watchlist from Chronicle SIEM.
 
@@ -328,7 +324,6 @@ async def get_watchlist(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Get detailed information about a specific watchlist.
 
@@ -412,7 +407,6 @@ async def list_watchlists(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """List all watchlists in Chronicle SIEM.
 

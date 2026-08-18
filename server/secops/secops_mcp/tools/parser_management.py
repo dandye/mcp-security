@@ -18,7 +18,6 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from mcp.types import Context
 from secops_mcp.server import get_chronicle_client, server
 
 
@@ -33,7 +32,6 @@ async def create_parser(
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
     validated_on_empty_logs: bool = True,
-    ctx: Optional[Context] = None,
 ) -> str:
     """Create a new parser for a specific log type in Chronicle.
 
@@ -151,7 +149,6 @@ async def get_parser(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> str:
     """Get details of a specific parser in Chronicle.
 
@@ -248,7 +245,6 @@ async def activate_parser(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> str:
     """Activate a parser for a specific log type in Chronicle.
 
@@ -324,7 +320,6 @@ async def deactivate_parser(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> str:
     """Deactivate a parser for a specific log type in Chronicle.
 
@@ -407,7 +402,6 @@ async def run_parser_against_sample_logs(
     region: Optional[str] = None,
     parser_extension_code: Optional[str] = None,
     statedump_allowed: bool = False,
-    ctx: Optional[Context] = None,
 ) -> str:
     """Run a parser against sample logs to test parsing logic.
 

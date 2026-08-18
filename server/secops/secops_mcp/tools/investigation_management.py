@@ -16,7 +16,6 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from mcp.types import Context
 from secops_mcp.server import get_chronicle_client, server
 
 
@@ -30,7 +29,6 @@ async def list_investigations(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """List all investigations in Chronicle instance.
 
@@ -100,7 +98,6 @@ async def get_investigation(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Retrieve specific investigation by ID.
 
@@ -181,7 +178,6 @@ async def trigger_investigation(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Create new investigation for a specific alert.
 
@@ -274,7 +270,6 @@ async def fetch_associated_investigations(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Retrieve investigations associated with alerts or cases.
 

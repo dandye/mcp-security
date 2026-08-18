@@ -16,7 +16,6 @@
 import json
 import logging
 import uuid
-from mcp.types import Context
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
@@ -37,7 +36,6 @@ async def ingest_raw_log(
     labels: Optional[Dict[str, str]] = None,
     log_entry_time: Optional[str] = None,
     collection_time: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> str:
     """Ingest raw logs directly into Chronicle SIEM.
 
@@ -150,7 +148,6 @@ async def ingest_udm_events(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> str:
     """Ingest UDM events directly into Chronicle SIEM.
 
@@ -300,7 +297,6 @@ async def get_available_log_types(
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
     search_term: Optional[str] = None,
-    ctx: Optional[Context] = None,
 ) -> str:
     """Get available log types supported by Chronicle for ingestion.
 
