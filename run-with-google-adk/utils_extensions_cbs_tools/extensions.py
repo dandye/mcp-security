@@ -12,36 +12,41 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-# imports for overriding `get_tools`
-from typing_extensions import override
-from google.adk.tools.mcp_tool.mcp_session_manager import retry_on_closed_resource
 from typing import List
 from typing import Optional, Union, TextIO
-from google.adk.agents.readonly_context import ReadonlyContext
-from google.adk.tools.mcp_tool.mcp_tool import MCPTool, BaseTool
-from google.adk.tools.mcp_tool.mcp_session_manager import  StdioServerParameters, StdioConnectionParams, SseConnectionParams,StreamableHTTPConnectionParams
-from mcp.types import ListToolsResult
-from .cache import tools_cache
-from  google.adk.tools.mcp_tool.mcp_toolset  import MCPToolset, ToolPredicate
+import os
 import sys
 import logging
+
+from google.adk.tools.mcp_tool.mcp_session_manager import StdioServerParameters, StdioConnectionParams, SseConnectionParams, StreamableHTTPConnectionParams
+from google.adk.tools.mcp_tool.mcp_toolset import McpToolset, ToolPredicate
 
 logging.basicConfig(
     level=logging.INFO)
 
-class MCPToolSetWithSchemaAccess(MCPToolset):
-  """
-  TODO - double check
+# google-adk >=2.x added native tools/list caching (McpToolset's
+# tool_list_cache_ttl_seconds) with correct session-retry semantics, which is
+# what this class used to hand-roll (and, against >=2.x, hand-roll incorrectly:
+# it cached the MCP session itself, so retry_on_errors kept retrying against
+# the same closed session instead of a fresh one from the session manager).
+# Keeping the class as a thin wrapper preserves the tool_set_name call sites
+# use for logging, without reimplementing get_tools().
+def _default_tool_list_cache_ttl_seconds() -> Optional[float]:
+  raw = os.environ.get("MCP_TOOL_LIST_CACHE_TTL_SECONDS", "86400").strip()
+  if not raw or raw == "0":
+    return None  # caching disabled, list on every get_tools() call
+  return float(raw)
 
-  Required for - name for caching (any other way?)
-  Required for - tool caching (is it alrady implemented?) (in get_tools)
-  """
+
+DEFAULT_TOOL_LIST_CACHE_TTL_SECONDS = _default_tool_list_cache_ttl_seconds()
+
+
+class MCPToolSetWithSchemaAccess(McpToolset):
 
   def __init__(
       self,
       *,
-      tool_set_name: str, # <-- new parameter
+      tool_set_name: str,
       connection_params: Union[
           StdioServerParameters,
           StdioConnectionParams,
@@ -54,49 +59,8 @@ class MCPToolSetWithSchemaAccess(MCPToolset):
     super().__init__(
         connection_params=connection_params,
         tool_filter=tool_filter,
-        errlog=errlog
+        errlog=errlog,
+        tool_list_cache_ttl_seconds=DEFAULT_TOOL_LIST_CACHE_TTL_SECONDS,
     )
     self.tool_set_name = tool_set_name
-    logging.info(f"MCPToolSetWithSchemaAccess initialized with tool_set_name: '{self.tool_set_name}'")  
-    self._session = None
-
-  @retry_on_closed_resource("_reinitialize_session")
-  @override
-  async def get_tools(
-      self,
-      readonly_context: Optional[ReadonlyContext] = None,
-  ) -> List[BaseTool]:
-    """Return all tools in the toolset based on the provided context.
-
-    Args:
-        readonly_context: Context used to filter tools available to the agent.
-            If None, all tools in the toolset are returned.
-
-    Returns:
-        List[BaseTool]: A list of tools available under the specified context.
-    """
-    # Get session from session manager
-    if not self._session:
-      self._session = await self._mcp_session_manager.create_session()
-
-    if self.tool_set_name in tools_cache.keys():
-      logging.info(f"Tools found in cache for toolset {self.tool_set_name}, returning them")  
-      return tools_cache[self.tool_set_name]
-    else:
-      logging.info(f"No tools found in cache for toolset {self.tool_set_name}, loading")
-
-    tools_response: ListToolsResult = await self._session.list_tools()
-
-    # Apply filtering based on context and tool_filter
-    tools = []
-    for tool in tools_response.tools:
-      mcp_tool = MCPTool(
-          mcp_tool=tool,
-          mcp_session_manager=self._mcp_session_manager,
-      )
-
-      if self._is_tool_selected(mcp_tool, readonly_context):
-        tools.append(mcp_tool)
-
-    tools_cache[self.tool_set_name] = tools
-    return tools
+    logging.info(f"MCPToolSetWithSchemaAccess initialized with tool_set_name: '{self.tool_set_name}'")

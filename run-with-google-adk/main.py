@@ -28,7 +28,7 @@ from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactServ
 from google.adk.artifacts.gcs_artifact_service import GcsArtifactService
 from contextlib import asynccontextmanager # Import for lifespan
 from pydantic import BaseModel
-from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
+from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 
 # this makes sure that your prompts are logged. 
 # super useful for debugging
@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
         for mcp_toolset in tools:
             # only need to close MCP toolsets and not function tools
             print(f"Closing [{mcp_toolset}] of type  - [{type(mcp_toolset)}]")
-            if isinstance(mcp_toolset,MCPToolset):
+            if isinstance(mcp_toolset,McpToolset):
                 await mcp_toolset.close()
             else:
                 print(f"skipping {mcp_toolset}")                
