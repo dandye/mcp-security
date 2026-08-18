@@ -21,7 +21,8 @@ import logging
 import os
 from typing import Any, Optional
 
-from mcp.server import MCPServer, Context
+from mcp.server import MCPServer
+from mcp.server.mcpserver import Context
 from secops import SecOpsClient
 
 # Initialize MCP server with a descriptive name

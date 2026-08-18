@@ -20,7 +20,8 @@ import logging
 import os
 import vt
 
-from mcp.server import MCPServer, Context
+from mcp.server import MCPServer
+from mcp.server.mcpserver import Context
 
 logging.basicConfig(level=logging.ERROR)
 

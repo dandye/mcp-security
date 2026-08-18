@@ -17,7 +17,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
-from mcp.server import Context
+from mcp.server.mcpserver import Context
 from secops_mcp.server import get_chronicle_client, server
 from secops_mcp.utils import parse_time_range
 

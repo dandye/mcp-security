@@ -19,8 +19,10 @@ from google.api_core import exceptions as google_exceptions
 from google.cloud import asset_v1
 from google.cloud import securitycenter
 from google.protobuf import json_format 
-from mcp.server import MCPServer, Context
 from typing import Optional
+
+from mcp.server import MCPServer
+from mcp.server.mcpserver import Context
 
 # Initialize MCP server
 mcp = MCPServer("scc-mcp")
