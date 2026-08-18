@@ -17,6 +17,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
+from mcp.types import Context
 from secops_mcp.server import get_chronicle_client, server
 from secops_mcp.utils import parse_time_range
 
@@ -34,6 +35,7 @@ async def search_udm(
     project_id: str = None,
     customer_id: str = None,
     region: str = None,
+    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Search UDM events using UDM query in Chronicle.
 

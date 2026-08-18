@@ -19,10 +19,10 @@ from google.api_core import exceptions as google_exceptions
 from google.cloud import asset_v1
 from google.cloud import securitycenter
 from google.protobuf import json_format 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
 
-# Initialize FastMCP server
-mcp = FastMCP("scc-mcp")
+# Initialize MCP server
+mcp = MCPServer("scc-mcp")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

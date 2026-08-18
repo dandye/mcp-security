@@ -17,7 +17,7 @@ import asyncio
 import importlib
 from pathlib import Path
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
 from logger_utils import get_logger, setup_logging
 from secops_soar_mcp.case_management import (
     register_tools as register_tools_case_management,
@@ -26,7 +26,7 @@ from secops_soar_mcp.utils.utils import normalize_integration_name
 import argparse
 
 logger = get_logger(__name__)
-mcp = FastMCP("SecOps SOAR")
+mcp = MCPServer("SecOps SOAR")
 
 register_tools_case_management(mcp)
 

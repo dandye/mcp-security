@@ -20,7 +20,8 @@ import logging
 import os
 import vt
 
-from mcp.server.fastmcp import FastMCP, Context
+from mcp.server import MCPServer
+from mcp.types import Context
 
 logging.basicConfig(level=logging.ERROR)
 
@@ -50,11 +51,8 @@ async def vt_client(ctx: Context) -> AsyncIterator[vt.Client]:
   finally:
     await client.close_async()
 
-# Create a named server and specify dependencies for deployment and development
-server = FastMCP(
-    "Google Threat Intelligence MCP server",
-    dependencies=["vt-py"],
-    stateless_http=stateless)
+# Create a named server
+server = MCPServer("Google Threat Intelligence MCP server")
 
 # Load tools.
 from gti_mcp.tools import *

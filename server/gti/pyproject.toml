@@ -18,7 +18,7 @@ classifiers = [
     "Topic :: Security",
 ]
 dependencies = [
-    "mcp",
+    "mcp[cli]>=2.0",
     "vt-py"
 ]
 
