@@ -21,11 +21,12 @@ import logging
 import os
 from typing import Any, Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
+from mcp.server.mcpserver import Context
 from secops import SecOpsClient
 
-# Initialize FastMCP server with a descriptive name
-server = FastMCP('Google Security Operations MCP server', log_level="ERROR")
+# Initialize MCP server with a descriptive name
+server = MCPServer('Google Security Operations MCP server')
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
