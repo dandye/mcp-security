@@ -14,6 +14,7 @@
 """Security Operations MCP tools for rule exclusions."""
 
 import logging
+from mcp.types import Context
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -31,6 +32,7 @@ async def create_rule_exclusion(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Create a new rule exclusion in Chronicle SIEM.
 
@@ -133,6 +135,7 @@ async def get_rule_exclusion(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Get detailed information about a specific rule exclusion.
 
@@ -222,6 +225,7 @@ async def list_rule_exclusions(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """List all rule exclusions in Chronicle SIEM.
 
@@ -323,6 +327,7 @@ async def patch_rule_exclusion(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Update an existing rule exclusion in Chronicle SIEM.
 
@@ -425,6 +430,7 @@ async def update_rule_exclusion_deployment(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Manage deployment settings for a rule exclusion.
 
@@ -542,6 +548,7 @@ async def compute_rule_exclusion_activity(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Calculate activity statistics for a rule exclusion.
 

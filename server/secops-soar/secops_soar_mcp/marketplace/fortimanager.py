@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from mcp.types import Context
 from secops_soar_mcp import bindings
 from mcp.server.fastmcp import FastMCP
 from secops_soar_mcp.utils.consts import Endpoints
@@ -25,7 +26,7 @@ def register_tools(mcp: FastMCP):
     # This function registers all tools (actions) for the FortiManager integration.
 
     @mcp.tool()
-    async def forti_manager_remove_ip_from_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], adom_name: Annotated[str, Field(..., description="The name of the ADOM. Default: root.")], address_group_name: Annotated[str, Field(..., description="The name of the address group to remove the address from.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def forti_manager_remove_ip_from_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], adom_name: Annotated[str, Field(..., description="The name of the ADOM. Default: root.")], address_group_name: Annotated[str, Field(..., description="The name of the address group to remove the address from.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")], ctx: Optional[Context] = None) -> dict:
         """Remove a firewall address object from a suitable address group and delete the firewall address object. 
 Action is running as async, please adjust script timeout value in Chronicle SOAR IDE for action as needed.
 
@@ -102,7 +103,7 @@ Action is running as async, please adjust script timeout value in Chronicle SOAR
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def forti_manager_add_ip_to_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], adom_name: Annotated[str, Field(..., description="The name of the ADOM. Default: root.")], address_group_name: Annotated[str, Field(..., description="The name of the address group to add to address object to.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def forti_manager_add_ip_to_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], adom_name: Annotated[str, Field(..., description="The name of the ADOM. Default: root.")], address_group_name: Annotated[str, Field(..., description="The name of the address group to add to address object to.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")], ctx: Optional[Context] = None) -> dict:
         """Create a firewall address object and add it to a suitable address group. 
 Action is running as async, please adjust script timeout value in Chronicle SOAR IDE for action as needed.
 
@@ -179,7 +180,7 @@ Action is running as async, please adjust script timeout value in Chronicle SOAR
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def forti_manager_add_url_to_url_filter(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], adom_name: Annotated[str, Field(..., description="The name of the ADOM. Default: root.")], url_filter_name: Annotated[str, Field(..., description="The name of the URL filter to add record to.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def forti_manager_add_url_to_url_filter(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], adom_name: Annotated[str, Field(..., description="The name of the ADOM. Default: root.")], url_filter_name: Annotated[str, Field(..., description="The name of the URL filter to add record to.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")], ctx: Optional[Context] = None) -> dict:
         """Add a new block record to a url filter by it's name. 
 Action is running as async, please adjust script timeout value in Chronicle SOAR IDE for action as needed.
 
@@ -256,7 +257,7 @@ Action is running as async, please adjust script timeout value in Chronicle SOAR
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def forti_manager_remove_url_from_url_filter(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], adom_name: Annotated[str, Field(..., description="The name of the ADOM. Default: root.")], url_filter_name: Annotated[str, Field(..., description="The name of the URL filter to remove the record from.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def forti_manager_remove_url_from_url_filter(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], adom_name: Annotated[str, Field(..., description="The name of the ADOM. Default: root.")], url_filter_name: Annotated[str, Field(..., description="The name of the URL filter to remove the record from.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")], ctx: Optional[Context] = None) -> dict:
         """Remove a block record from a url filter by it's name. 
 Action is running as async, please adjust script timeout value in Chronicle SOAR IDE for action as needed.
 
@@ -333,7 +334,7 @@ Action is running as async, please adjust script timeout value in Chronicle SOAR
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def forti_manager_get_task_information(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], task_id: Annotated[str, Field(..., description="The ID of the task to get information about.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def forti_manager_get_task_information(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], task_id: Annotated[str, Field(..., description="The ID of the task to get information about.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")], ctx: Optional[Context] = None) -> dict:
         """Get task information by ID.
 
         Returns:
@@ -408,7 +409,7 @@ Action is running as async, please adjust script timeout value in Chronicle SOAR
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def forti_manager_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def forti_manager_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")], ctx: Optional[Context] = None) -> dict:
         """Test integration connectivity.
 
         Returns:
@@ -482,7 +483,7 @@ Action is running as async, please adjust script timeout value in Chronicle SOAR
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def forti_manager_execute_script(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], adom_name: Annotated[str, Field(..., description="The name of the ADOM. Default: root.")], policy_package_name: Annotated[str, Field(..., description="The full name of the package, including package name and any parent folders.")], script_name: Annotated[str, Field(..., description="The name of the script to execute.")], device_name: Annotated[str, Field(..., description="The name of the device to execute the script on.")], vdom: Annotated[str, Field(default=None, description="The virtual domain of the device.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def forti_manager_execute_script(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], adom_name: Annotated[str, Field(..., description="The name of the ADOM. Default: root.")], policy_package_name: Annotated[str, Field(..., description="The full name of the package, including package name and any parent folders.")], script_name: Annotated[str, Field(..., description="The name of the script to execute.")], device_name: Annotated[str, Field(..., description="The name of the device to execute the script on.")], vdom: Annotated[str, Field(default=None, description="The virtual domain of the device.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")], ctx: Optional[Context] = None) -> dict:
         """Execute existing script.Can be executed on device group and on a single device if VDOM provided.
 
         Returns:

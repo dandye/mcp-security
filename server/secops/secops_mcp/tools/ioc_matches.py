@@ -14,6 +14,7 @@
 """Security Operations MCP tools for IoC matches."""
 
 import logging
+from mcp.types import Context
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -30,6 +31,7 @@ async def get_ioc_matches(
     hours_back: int = 24,
     max_matches: int = 20,
     region: Optional[str] = None,
+    ctx: Optional[Context] = None,
 ) -> str:
     """Get Indicators of Compromise (IoCs) matches from Chronicle SIEM.
 

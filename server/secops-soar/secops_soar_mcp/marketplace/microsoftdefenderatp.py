@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from mcp.types import Context
 from secops_soar_mcp import bindings
 from mcp.server.fastmcp import FastMCP
 from secops_soar_mcp.utils.consts import Endpoints
@@ -50,6 +51,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """Run Advanced Hunting Query
 
@@ -179,6 +181,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """Get Machine Related Alerts
 
@@ -290,6 +293,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """Wait for Task Status
 
@@ -417,6 +421,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """Get File Related Machines. Note: For this action only SHA1 is supported
 
@@ -532,6 +537,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """Get Current Task Status
 
@@ -639,6 +645,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """Create Stop and Quarantine a File on Specific Machine Task
 
@@ -745,6 +752,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """Create Isolate Machine Task
 
@@ -864,6 +872,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """Update Alerts
 
@@ -1008,6 +1017,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """Get Alerts
 
@@ -1118,6 +1128,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """Test Connectivity
 
@@ -1218,6 +1229,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """Get Machine Log on users
 
@@ -1351,6 +1363,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """Get Machines
 
@@ -1500,6 +1513,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """List indicators in Microsoft Defender ATP.
 
@@ -1645,6 +1659,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """Submit entities as indicators in Microsoft Defender ATP. Supported entities: Filehash, URL, IP Address. Note: only MD5, SHA1 and SHA256 hashes are supported.
 
@@ -1781,6 +1796,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """Get File Related Alerts. Note: For this action only SHA1 is supported
 
@@ -1889,6 +1905,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """This action allows a user to enrich Microsoft Defender ATP hosts, ips and file hashes. Note: File hash can be in sha1 or sha256 format.
 
@@ -1999,6 +2016,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """Create Run AV Scan Task
 
@@ -2104,6 +2122,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """Create Unisolate Machine Task
 
@@ -2205,6 +2224,7 @@ def register_tools(mcp: FastMCP):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
+        ctx: Optional[Context] = None,
     ) -> dict:
         """Delete entity indicators in Microsoft Defender ATP. Supported entities: Filehash, URL, IP Address. Note: only MD5, SHA1 and SHA256 hashes are supported.
 

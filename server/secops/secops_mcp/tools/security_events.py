@@ -14,6 +14,7 @@
 """Security Operations MCP tools for searching security events."""
 
 import logging
+from mcp.types import Context
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
@@ -35,6 +36,7 @@ async def search_security_events(
     end_time: Optional[str] = None,
     max_events: int = 100,
     region: Optional[str] = None,
+    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """Search for security events in Chronicle SIEM using natural language.
 
