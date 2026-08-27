@@ -16,7 +16,7 @@ The monorepo contains four distinct Python server packages under `server/` and a
 
 ---
 
-## ⚠️ Version Bumping Guidelines
+## Version Bumping Guidelines
 
 Whenever releasing or bumping versions for any server package, you **MUST** update all corresponding files in tandem. Do not update `pyproject.toml` without also updating `setup.py` and any associated runtime constants.
 
@@ -41,7 +41,7 @@ Whenever releasing or bumping versions for any server package, you **MUST** upda
 
 ---
 
-## 🔒 Dependency Constraints (`mcp < 2.0`)
+## Dependency Constraints (`mcp < 2.0`)
 
 All MCP servers in this repository are built on the `FastMCP` interface in `mcp` 1.x.
 - **Rule**: All `dependencies` in `pyproject.toml` and `install_requires` in `setup.py` MUST pin `mcp` below `2.0` (e.g. `mcp[cli]>=1.26.0,<2.0` or `mcp>=1.23.0,<2.0`).
@@ -49,7 +49,7 @@ All MCP servers in this repository are built on the `FastMCP` interface in `mcp`
 
 ---
 
-## 🛠️ Development, Testing & Verification
+## Development, Testing & Verification
 
 Each server has its own isolated Python environment managed with `uv`.
 
@@ -82,7 +82,7 @@ asyncio.run(verify())
 
 ---
 
-## 📦 Releases & Pull Requests
+## Releases & Pull Requests
 
 1. Verify unit tests pass in all modified server directories.
 2. Ensure both `pyproject.toml` and `setup.py` reflect the bumped version.
