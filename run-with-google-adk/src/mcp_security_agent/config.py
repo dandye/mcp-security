@@ -66,9 +66,17 @@ class AgentSettings(BaseSettings):
     stdio_timeout_seconds: float = Field(default=60.0, alias="STDIO_PARAM_TIMEOUT")
     default_prompt: Optional[str] = Field(default=None, alias="DEFAULT_PROMPT")
 
+    # Canonical ADK McpToolset Settings
+    enable_tool_prefixing: bool = Field(default=True, alias="ENABLE_TOOL_PREFIXING")
+    tool_list_cache_ttl_seconds: Optional[float] = Field(default=300.0, alias="TOOL_LIST_CACHE_TTL_SECONDS")
+    use_mcp_resources: bool = Field(default=False, alias="USE_MCP_RESOURCES")
+    require_confirmation: bool = Field(default=False, alias="REQUIRE_CONFIRMATION")
+    filter_feed_tools: bool = Field(default=True, alias="FILTER_FEED_TOOLS")
+
     @field_validator(
         "load_secops_mcp", "load_scc_mcp", "load_gti_mcp", "load_secops_soar_mcp",
         "use_vertex_ai", "minimal_logging",
+        "enable_tool_prefixing", "use_mcp_resources", "require_confirmation", "filter_feed_tools",
         mode="before"
     )
     @classmethod
@@ -76,3 +84,4 @@ class AgentSettings(BaseSettings):
         if isinstance(value, str):
             return value.strip().upper() in ("Y", "YES", "TRUE", "1")
         return bool(value)
+
