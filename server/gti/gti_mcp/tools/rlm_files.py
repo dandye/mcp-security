@@ -377,7 +377,13 @@ async def rlm_investigate_file(
         fut = asyncio.run_coroutine_threadsafe(
             _fetch_behaviour_summary_raw(client, hash), loop
         )
-        return fut.result(timeout=30.0)
+        raw_beh = fut.result(timeout=30.0)
+        raw_len = len(json.dumps(raw_beh, default=str).encode("utf-8"))
+        compacted = rlm_engine.compact_behavior_for_repl(raw_beh)
+        compacted_len = len(json.dumps(compacted, default=str).encode("utf-8"))
+        if raw_len > compacted_len:
+          tracker.total_raw_bytes += raw_len - compacted_len
+        return compacted
 
       return tracker.call(endpoint, None, _do_fetch)
 
@@ -394,7 +400,13 @@ async def rlm_investigate_file(
             relationships=FILE_BEHAVIOUR_KEY_RELATIONSHIPS,
         )
         fut = asyncio.run_coroutine_threadsafe(coro, loop)
-        return utils.sanitize_response(fut.result(timeout=30.0))
+        raw_rep = utils.sanitize_response(fut.result(timeout=30.0))
+        raw_len = len(json.dumps(raw_rep, default=str).encode("utf-8"))
+        compacted = rlm_engine.compact_behavior_for_repl(raw_rep)
+        compacted_len = len(json.dumps(compacted, default=str).encode("utf-8"))
+        if raw_len > compacted_len:
+          tracker.total_raw_bytes += raw_len - compacted_len
+        return compacted
 
       return tracker.call(endpoint, None, _do_fetch)
 

@@ -39,8 +39,44 @@ These tools use [DSPy 3.4+ Recursive Language Models (`dspy.RLM`)](https://dspy.
 Optional environment variables for `dspy.RLM`:
 - `GTI_RLM_MODEL`: Root RLM model (defaults to `vertex_ai/gemini-2.5-flash` when `GOOGLE_CLOUD_PROJECT` is set, or `gemini/gemini-2.5-flash` when `GEMINI_API_KEY` is set; falls back to deterministic Python distillation when unconfigured).
 - `GTI_RLM_SUB_MODEL`: Recursive worker model for `llm_query` / `llm_query_batched` (defaults to `vertex_ai/gemini-2.5-flash-lite` or `gemini/gemini-2.5-flash-lite`).
-- `GTI_RLM_MAX_ITERS`: Maximum REPL iterations per call (default `5`).
-- `GTI_RLM_MAX_LLM_CALLS`: Maximum sub-LM calls per invocation (default `10`).
+- `GTI_RLM_MAX_ITERS`: Maximum REPL iterations per call (default `8`).
+- `GTI_RLM_MAX_LLM_CALLS`: Maximum sub-LM calls per invocation (default `16`).
+- `GTI_RLM_MAX_TOKENS`: Maximum output token budget per RLM turn (default `16384`).
+- `GTI_RLM_TEMPERATURE`: Sampling temperature for RLM calls (default `0.2`).
+- `GTI_RLM_REASONING_EFFORT`: Thinking budget effort for Gemini 2.5+ models (default `low`).
+
+#### Live Compression Benchmarks (WannaCry SHA-256 `24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c`)
+
+| Tool | Raw VT v3 Payload | RLM Distilled Output | Byte Reduction | VT API Calls | RLM REPL Turns |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| `rlm_get_file_report` | `52,463 B` | `10,333 B` | **80.30%** | `1` | `3` |
+| `rlm_get_file_behavior_summary` | `867,904 B` (`998,460 B` raw) | `17,951 B` | **97.93%** | `1` | `4` |
+| `rlm_get_entities_related_to_a_file` (`contacted_domains`) | `116,330 B` | `2,226 B` | **98.09%** | `1` | `2` |
+| `rlm_investigate_file` (`/files/{hash}` + `/behaviour_summary`) | `920,367 B` | `16,500 B` | **98.21%** | `2` | `4` |
+
+#### Running the Examples
+
+From the repository or worktree root (with `direnv` configured for Vertex AI and `VT_APIKEY` in `.env`):
+
+```bash
+WORKTREE_DIR="/path/to/mcp-security"
+cd "$WORKTREE_DIR/server/gti"
+
+# 1. Distill a full file report (includes all 76 vendor results inside the REPL)
+direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py --tool report
+
+# 2. Distill a ~1 MB multi-sandbox behaviour_summary
+direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py --tool behavior
+
+# 3. Distill full related entity objects (e.g. contacted_domains)
+direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py --tool entities
+
+# 4. Run an autonomous multi-call file investigation across static + dynamic endpoints
+direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py --tool investigate
+
+# 5. Run all 4 examples and write full JSON output
+direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py --tool all --output-json /tmp/gti_rlm_examples.json
+```
 
 ### Intelligence Search
 

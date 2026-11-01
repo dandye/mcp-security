@@ -70,6 +70,30 @@ def is_benign_sandbox_noise(value: Any) -> bool:
   return any(pattern.search(stripped) for pattern in COMMON_BENIGN_NOISE_PATTERNS)
 
 
+def compact_behavior_for_repl(
+    raw_beh: Any, *, max_list_items: int = 40
+) -> Any:
+  """Filters benign sandbox noise and caps massive arrays on bound REPL tool returns."""
+  if not isinstance(raw_beh, dict):
+    return raw_beh
+  compacted: dict[str, Any] = {}
+  omitted_counts: dict[str, int] = {}
+  for k, v in raw_beh.items():
+    if k == "attributes" and isinstance(v, dict):
+      compacted[k] = compact_behavior_for_repl(v, max_list_items=max_list_items)
+    elif isinstance(v, list):
+      filtered = [item for item in v if not is_benign_sandbox_noise(item)]
+      omitted = len(v) - len(filtered[:max_list_items])
+      if omitted > 0:
+        omitted_counts[k] = omitted
+      compacted[k] = filtered[:max_list_items]
+    else:
+      compacted[k] = v
+  if omitted_counts:
+    compacted["_filtered_noise_and_truncated_counts"] = omitted_counts
+  return compacted
+
+
 def _extract_attributes(raw_data: Any) -> dict[str, Any]:
   """Extracts the primary attributes dict from a VT object or returns raw_data if flat."""
   if not isinstance(raw_data, dict):
@@ -422,24 +446,80 @@ def deterministic_distill_payload(
       if entry not in yara_sigma_matches:
         yara_sigma_matches.append(entry)
 
-  # 6. Extract attributions / associations
+  # 6. Extract attributions / associations (and classify list-root entity payloads)
+  _ATTRIBUTION_TYPES = {
+      "collection",
+      "threat-actor",
+      "threat_actor",
+      "malware-family",
+      "malware_family",
+      "campaign",
+      "software-toolkit",
+      "software_toolkit",
+      "report",
+      "vulnerability",
+  }
   assoc_items: list[Any] = []
   if isinstance(rels.get("associations"), list):
     assoc_items.extend(rels["associations"])
+  for rel_attr_key in (
+      "malware_families",
+      "related_threat_actors",
+      "threat_actors",
+      "campaigns",
+      "software_toolkits",
+      "vulnerabilities",
+      "reports",
+      "collections",
+  ):
+    if isinstance(rels.get(rel_attr_key), list):
+      assoc_items.extend(rels[rel_attr_key])
   if isinstance(raw_data, list):
-    assoc_items.extend(raw_data)
+    for item in raw_data:
+      if isinstance(item, dict):
+        item_type = str(
+            (item.get("attributes") or {}).get("collection_type")
+            or item.get("type")
+            or ""
+        ).lower()
+        item_id = str(item.get("id") or "")
+        if item_type in ("domain", "ip_address", "ip-address", "url"):
+          url_or_id = (
+              (item.get("attributes") or {}).get("url")
+              if isinstance(item.get("attributes"), dict)
+              else None
+          ) or item_id
+          if url_or_id and str(url_or_id) not in network_iocs:
+            network_iocs.append(str(url_or_id))
+        elif item_type == "file":
+          if item_id and item_id not in files_dropped:
+            files_dropped.append(item_id)
+        else:
+          assoc_items.append(item)
+
+  opaque_assoc_Check = re.compile(r"^[0-9a-f]{64}$", re.IGNORECASE)
+  named_attributions: list[dict[str, str]] = []
+  opaque_attributions: list[dict[str, str]] = []
+  seen_assoc_ids: set[str] = set()
   for assoc in assoc_items:
     if isinstance(assoc, dict):
       a_id = str(assoc.get("id") or "")
+      if not a_id or a_id in seen_assoc_ids:
+        continue
+      seen_assoc_ids.add(a_id)
       a_attrs = assoc.get("attributes") if isinstance(assoc.get("attributes"), dict) else {}
       a_name = str(a_attrs.get("name") or a_id)
       a_type = str(
           a_attrs.get("collection_type") or assoc.get("type") or "collection"
       )
-      if a_id:
-        attributions.append(
-            {"id": a_id, "name": a_name, "collection_type": a_type}
-        )
+      if a_type.lower() not in _ATTRIBUTION_TYPES:
+        continue
+      entry = {"id": a_id, "name": a_name, "collection_type": a_type}
+      if a_name == a_id and opaque_assoc_Check.match(a_id):
+        opaque_attributions.append(entry)
+      else:
+        named_attributions.append(entry)
+  attributions = named_attributions if named_attributions else opaque_attributions[:5]
 
   # 7. Extract MITRE ATT&CK techniques
   raw_techniques = attrs.get("attack_techniques") or rels.get("attack_techniques")
@@ -550,7 +630,7 @@ class GTISandboxedInterpreter(LocalInterpreter):
       output_fields: Optional[list[dict[str, Any]]] = None,
       *,
       min_sub_lm_prompt_chars: int = 40,
-      execution_timeout: Optional[float] = 30.0,
+      execution_timeout: Optional[float] = 90.0,
       callbacks: Optional[list[Any]] = None,
   ) -> None:
     super().__init__(
@@ -561,6 +641,7 @@ class GTISandboxedInterpreter(LocalInterpreter):
     )
     self.user_turns: int = 0
     self.min_sub_lm_prompt_chars = min_sub_lm_prompt_chars
+    self._injected_large_vars: set[str] = set()
 
   def execute(
       self, code: str, variables: Optional[dict[str, Any]] = None
@@ -569,6 +650,16 @@ class GTISandboxedInterpreter(LocalInterpreter):
     if variables and "__dspy_host_token" in variables:
       return super().execute(code, variables=variables)
     self.user_turns += 1
+    if variables:
+      filtered_vars = {
+          k: v
+          for k, v in variables.items()
+          if k not in self._injected_large_vars
+      }
+      for k in ("raw_data", "payload_index"):
+        if k in variables:
+          self._injected_large_vars.add(k)
+      return super().execute(code, variables=filtered_vars)
     return super().execute(code, variables=variables)
 
   def invoke_tool(
@@ -624,6 +715,7 @@ class APICallTracker:
     )
     self.api_calls_made: int = 1 if initial_endpoint else 0
     self.total_raw_bytes: int = max(0, int(initial_bytes))
+    self.fetched_payloads: list[Any] = []
 
   def call(
       self,
@@ -656,6 +748,8 @@ class APICallTracker:
     with self._lock:
       self._cache[cache_key] = result
       self.total_raw_bytes += payload_bytes
+      if not (isinstance(result, dict) and "error" in result):
+        self.fetched_payloads.append(result)
     return result
 
 
@@ -663,11 +757,11 @@ class GTIPayloadDistillSignature(dspy.Signature):
   """Explore a Google Threat Intelligence (VirusTotal v3) payload in Python to extract high-signal threat intelligence.
 
   Instructions for the Python REPL:
-  1. Inspect `payload_index` first to see collection sizes and benign noise counts without printing all of `raw_data`.
-  2. Write Python slices over `raw_data` to filter out benign OS/sandbox clutter (SyncRootManager, MSIExecute, Fonts/Adobe/NLS reads, and `undetected` vendor rows).
-  3. Never fabricate or alter cryptographic hashes (`sha256`, `sha1`, `md5`, `imphash`).
-  4. If bound `fetch_*` tools are available and `raw_data` lacks behavioral or attribution details needed for `query`, call them selectively within the API budget.
-  5. Call `SUBMIT(...)` with concise, high-signal fields grounded in `raw_data`.
+  1. `payload_index` already contains `verbatim_anchors`, `collection_counts`, `relationship_counts`, and `benign_noise_counts`. Do NOT waste a turn just printing `payload_index`—write a single Python script on Turn 0 that slices the high-signal fields from `raw_data` (and calls bound `fetch_*` tools if needed).
+  2. When `tool_name == "rlm_investigate_file"`, call `fetch_behavior_summary()` (and `fetch_collection_summary(...)` or `fetch_related_entities(...)` if relevant) on Turn 0, inspect a concise summary of the returned dict, and call `SUBMIT(...)` on Turn 1.
+  3. Filter out benign OS/sandbox clutter (SyncRootManager, MSIExecute, Fonts/Adobe/NLS reads, and `undetected` vendor rows) in Python.
+  4. Keep all output lists concise (at most 10-15 top high-signal items per list; never dump full raw lists or repeat items). Never fabricate or alter cryptographic hashes (`sha256`, `sha1`, `md5`, `imphash`).
+  5. Call `SUBMIT(verdict_and_summary=..., answer=..., key_findings=..., high_signal_iocs=..., attributions=..., mitre_techniques=..., filtered_noise_summary=...)` by Turn 1 or Turn 2 at the latest.
   """
 
   entity_id: str = dspy.InputField(desc="Target file hash or behaviour ID.")
@@ -731,8 +825,18 @@ def configure_gti_rlm_lms(
       return None, None
 
   sub_model = sub_model or root_model
-  resolved_lm = dspy.LM(root_model, temperature=0.0)
-  resolved_sub_lm = dspy.LM(sub_model, temperature=0.0)
+  max_tokens = int(os.getenv("GTI_RLM_MAX_TOKENS", "16384"))
+  sub_max_tokens = int(os.getenv("GTI_RLM_SUB_MAX_TOKENS", "8192"))
+  temperature = float(os.getenv("GTI_RLM_TEMPERATURE", "0.2"))
+  reasoning_effort = os.getenv("GTI_RLM_REASONING_EFFORT", "low")
+  lm_kwargs: dict[str, Any] = {"temperature": temperature, "max_tokens": max_tokens}
+  sub_lm_kwargs: dict[str, Any] = {"temperature": temperature, "max_tokens": sub_max_tokens}
+  if reasoning_effort and ("gemini-2.5" in root_model or "gemini-3" in root_model):
+    lm_kwargs["reasoning_effort"] = reasoning_effort
+  if reasoning_effort and ("gemini-2.5" in sub_model or "gemini-3" in sub_model):
+    sub_lm_kwargs["reasoning_effort"] = reasoning_effort
+  resolved_lm = dspy.LM(root_model, **lm_kwargs)
+  resolved_sub_lm = dspy.LM(sub_model, **sub_lm_kwargs)
   return resolved_lm, resolved_sub_lm
 
 
@@ -752,9 +856,49 @@ def normalize_rlm_prediction(
     endpoints_called: list[str],
     raw_bytes: int,
     rlm_iters: int,
+    extra_payloads: Optional[list[Any]] = None,
 ) -> dict[str, Any]:
   """Validates and normalizes a dspy.RLM Prediction and merges deterministic verbatim anchors."""
   anchors = extract_verbatim_anchors(raw_data)
+  baseline = deterministic_distill_payload(
+      raw_data,
+      entity_id=entity_id,
+      tool_name=tool_name,
+      query=query,
+      api_calls_made=api_calls_made,
+      endpoints_called=endpoints_called,
+      raw_bytes=raw_bytes,
+  )
+  extra_baselines = [
+      deterministic_distill_payload(
+          p,
+          entity_id=entity_id,
+          tool_name=tool_name,
+          query=query,
+      )
+      for p in (extra_payloads or [])
+  ]
+  base_iocs = {
+      cat: list(baseline["high_signal_iocs"].get(cat, []))
+      for cat in (
+          "network",
+          "files_dropped_or_modified",
+          "process_and_command_lines",
+          "persistence_and_mutexes",
+          "yara_and_sigma_matches",
+      )
+  }
+  for eb in extra_baselines:
+    for cat, items in eb.get("high_signal_iocs", {}).items():
+      for it in items:
+        if it not in base_iocs[cat] and len(base_iocs[cat]) < 30:
+          base_iocs[cat].append(it)
+    for attr in eb.get("attributions", []):
+      if attr not in baseline["attributions"]:
+        baseline["attributions"].append(attr)
+    for mt in eb.get("mitre_techniques", []):
+      if mt not in baseline["mitre_techniques"]:
+        baseline["mitre_techniques"].append(mt)
 
   raw_iocs = getattr(prediction, "high_signal_iocs", None)
   if isinstance(raw_iocs, str):
@@ -765,22 +909,51 @@ def normalize_rlm_prediction(
   if not isinstance(raw_iocs, dict):
     raw_iocs = {}
 
+  def _collect_ioc_keys(keys: tuple[str, ...], fallback: list[str]) -> list[str]:
+    merged: list[str] = []
+
+    def _add(val_str: str) -> None:
+      if val_str and val_str not in merged and len(merged) < 30:
+        merged.append(val_str)
+
+    for k in keys:
+      val = raw_iocs.get(k)
+      if isinstance(val, list):
+        for item in val:
+          if item:
+            _add(str(item))
+      elif isinstance(val, str) and val.strip():
+        _add(val.strip())
+    for item in fallback:
+      if item:
+        _add(str(item))
+    return merged
+
   normalized_iocs = {
-      "network": [str(x) for x in (raw_iocs.get("network") or []) if x],
-      "files_dropped_or_modified": [
-          str(x) for x in (raw_iocs.get("files_dropped_or_modified") or []) if x
-      ],
-      "process_and_command_lines": [
-          str(x) for x in (raw_iocs.get("process_and_command_lines") or []) if x
-      ],
+      "network": _collect_ioc_keys(
+          ("network", "contacted_domains", "contacted_ips", "contacted_urls", "domains", "ips", "urls"),
+          base_iocs.get("network", []),
+      ),
+      "files_dropped_or_modified": _collect_ioc_keys(
+          ("files_dropped_or_modified", "dropped_files", "files_dropped", "files"),
+          base_iocs.get("files_dropped_or_modified", []),
+      ),
+      "process_and_command_lines": _collect_ioc_keys(
+          ("process_and_command_lines", "command_executions", "commands", "processes", "processes_tree"),
+          base_iocs.get("process_and_command_lines", []),
+      ),
       "persistence_and_mutexes": [
-          str(x)
-          for x in (raw_iocs.get("persistence_and_mutexes") or [])
-          if x and not is_benign_sandbox_noise(x)
+          x
+          for x in _collect_ioc_keys(
+              ("persistence_and_mutexes", "mutexes", "mutexes_created", "registry_keys", "registry_keys_set", "persistence"),
+              base_iocs.get("persistence_and_mutexes", []),
+          )
+          if not is_benign_sandbox_noise(x)
       ],
-      "yara_and_sigma_matches": [
-          str(x) for x in (raw_iocs.get("yara_and_sigma_matches") or []) if x
-      ],
+      "yara_and_sigma_matches": _collect_ioc_keys(
+          ("yara_and_sigma_matches", "yara_rules", "sigma_rules", "yara", "sigma", "ids"),
+          base_iocs.get("yara_and_sigma_matches", []),
+      ),
   }
 
   raw_findings = getattr(prediction, "key_findings", None)
@@ -790,36 +963,78 @@ def normalize_rlm_prediction(
     key_findings = [str(item) for item in raw_findings if item]
   else:
     key_findings = []
+  if not key_findings:
+    key_findings = baseline.get("key_findings", [])
 
   raw_attributions = getattr(prediction, "attributions", None)
   attributions: list[dict[str, str]] = []
+  seen_attr_names: set[str] = set()
   if isinstance(raw_attributions, list):
     for item in raw_attributions:
       if isinstance(item, dict):
-        attributions.append(
-            {
-                "id": str(item.get("id") or ""),
-                "name": str(item.get("name") or item.get("id") or ""),
-                "collection_type": str(item.get("collection_type") or "collection"),
-            }
-        )
-      elif isinstance(item, str):
-        attributions.append({"id": item, "name": item, "collection_type": "collection"})
+        attr_id = str(item.get("id") or "").strip()
+        attr_name = str(item.get("name") or "").strip()
+        attr_type = str(item.get("collection_type") or item.get("type") or "").strip()
+        if not attr_name:
+          for alt_type in ("threat_actor", "malware_family", "campaign", "vulnerability", "report", "software_toolkit"):
+            if item.get(alt_type):
+              attr_name = str(item[alt_type]).strip()
+              attr_type = attr_type or alt_type.replace("_", "-")
+              break
+        attr_id = attr_id or attr_name
+        attr_name = attr_name or attr_id
+        if attr_id or attr_name:
+          dedup_key = f"{attr_id}:{attr_name}".lower()
+          if dedup_key not in seen_attr_names:
+            seen_attr_names.add(dedup_key)
+            attributions.append(
+                {
+                    "id": attr_id,
+                    "name": attr_name,
+                    "collection_type": attr_type or "collection",
+                }
+            )
+      elif isinstance(item, str) and item.strip():
+        val = item.strip()
+        if val.lower() not in seen_attr_names:
+          seen_attr_names.add(val.lower())
+          attributions.append({"id": val, "name": val, "collection_type": "collection"})
+  for base_attr in baseline.get("attributions", []):
+    dedup_key = f"{base_attr.get('id', '')}:{base_attr.get('name', '')}".lower()
+    if (base_attr.get("id") or base_attr.get("name")) and dedup_key not in seen_attr_names:
+      seen_attr_names.add(dedup_key)
+      attributions.append(base_attr)
 
   raw_mitre = getattr(prediction, "mitre_techniques", None)
   mitre_techniques: list[dict[str, str]] = []
+  seen_mitre_ids: set[str] = set()
   if isinstance(raw_mitre, list):
     for item in raw_mitre:
       if isinstance(item, dict):
-        mitre_techniques.append(
-            {
-                "id": str(item.get("id") or ""),
-                "name": str(item.get("name") or item.get("id") or ""),
-                "evidence": str(item.get("evidence") or ""),
-            }
-        )
-      elif isinstance(item, str):
-        mitre_techniques.append({"id": item, "name": item, "evidence": ""})
+        tid = str(item.get("id") or item.get("technique_id") or "").strip()
+        tname = str(item.get("name") or tid or "").strip()
+        tev = str(item.get("evidence") or item.get("description") or "").strip()
+        if tid or tname:
+          key = (tid or tname).lower()
+          if key not in seen_mitre_ids:
+            seen_mitre_ids.add(key)
+            mitre_techniques.append(
+                {
+                    "id": tid or tname,
+                    "name": tname or tid,
+                    "evidence": tev,
+                }
+            )
+      elif isinstance(item, str) and item.strip():
+        val = item.strip()
+        if val.lower() not in seen_mitre_ids:
+          seen_mitre_ids.add(val.lower())
+          mitre_techniques.append({"id": val, "name": val, "evidence": ""})
+  for base_m in baseline.get("mitre_techniques", []):
+    key = str(base_m.get("id") or base_m.get("name") or "").lower()
+    if key and key not in seen_mitre_ids:
+      seen_mitre_ids.add(key)
+      mitre_techniques.append(base_m)
 
   verdict_summary = str(getattr(prediction, "verdict_and_summary", "") or "").strip()
   answer = str(getattr(prediction, "answer", "") or verdict_summary).strip()
@@ -827,6 +1042,14 @@ def normalize_rlm_prediction(
       getattr(prediction, "filtered_noise_summary", "")
       or "Filtered benign sandbox and vendor noise via DSPy RLM REPL."
   ).strip()
+  noise_lines = [line.strip() for line in filtered_noise.splitlines() if line.strip()]
+  if len(noise_lines) > 3:
+    filtered_noise = (
+        f"{noise_lines[0]}; {noise_lines[1]} "
+        f"(+{len(noise_lines) - 2} additional benign noise entries omitted)"
+    )
+  elif len(filtered_noise) > 350:
+    filtered_noise = filtered_noise[:347] + "..."
 
   result: dict[str, Any] = {
       "id": entity_id,
@@ -948,6 +1171,7 @@ def distill_gti_payload(
         endpoints_called=list(tracker.endpoints_called),
         raw_bytes=tracker.total_raw_bytes,
         rlm_iters=total_iters,
+        extra_payloads=list(tracker.fetched_payloads),
     )
   except Exception as exc:
     logger.warning(
