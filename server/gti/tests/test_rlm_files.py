@@ -374,3 +374,180 @@ def test_deterministic_distill_payload_achieves_high_signal_compression():
       t["id"] == "T1059.001" for t in distilled_beh["mitre_techniques"]
   )
   assert distilled_beh["compression_metrics"]["reduction_pct"] > 90.0
+
+
+class ScriptedRLMEngine:
+  """Hermetic dspy>=3.4.1 engine implementing complete(request) -> Response."""
+
+  def __init__(self, responses: list[str]):
+    self.responses = list(responses)
+    self.calls: list[typing.Any] = []
+
+  def complete(self, request: typing.Any) -> typing.Any:
+    import dspy
+
+    self.calls.append(request)
+    idx = min(len(self.calls) - 1, len(self.responses) - 1)
+    text = self.responses[idx]
+    return dspy.lm15.Response(
+        id=f"scripted-{len(self.calls)}",
+        model=getattr(request, "model", "test/scripted"),
+        message=dspy.lm15.Message.assistant(text),
+        finish_reason="stop",
+        usage=dspy.lm15.Usage(),
+    )
+
+
+def test_gti_sandboxed_interpreter_shim_bypass_and_positional_tool_binding():
+  """GTISandboxedInterpreter skips __dspy_host_token turn counting and binds positional tool args."""
+  import inspect
+  import dspy
+
+  def fetch_rel(relationship_name: str, limit: int = 5) -> list[str]:
+    return [f"{relationship_name}:{limit}"]
+
+  dspy_tool = dspy.Tool(fetch_rel)
+
+  # Simulate RLM._make_interpreter_tool wrapper (keyword-only **kwargs with __wrapped__)
+  def wrapped_invoke(**kwargs):
+    return dspy_tool(**kwargs)
+
+  wrapped_invoke.__wrapped__ = dspy_tool.func
+  wrapped_invoke.__signature__ = inspect.signature(dspy_tool.func)
+
+  interp = rlm_engine.GTISandboxedInterpreter(
+      tools={"fetch_rel": wrapped_invoke}
+  )
+  try:
+    # 1. Internal FacadeInvocation SHIM_SETUP must not increment user_turns
+    interp.execute("x = 1", variables={"__dspy_host_token": "tok-123"})
+    assert interp.user_turns == 0
+
+    # 2. Normal user turn increments user_turns
+    interp.execute("y = x + 1")
+    assert interp.user_turns == 1
+
+    # 3. Positional tool invocation via invoke_tool works without TypeError
+    res = interp.invoke_tool("fetch_rel", ("contacted_domains", 3), {})
+    assert res == ["contacted_domains:3"]
+
+    # 4. Ungrounded short llm_query prompt is rejected with actionable guidance
+    short_res = interp.invoke_tool("llm_query", ("Explain Cobalt Strike",), {})
+    assert "GROUNDING_ERROR" in str(short_res)
+  finally:
+    interp.shutdown()
+
+
+def test_api_call_tracker_enforces_budget_and_deduplicates():
+  """APICallTracker tracks bytes, caches duplicate calls, and enforces max_api_calls."""
+  tracker = rlm_engine.APICallTracker(
+      max_api_calls=2,
+      initial_endpoint=f"/files/{SHA256_SAMPLE}",
+      initial_bytes=1024,
+  )
+  assert tracker.api_calls_made == 1
+
+  call_count = 0
+
+  def fake_fetch() -> dict[str, typing.Any]:
+    nonlocal call_count
+    call_count += 1
+    return {"data": ["item1", "item2"]}
+
+  # Second unique endpoint succeeds (2/2 budget)
+  res1 = tracker.call("/files/hash/behaviour_summary", {}, fake_fetch)
+  assert res1 == {"data": ["item1", "item2"]}
+  assert tracker.api_calls_made == 2
+  assert call_count == 1
+
+  # Duplicate call to same endpoint/params hits cache without spending budget
+  res_cached = tracker.call("/files/hash/behaviour_summary", {}, fake_fetch)
+  assert res_cached == {"data": ["item1", "item2"]}
+  assert tracker.api_calls_made == 2
+  assert call_count == 1
+
+  # Third unique endpoint exceeds max_api_calls=2
+  res_over = tracker.call("/files/hash/associations", {"limit": 10}, fake_fetch)
+  assert "budget_exhausted" in res_over
+  assert tracker.api_calls_made == 2
+  assert call_count == 1
+
+
+def test_distill_gti_payload_runs_dspy_rlm_end_to_end_with_scripted_lm():
+  """distill_gti_payload executes dspy.RLM in GTISandboxedInterpreter and merges verbatim anchors."""
+  import dspy
+
+  step_0_resp = (
+      "[[ ## reasoning ## ]]\n"
+      "Inspect payload_index and extract vendor detections, YARA/Sigma rules, and network IOCs.\n\n"
+      "[[ ## code ## ]]\n"
+      "```python\n"
+      "attrs = raw_data.get('attributes', {})\n"
+      "rels = raw_data.get('relationships', {})\n"
+      "net_iocs = [d['id'] for d in rels.get('contacted_domains', [])] + [ip['id'] for ip in rels.get('contacted_ips', [])]\n"
+      "yara_hits = [r['rule_name'] for r in attrs.get('crowdsourced_yara_results', [])]\n"
+      "SUBMIT(\n"
+      "    verdict_and_summary='Malicious Cobalt Strike x64 beacon (52/76 detections, GTI VERDICT_MALICIOUS).',\n"
+      "    answer='The sample is a Cobalt Strike beacon contacting 198.51.100.42 and cdn-update-telemetry.com.',\n"
+      "    key_findings=['52/76 vendors detect Trojan.Win32.CobaltStrike.gen', 'Matches YARA rule apt_cobaltstrike_beacon_x64'],\n"
+      "    high_signal_iocs={\n"
+      "        'network': net_iocs,\n"
+      "        'files_dropped_or_modified': ['8e570e32aa99bb11cc22dd33ee44ff556677889900aabbccddeeff0011223344'],\n"
+      "        'process_and_command_lines': [],\n"
+      "        'persistence_and_mutexes': ['\\\\\\\\.\\\\pipe\\\\MSSE-4412-server'],\n"
+      "        'yara_and_sigma_matches': yara_hits,\n"
+      "    },\n"
+      "    attributions=[{'id': 'threat-actor--apt41-dragon', 'name': 'APT41', 'collection_type': 'threat-actor'}],\n"
+      "    mitre_techniques=[{'id': 'T1071.001', 'name': 'Application Layer Protocol: Web Protocols', 'evidence': 'HTTPS C2 beacon'}],\n"
+      "    filtered_noise_summary='Omitted 76 raw vendor entries, 300 submission filenames, and 1,200 PE imported functions.'\n"
+      ")\n"
+      "```\n"
+  )
+  engine = ScriptedRLMEngine([step_0_resp])
+  test_lm = dspy.LM("test/scripted", engine=engine, cache=False)
+
+  report = make_bloated_file_report()
+  distilled = rlm_engine.distill_gti_payload(
+      report,
+      entity_id=SHA256_SAMPLE,
+      tool_name="rlm_get_file_report",
+      query="What malware family is this and what C2 infrastructure does it contact?",
+      lm=test_lm,
+      sub_lm=test_lm,
+  )
+
+  assert distilled["id"] == SHA256_SAMPLE
+  assert distilled["verbatim_anchors"]["sha256"] == SHA256_SAMPLE
+  assert distilled["verbatim_anchors"]["imphash"] == IMPHASH_SAMPLE
+  assert "Cobalt Strike" in distilled["verdict_and_summary"]
+  assert "198.51.100.42" in distilled["high_signal_iocs"]["network"]
+  assert "cdn-update-telemetry.com" in distilled["high_signal_iocs"]["network"]
+  assert distilled["compression_metrics"]["rlm_mode"] == "dspy_rlm"
+  assert distilled["compression_metrics"]["rlm_iters"] == 1
+  assert distilled["compression_metrics"]["reduction_pct"] > 85.0
+
+
+def test_distill_gti_payload_falls_back_when_lm_raises():
+  """If the RLM LM fails at runtime, distill_gti_payload falls back to deterministic distillation."""
+  import dspy
+
+  class FailingEngine:
+    def complete(self, request: typing.Any) -> typing.Any:
+      raise RuntimeError("Simulated Vertex AI quota error")
+
+  bad_lm = dspy.LM("test/failing", engine=FailingEngine(), cache=False)
+  report = make_bloated_file_report()
+  distilled = rlm_engine.distill_gti_payload(
+      report,
+      entity_id=SHA256_SAMPLE,
+      tool_name="rlm_get_file_report",
+      query="Summarize file report.",
+      lm=bad_lm,
+      sub_lm=bad_lm,
+  )
+
+  assert distilled["id"] == SHA256_SAMPLE
+  assert distilled["verbatim_anchors"]["sha256"] == SHA256_SAMPLE
+  assert distilled["compression_metrics"]["rlm_mode"] == "deterministic_fallback"
+  assert "198.51.100.42" in distilled["high_signal_iocs"]["network"]
+

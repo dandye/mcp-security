@@ -15,11 +15,18 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import json
 import logging
+import os
 import re
+import threading
 import typing
-from typing import Any, Optional
+from typing import Any, Callable, Optional
+
+import dspy
+from dspy.primitives.local_interpreter import LocalInterpreter
 
 logger = logging.getLogger(__name__)
 
@@ -513,3 +520,455 @@ def deterministic_distill_payload(
       "rlm_mode": rlm_mode,
   }
   return result
+
+
+class GTISandboxedInterpreter(LocalInterpreter):
+  """Hardened LocalInterpreter for GTI payload exploration and bound tool calls."""
+
+  def __init__(
+      self,
+      tools: Optional[dict[str, Callable[..., Any]]] = None,
+      output_fields: Optional[list[dict[str, Any]]] = None,
+      *,
+      min_sub_lm_prompt_chars: int = 35,
+      execution_timeout: Optional[float] = 30.0,
+      callbacks: Optional[list[Any]] = None,
+  ) -> None:
+    super().__init__(
+        tools=tools,
+        output_fields=output_fields,
+        execution_timeout=execution_timeout,
+        callbacks=callbacks,
+    )
+    self.user_turns: int = 0
+    self.min_sub_lm_prompt_chars = min_sub_lm_prompt_chars
+
+  def execute(
+      self, code: str, variables: Optional[dict[str, Any]] = None
+  ) -> Any:
+    """Executes REPL Python while skipping FacadeInvocation SHIM_SETUP turn counting."""
+    if variables and "__dspy_host_token" in variables:
+      return super().execute(code, variables=variables)
+    self.user_turns += 1
+    return super().execute(code, variables=variables)
+
+  def invoke_tool(
+      self, tool_name: str, args: list[Any] | tuple[Any, ...], kwargs: dict[str, Any]
+  ) -> Any:
+    """Binds positional arguments on wrapped dspy.Tool functions and gates sub_lm grounding."""
+    if tool_name in ("llm_query", "llm_query_batched"):
+      prompts: list[str] = []
+      if tool_name == "llm_query":
+        p = args[0] if args else kwargs.get("prompt", "")
+        prompts = [str(p)]
+      else:
+        batch = args[0] if args else kwargs.get("prompts", [])
+        if isinstance(batch, list):
+          prompts = [str(item) for item in batch]
+      for prompt_text in prompts:
+        if len(prompt_text.strip()) < self.min_sub_lm_prompt_chars:
+          return (
+              "GROUNDING_ERROR: sub-LM prompt is too short and lacks embedded "
+              "payload context. Slice raw_data in Python first and include the "
+              "relevant JSON snippet (>=35 chars) inside the prompt."
+          )
+
+    fn = (self.tools or {}).get(tool_name)
+    if fn is not None and args and (
+        hasattr(fn, "__wrapped__") or hasattr(fn, "__signature__")
+    ):
+      sig = getattr(fn, "__signature__", None) or inspect.signature(
+          getattr(fn, "__wrapped__", fn)
+      )
+      bound = sig.bind(*args, **kwargs)
+      bound.apply_defaults()
+      return super().invoke_tool(tool_name, [], dict(bound.arguments))
+
+    return super().invoke_tool(tool_name, list(args), kwargs)
+
+
+class APICallTracker:
+  """Tracks VT API call budget, caches duplicate calls, and accumulates raw payload bytes."""
+
+  def __init__(
+      self,
+      *,
+      max_api_calls: int = 4,
+      initial_endpoint: Optional[str] = None,
+      initial_bytes: int = 0,
+  ) -> None:
+    self.max_api_calls = max(1, min(int(max_api_calls), 10))
+    self._lock = threading.Lock()
+    self._cache: dict[str, Any] = {}
+    self.endpoints_called: list[str] = (
+        [initial_endpoint] if initial_endpoint else []
+    )
+    self.api_calls_made: int = 1 if initial_endpoint else 0
+    self.total_raw_bytes: int = max(0, int(initial_bytes))
+
+  def call(
+      self,
+      endpoint: str,
+      params: Optional[dict[str, Any]],
+      fetcher: Callable[[], Any],
+  ) -> Any:
+    """Executes fetcher if within max_api_calls budget or returns cached response."""
+    cache_key = f"{endpoint}?{json.dumps(params or {}, sort_keys=True, default=str)}"
+    with self._lock:
+      if cache_key in self._cache:
+        return self._cache[cache_key]
+      if self.api_calls_made >= self.max_api_calls:
+        return {
+            "budget_exhausted": (
+                f"API call budget ({self.max_api_calls}) reached; "
+                f"already called {self.endpoints_called}. Synthesize findings from loaded data."
+            )
+        }
+      self.api_calls_made += 1
+      self.endpoints_called.append(endpoint)
+
+    result = fetcher()
+    payload_bytes = len(json.dumps(result, default=str).encode("utf-8"))
+    with self._lock:
+      self._cache[cache_key] = result
+      self.total_raw_bytes += payload_bytes
+    return result
+
+
+class GTIPayloadDistillSignature(dspy.Signature):
+  """Explore a Google Threat Intelligence (VirusTotal v3) payload in Python to extract high-signal threat intelligence.
+
+  Instructions for the Python REPL:
+  1. Inspect `payload_index` first to see collection sizes and benign noise counts without printing all of `raw_data`.
+  2. Write Python slices over `raw_data` to filter out benign OS/sandbox clutter (SyncRootManager, MSIExecute, Fonts/Adobe/NLS reads, and `undetected` vendor rows).
+  3. Never fabricate or alter cryptographic hashes (`sha256`, `sha1`, `md5`, `imphash`).
+  4. If bound `fetch_*` tools are available and `raw_data` lacks behavioral or attribution details needed for `query`, call them selectively within the API budget.
+  5. Call `SUBMIT(...)` with concise, high-signal fields grounded in `raw_data`.
+  """
+
+  entity_id: str = dspy.InputField(desc="Target file hash or behaviour ID.")
+  tool_name: str = dspy.InputField(desc="MCP tool name being executed.")
+  query: str = dspy.InputField(
+      desc="Specific analyst question or triage objective."
+  )
+  payload_index: dict[str, Any] = dspy.InputField(
+      desc="Compact structural index of top-level keys, collection lengths, and benign noise counts."
+  )
+  raw_data: Any = dspy.InputField(
+      desc="Full un-truncated VirusTotal v3 JSON payload (dict or list) loaded in the Python REPL."
+  )
+
+  verdict_and_summary: str = dspy.OutputField(
+      desc="Concise executive threat assessment (verdict, malware family, severity, and primary capability)."
+  )
+  answer: str = dspy.OutputField(
+      desc="Direct, evidence-backed answer to `query`."
+  )
+  key_findings: list[str] = dspy.OutputField(
+      desc="Bullet list of grounded technical findings."
+  )
+  high_signal_iocs: dict[str, list[str]] = dspy.OutputField(
+      desc="Dict with keys: network, files_dropped_or_modified, process_and_command_lines, persistence_and_mutexes, yara_and_sigma_matches."
+  )
+  attributions: list[dict[str, str]] = dspy.OutputField(
+      desc="List of associated threat actors, malware families, campaigns, or reports: [{'id': ..., 'name': ..., 'collection_type': ...}]."
+  )
+  mitre_techniques: list[dict[str, str]] = dspy.OutputField(
+      desc="List of MITRE ATT&CK techniques: [{'id': ..., 'name': ..., 'evidence': ...}]."
+  )
+  filtered_noise_summary: str = dspy.OutputField(
+      desc="Summary of noisy/benign fields and entries omitted during distillation."
+  )
+
+
+def configure_gti_rlm_lms(
+    lm: Optional[dspy.LM] = None,
+    sub_lm: Optional[dspy.LM] = None,
+) -> tuple[Optional[dspy.LM], Optional[dspy.LM]]:
+  """Resolves root LM and sub-LM from explicit args, dspy.settings, or environment variables."""
+  if lm is not None:
+    return lm, sub_lm or lm
+
+  if getattr(dspy.settings, "lm", None) is not None:
+    active_lm = dspy.settings.lm
+    return active_lm, sub_lm or active_lm
+
+  root_model = os.getenv("GTI_RLM_MODEL")
+  sub_model = os.getenv("GTI_RLM_SUB_MODEL")
+
+  if not root_model:
+    if os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GOOGLE_GENAI_USE_VERTEXAI"):
+      root_model = "vertex_ai/gemini-2.5-flash"
+      sub_model = sub_model or "vertex_ai/gemini-2.5-flash-lite"
+    elif os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
+      root_model = "gemini/gemini-2.5-flash"
+      sub_model = sub_model or "gemini/gemini-2.5-flash-lite"
+    else:
+      return None, None
+
+  sub_model = sub_model or root_model
+  resolved_lm = dspy.LM(root_model, temperature=0.0)
+  resolved_sub_lm = dspy.LM(sub_model, temperature=0.0)
+  return resolved_lm, resolved_sub_lm
+
+
+def _ensure_json_compatible(data: Any) -> Any:
+  """Ensures REPL input variables are strictly JSON-serializable for LocalInterpreter's pipe."""
+  return json.loads(json.dumps(data, default=str))
+
+
+def normalize_rlm_prediction(
+    prediction: Any,
+    *,
+    raw_data: Any,
+    entity_id: str,
+    tool_name: str,
+    query: str,
+    api_calls_made: int,
+    endpoints_called: list[str],
+    raw_bytes: int,
+    rlm_iters: int,
+) -> dict[str, Any]:
+  """Validates and normalizes a dspy.RLM Prediction and merges deterministic verbatim anchors."""
+  anchors = extract_verbatim_anchors(raw_data)
+
+  raw_iocs = getattr(prediction, "high_signal_iocs", None)
+  if isinstance(raw_iocs, str):
+    try:
+      raw_iocs = json.loads(raw_iocs)
+    except Exception:
+      raw_iocs = {}
+  if not isinstance(raw_iocs, dict):
+    raw_iocs = {}
+
+  normalized_iocs = {
+      "network": [str(x) for x in (raw_iocs.get("network") or []) if x],
+      "files_dropped_or_modified": [
+          str(x) for x in (raw_iocs.get("files_dropped_or_modified") or []) if x
+      ],
+      "process_and_command_lines": [
+          str(x) for x in (raw_iocs.get("process_and_command_lines") or []) if x
+      ],
+      "persistence_and_mutexes": [
+          str(x)
+          for x in (raw_iocs.get("persistence_and_mutexes") or [])
+          if x and not is_benign_sandbox_noise(x)
+      ],
+      "yara_and_sigma_matches": [
+          str(x) for x in (raw_iocs.get("yara_and_sigma_matches") or []) if x
+      ],
+  }
+
+  raw_findings = getattr(prediction, "key_findings", None)
+  if isinstance(raw_findings, str):
+    key_findings = [line.strip("- *") for line in raw_findings.splitlines() if line.strip()]
+  elif isinstance(raw_findings, list):
+    key_findings = [str(item) for item in raw_findings if item]
+  else:
+    key_findings = []
+
+  raw_attributions = getattr(prediction, "attributions", None)
+  attributions: list[dict[str, str]] = []
+  if isinstance(raw_attributions, list):
+    for item in raw_attributions:
+      if isinstance(item, dict):
+        attributions.append(
+            {
+                "id": str(item.get("id") or ""),
+                "name": str(item.get("name") or item.get("id") or ""),
+                "collection_type": str(item.get("collection_type") or "collection"),
+            }
+        )
+      elif isinstance(item, str):
+        attributions.append({"id": item, "name": item, "collection_type": "collection"})
+
+  raw_mitre = getattr(prediction, "mitre_techniques", None)
+  mitre_techniques: list[dict[str, str]] = []
+  if isinstance(raw_mitre, list):
+    for item in raw_mitre:
+      if isinstance(item, dict):
+        mitre_techniques.append(
+            {
+                "id": str(item.get("id") or ""),
+                "name": str(item.get("name") or item.get("id") or ""),
+                "evidence": str(item.get("evidence") or ""),
+            }
+        )
+      elif isinstance(item, str):
+        mitre_techniques.append({"id": item, "name": item, "evidence": ""})
+
+  verdict_summary = str(getattr(prediction, "verdict_and_summary", "") or "").strip()
+  answer = str(getattr(prediction, "answer", "") or verdict_summary).strip()
+  filtered_noise = str(
+      getattr(prediction, "filtered_noise_summary", "")
+      or "Filtered benign sandbox and vendor noise via DSPy RLM REPL."
+  ).strip()
+
+  result: dict[str, Any] = {
+      "id": entity_id,
+      "tool": tool_name,
+      "query": query,
+      "verbatim_anchors": anchors,
+      "verdict_and_summary": verdict_summary,
+      "answer": answer,
+      "key_findings": key_findings,
+      "high_signal_iocs": normalized_iocs,
+      "attributions": attributions,
+      "mitre_techniques": mitre_techniques,
+      "filtered_noise_summary": filtered_noise,
+  }
+  output_bytes = len(json.dumps(result, default=str).encode("utf-8"))
+  reduction_pct = (
+      round((1.0 - (output_bytes / raw_bytes)) * 100.0, 2)
+      if raw_bytes > 0
+      else 0.0
+  )
+  result["compression_metrics"] = {
+      "raw_bytes": raw_bytes,
+      "output_bytes": output_bytes,
+      "reduction_pct": reduction_pct,
+      "api_calls_made": api_calls_made,
+      "endpoints_called": endpoints_called,
+      "rlm_iters": rlm_iters,
+      "rlm_mode": "dspy_rlm",
+  }
+  return result
+
+
+def distill_gti_payload(
+    raw_data: Any,
+    *,
+    entity_id: str,
+    tool_name: str,
+    query: Optional[str] = None,
+    default_objective: str = (
+        "Extract verdict, malware family, high-signal IOCs (network, dropped files, "
+        "process chains, persistence, YARA/Sigma/IDS hits), attributions, and MITRE "
+        "techniques while filtering out benign OS/sandbox clutter."
+    ),
+    extra_tools: Optional[list[Callable[..., Any]]] = None,
+    tracker: Optional[APICallTracker] = None,
+    lm: Optional[dspy.LM] = None,
+    sub_lm: Optional[dspy.LM] = None,
+    max_iters: Optional[int] = None,
+    max_llm_calls: Optional[int] = None,
+) -> dict[str, Any]:
+  """Runs dspy.RLM over a GTI payload in a sandboxed REPL, with deterministic fallback."""
+  effective_query = (query or "").strip() or default_objective
+  initial_bytes = len(json.dumps(raw_data, default=str).encode("utf-8"))
+  if tracker is None:
+    tracker = APICallTracker(
+        max_api_calls=1,
+        initial_endpoint=tool_name,
+        initial_bytes=initial_bytes,
+    )
+
+  resolved_lm, resolved_sub_lm = configure_gti_rlm_lms(lm=lm, sub_lm=sub_lm)
+  if resolved_lm is None:
+    logger.info(
+        "No DSPy LM configured for %s on %s; using deterministic distillation.",
+        tool_name,
+        entity_id,
+    )
+    return deterministic_distill_payload(
+        raw_data,
+        entity_id=entity_id,
+        tool_name=tool_name,
+        query=effective_query,
+        api_calls_made=tracker.api_calls_made,
+        endpoints_called=list(tracker.endpoints_called),
+    )
+
+  iters_cap = max_iters or int(os.getenv("GTI_RLM_MAX_ITERS", "5"))
+  llm_calls_cap = max_llm_calls or int(os.getenv("GTI_RLM_MAX_LLM_CALLS", "10"))
+  output_chars_cap = int(os.getenv("GTI_RLM_MAX_OUTPUT_CHARS", "12000"))
+
+  created_interpreters: list[GTISandboxedInterpreter] = []
+
+  def _make_interpreter() -> GTISandboxedInterpreter:
+    interp = GTISandboxedInterpreter()
+    created_interpreters.append(interp)
+    return interp
+
+  try:
+    safe_raw_data = _ensure_json_compatible(raw_data)
+    payload_index = _ensure_json_compatible(build_payload_index(safe_raw_data))
+
+    rlm = dspy.RLM(
+        GTIPayloadDistillSignature,
+        max_iters=iters_cap,
+        max_llm_calls=llm_calls_cap,
+        max_output_chars=output_chars_cap,
+        tools=extra_tools or [],
+        sub_lm=resolved_sub_lm,
+        interpreter_factory=_make_interpreter,
+    )
+    with dspy.context(lm=resolved_lm):
+      prediction = rlm(
+          entity_id=entity_id,
+          tool_name=tool_name,
+          query=effective_query,
+          payload_index=payload_index,
+          raw_data=safe_raw_data,
+      )
+
+    total_iters = sum(i.user_turns for i in created_interpreters) or 1
+    return normalize_rlm_prediction(
+        prediction,
+        raw_data=safe_raw_data,
+        entity_id=entity_id,
+        tool_name=tool_name,
+        query=effective_query,
+        api_calls_made=tracker.api_calls_made,
+        endpoints_called=list(tracker.endpoints_called),
+        raw_bytes=tracker.total_raw_bytes,
+        rlm_iters=total_iters,
+    )
+  except Exception as exc:
+    logger.warning(
+        "dspy.RLM failed for %s on %s (%s); falling back to deterministic distillation.",
+        tool_name,
+        entity_id,
+        exc,
+        exc_info=True,
+    )
+    return deterministic_distill_payload(
+        raw_data,
+        entity_id=entity_id,
+        tool_name=tool_name,
+        query=effective_query,
+        api_calls_made=tracker.api_calls_made,
+        endpoints_called=list(tracker.endpoints_called),
+    )
+
+
+async def distill_gti_payload_async(
+    raw_data: Any,
+    *,
+    entity_id: str,
+    tool_name: str,
+    query: Optional[str] = None,
+    default_objective: str = (
+        "Extract verdict, malware family, high-signal IOCs (network, dropped files, "
+        "process chains, persistence, YARA/Sigma/IDS hits), attributions, and MITRE "
+        "techniques while filtering out benign OS/sandbox clutter."
+    ),
+    extra_tools: Optional[list[Callable[..., Any]]] = None,
+    tracker: Optional[APICallTracker] = None,
+    lm: Optional[dspy.LM] = None,
+    sub_lm: Optional[dspy.LM] = None,
+) -> dict[str, Any]:
+  """Runs distill_gti_payload in a background worker thread so FastMCP event loop never blocks."""
+  return await asyncio.to_thread(
+      distill_gti_payload,
+      raw_data,
+      entity_id=entity_id,
+      tool_name=tool_name,
+      query=query,
+      default_objective=default_objective,
+      extra_tools=extra_tools,
+      tracker=tracker,
+      lm=lm,
+      sub_lm=sub_lm,
+  )
+
