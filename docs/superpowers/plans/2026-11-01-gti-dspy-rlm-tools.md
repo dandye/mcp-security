@@ -35,11 +35,11 @@
   - `is_benign_sandbox_noise(value: str) -> bool`
   - `deterministic_distill_payload(raw_data: Any, *, entity_id: str, tool_name: str, query: str, api_calls_made: int = 1, endpoints_called: Optional[list[str]] = None) -> dict[str, Any]`
 
-- [ ] **Step 1: Add `dspy>=3.4.1` to `server/gti/pyproject.toml` and `server/gti/setup.py` and write failing unit tests for anchor extraction, noise filtering, payload indexing, and deterministic distillation**
-- [ ] **Step 2: Run pytest on `tests/test_rlm_files.py` to verify RED state**
-- [ ] **Step 3: Implement `extract_verbatim_anchors`, `build_payload_index`, `is_benign_sandbox_noise`, and `deterministic_distill_payload` in `server/gti/gti_mcp/rlm_engine.py`**
-- [ ] **Step 4: Run pytest to verify GREEN state**
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 1: Add `dspy>=3.4.1` to `server/gti/pyproject.toml` and `server/gti/setup.py` and write failing unit tests for anchor extraction, noise filtering, payload indexing, and deterministic distillation**
+- [x] **Step 2: Run pytest on `tests/test_rlm_files.py` to verify RED state**
+- [x] **Step 3: Implement `extract_verbatim_anchors`, `build_payload_index`, `is_benign_sandbox_noise`, and `deterministic_distill_payload` in `server/gti/gti_mcp/rlm_engine.py`**
+- [x] **Step 4: Run pytest to verify GREEN state**
+- [x] **Step 5: Commit Task 1**
 
 ---
 
@@ -57,11 +57,11 @@
   - `distill_gti_payload(raw_data: Any, *, entity_id: str, tool_name: str, query: Optional[str] = None, default_objective: str = ..., extra_tools: Optional[list[Any]] = None, tracker: Optional[APICallTracker] = None, lm: Optional[dspy.LM] = None, sub_lm: Optional[dspy.LM] = None) -> dict[str, Any]`
   - `distill_gti_payload_async(...) -> dict[str, Any]`
 
-- [ ] **Step 1: Write failing unit tests in `server/gti/tests/test_rlm_files.py` using a hermetic scripted `dspy.lm15` engine for `GTISandboxedInterpreter` (`__dspy_host_token` shim bypass, positional tool-arg binding, `llm_query` grounding gate, `SUBMIT()` distillation, `max_iters` `self.extract` normalization, and LM exception fallback)**
-- [ ] **Step 2: Run pytest to verify RED state**
-- [ ] **Step 3: Implement `GTISandboxedInterpreter`, `APICallTracker`, `GTIPayloadDistillSignature`, `normalize_rlm_prediction`, `distill_gti_payload`, and `distill_gti_payload_async` in `server/gti/gti_mcp/rlm_engine.py`**
-- [ ] **Step 4: Run pytest to verify GREEN state**
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 1: Write failing unit tests in `server/gti/tests/test_rlm_files.py` using a hermetic scripted `dspy.lm15` engine for `GTISandboxedInterpreter` (`__dspy_host_token` shim bypass, positional tool-arg binding, `llm_query` grounding gate, `SUBMIT()` distillation, `max_iters` `self.extract` normalization, and LM exception fallback)**
+- [x] **Step 2: Run pytest to verify RED state**
+- [x] **Step 3: Implement `GTISandboxedInterpreter`, `APICallTracker`, `GTIPayloadDistillSignature`, `normalize_rlm_prediction`, `distill_gti_payload`, and `distill_gti_payload_async` in `server/gti/gti_mcp/rlm_engine.py`**
+- [x] **Step 4: Run pytest to verify GREEN state**
+- [x] **Step 5: Commit Task 2**
 
 ---
 
@@ -82,8 +82,8 @@
   - `rlm_get_entities_related_to_a_file(hash: str, relationship_name: str, ctx: Context, descriptors_only: bool = False, limit: int = 10, query: Optional[str] = None) -> dict[str, Any]`
   - `rlm_investigate_file(hash: str, ctx: Context, investigation_goal: Optional[str] = None, max_api_calls: int = 4) -> dict[str, Any]`
 
-- [ ] **Step 1: Write failing MCP integration and unit tests in `server/gti/tests/test_rlm_files.py` for all 5 tools (verifying 1-API-call parity on `rlm_get_*`, `>90%` byte compression on 150KB+ bloated fixtures, multi-call REPL pivoting and `max_api_calls` cap on `rlm_investigate_file`, and error handling)**
-- [ ] **Step 2: Run pytest to verify RED state**
-- [ ] **Step 3: Implement `server/gti/gti_mcp/tools/rlm_files.py`, export in `server/gti/gti_mcp/tools/__init__.py`, and document the 5 RLM tools and environment variables in `server/gti/README.md`**
-- [ ] **Step 4: Run full `pytest` suite across `server/gti` to verify all existing 58 tests + all new RLM tests pass**
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 1: Write failing MCP integration and unit tests in `server/gti/tests/test_rlm_files.py` for all 5 tools (verifying 1-API-call parity on `rlm_get_*`, `>90%` byte compression on 150KB+ bloated fixtures, multi-call REPL pivoting and `max_api_calls` cap on `rlm_investigate_file`, and error handling)**
+- [x] **Step 2: Run pytest to verify RED state**
+- [x] **Step 3: Implement `server/gti/gti_mcp/tools/rlm_files.py`, export in `server/gti/gti_mcp/tools/__init__.py`, and document the 5 RLM tools and environment variables in `server/gti/README.md`**
+- [x] **Step 4: Run full `pytest` suite across `server/gti` to verify all existing 58 tests + all new RLM tests pass**
+- [x] **Step 5: Commit Task 3**

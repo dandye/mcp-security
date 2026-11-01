@@ -15,5 +15,6 @@ from .collections import *
 from .files import *
 from .intelligence import *
 from .netloc import *
+from .rlm_files import *
 from .threat_profiles import *
 from .urls import *

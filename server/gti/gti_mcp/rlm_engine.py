@@ -971,4 +971,3 @@ async def distill_gti_payload_async(
       lm=lm,
       sub_lm=sub_lm,
   )
-

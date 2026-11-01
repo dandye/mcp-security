@@ -26,6 +26,22 @@ Threat Intelligence suite.
 - **`get_file_behavior_report(file_behaviour_id)`**: Retrieves a specific sandbox behavior report for a file.
 - **`get_file_behavior_summary(hash)`**: Retrieves a summary of all sandbox behavior reports for a file hash.
 
+### DSPy RLM High-Signal File & Behavior Tools
+
+These tools use [DSPy 3.4+ Recursive Language Models (`dspy.RLM`)](https://dspy.ai/current/diving-deeper/rlm/) to load large VirusTotal/GTI v3 JSON responses into a sandboxed Python REPL, filter benign OS/sandbox clutter, and return a compact structured intelligence dictionary with 100% verbatim cryptographic digests and `compression_metrics`:
+
+- **`rlm_get_file_report(hash, query=None)`**: Distills `GET /files/{hash}` (1 VT API call), summarizing vendor consensus, GTI assessment, Code Insights, YARA/Sigma/IDS hits, and key relationships without dumping raw per-vendor or PE import tables.
+- **`rlm_get_file_behavior_summary(hash, query=None)`**: Distills `GET /files/{hash}/behaviour_summary` (1 VT API call), filtering benign sandbox noise (`SyncRootManager`, `MSIExecute`, Fonts/Adobe/NLS reads) and extracting malicious process trees, command executions, persistence, and network C2.
+- **`rlm_get_file_behavior_report(file_behaviour_id, query=None)`**: Distills `GET /file_behaviours/{file_behaviour_id}` (1 VT API call) for a single sandbox execution report.
+- **`rlm_get_entities_related_to_a_file(hash, relationship_name, descriptors_only=False, limit=10, query=None)`**: Distills `GET /files/{hash}/{relationship_name}` (1 VT API call).
+- **`rlm_investigate_file(hash, investigation_goal=None, max_api_calls=4)`**: Multi-call autonomous investigator that seeds the RLM REPL with `GET /files/{hash}` and binds `fetch_behavior_summary()`, `fetch_sandbox_report()`, `fetch_related_entities()`, and `fetch_collection_summary()` inside the sandbox so the RLM can pivot across static, dynamic, and attribution endpoints within `max_api_calls`.
+
+Optional environment variables for `dspy.RLM`:
+- `GTI_RLM_MODEL`: Root RLM model (defaults to `vertex_ai/gemini-2.5-flash` when `GOOGLE_CLOUD_PROJECT` is set, or `gemini/gemini-2.5-flash` when `GEMINI_API_KEY` is set; falls back to deterministic Python distillation when unconfigured).
+- `GTI_RLM_SUB_MODEL`: Recursive worker model for `llm_query` / `llm_query_batched` (defaults to `vertex_ai/gemini-2.5-flash-lite` or `gemini/gemini-2.5-flash-lite`).
+- `GTI_RLM_MAX_ITERS`: Maximum REPL iterations per call (default `5`).
+- `GTI_RLM_MAX_LLM_CALLS`: Maximum sub-LM calls per invocation (default `10`).
+
 ### Intelligence Search
 
 - **`search_iocs(query, limit=10, order_by="last_submission_date-")`**: Searches for Indicators of Compromise (files, URLs, domains, IPs) using advanced GTI query syntax.

@@ -21,9 +21,9 @@ import pytest
 from gti_mcp import rlm_engine
 
 
-SHA256_SAMPLE = "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f"
-SHA1_SAMPLE = "3395856ce81f2b7382dee72602f798b642f14140"
-MD5_SAMPLE = "44d88612fea8a8f36de82e1278abb02f"
+SHA256_SAMPLE = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+SHA1_SAMPLE = "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"
+MD5_SAMPLE = "098f6bcd4621d373cade4e832627b4f6"
 IMPHASH_SAMPLE = "f34d5f2d4577ed6d9ceec516c1f5a744"
 
 
@@ -551,3 +551,331 @@ def test_distill_gti_payload_falls_back_when_lm_raises():
   assert distilled["compression_metrics"]["rlm_mode"] == "deterministic_fallback"
   assert "198.51.100.42" in distilled["high_signal_iocs"]["network"]
 
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_rlm_tools_registered_in_fastmcp_server():
+  """All 5 additive RLM file tools must be registered on the FastMCP server."""
+  from gti_mcp.server import server
+  from mcp.shared.memory import (
+      create_connected_server_and_client_session as client_session,
+  )
+
+  async with client_session(server._mcp_server) as client:
+    tools_result = await client.list_tools()
+    tool_names = {t.name for t in tools_result.tools}
+    expected_rlm_tools = {
+        "rlm_get_file_report",
+        "rlm_get_file_behavior_summary",
+        "rlm_get_file_behavior_report",
+        "rlm_get_entities_related_to_a_file",
+        "rlm_investigate_file",
+    }
+    assert expected_rlm_tools.issubset(tool_names)
+    # Existing raw tools must still be present
+    assert "get_file_report" in tool_names
+    assert "get_file_behavior_summary" in tool_names
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_rlm_get_file_report_single_api_call_over_mcp(
+    make_httpserver_ipv4, monkeypatch
+):
+  """rlm_get_file_report makes 1 VT API call and distills the bloated report via dspy.RLM."""
+  import dspy
+  import vt
+  from gti_mcp.server import server
+  from mcp.shared.memory import (
+      create_connected_server_and_client_session as client_session,
+  )
+
+  monkeypatch.setattr(
+      "gti_mcp.server.vt_client_factory",
+      lambda _ctx: vt.Client(
+          "dummy_api_key",
+          host=f"http://{make_httpserver_ipv4.host}:{make_httpserver_ipv4.port}",
+          timeout=500,
+      ),
+  )
+
+  bloated = make_bloated_file_report()
+  make_httpserver_ipv4.expect_request(
+      f"/api/v3/files/{SHA256_SAMPLE}",
+      method="GET",
+      headers={"X-Apikey": "dummy_api_key"},
+  ).respond_with_json({"data": bloated})
+
+  step_0_resp = (
+      "[[ ## reasoning ## ]]\n"
+      "Slice raw_data in Python to summarize vendor consensus and network IOCs.\n\n"
+      "[[ ## code ## ]]\n"
+      "```python\n"
+      "attrs = raw_data.get('attributes', {})\n"
+      "stats = attrs.get('last_analysis_stats', {})\n"
+      "SUBMIT(\n"
+      "    verdict_and_summary=f\"Malicious Cobalt Strike beacon ({stats.get('malicious', 0)} detections).\",\n"
+      "    answer='Cobalt Strike beacon contacting 198.51.100.42.',\n"
+      "    key_findings=['52 malicious detections', 'Code Insights confirms HTTPS C2'],\n"
+      "    high_signal_iocs={'network': ['198.51.100.42', 'cdn-update-telemetry.com'], 'files_dropped_or_modified': [], 'process_and_command_lines': [], 'persistence_and_mutexes': [], 'yara_and_sigma_matches': ['apt_cobaltstrike_beacon_x64']},\n"
+      "    attributions=[{'id': 'threat-actor--apt41-dragon', 'name': 'APT41', 'collection_type': 'threat-actor'}],\n"
+      "    mitre_techniques=[],\n"
+      "    filtered_noise_summary='Omitted 76 raw vendor entries and 20 PE import DLL tables.'\n"
+      ")\n"
+      "```\n"
+  )
+  test_lm = dspy.LM(
+      "test/scripted", engine=ScriptedRLMEngine([step_0_resp]), cache=False
+  )
+  monkeypatch.setattr(
+      rlm_engine,
+      "configure_gti_rlm_lms",
+      lambda lm=None, sub_lm=None: (test_lm, test_lm),
+  )
+
+  async with client_session(server._mcp_server) as client:
+    res = await client.call_tool(
+        "rlm_get_file_report",
+        {
+            "hash": SHA256_SAMPLE,
+            "query": "What C2 does this file contact?",
+        },
+    )
+    assert not res.isError
+    payload = json.loads(res.content[0].text)
+    assert payload["id"] == SHA256_SAMPLE
+    assert payload["tool"] == "rlm_get_file_report"
+    assert payload["verbatim_anchors"]["sha256"] == SHA256_SAMPLE
+    assert payload["verbatim_anchors"]["imphash"] == IMPHASH_SAMPLE
+    assert payload["compression_metrics"]["api_calls_made"] == 1
+    assert payload["compression_metrics"]["rlm_mode"] == "dspy_rlm"
+    assert payload["compression_metrics"]["reduction_pct"] > 85.0
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_rlm_get_file_behavior_summary_and_report_and_related_entities(
+    make_httpserver_ipv4, monkeypatch
+):
+  """rlm_get_file_behavior_summary, rlm_get_file_behavior_report, and rlm_get_entities_related_to_a_file each make 1 VT call."""
+  import vt
+  from gti_mcp.server import server
+  from mcp.shared.memory import (
+      create_connected_server_and_client_session as client_session,
+  )
+
+  monkeypatch.setattr(
+      "gti_mcp.server.vt_client_factory",
+      lambda _ctx: vt.Client(
+          "dummy_api_key",
+          host=f"http://{make_httpserver_ipv4.host}:{make_httpserver_ipv4.port}",
+          timeout=500,
+      ),
+  )
+
+  # Force deterministic fallback to test end-to-end MCP wiring without LM overhead
+  monkeypatch.setattr(
+      rlm_engine, "configure_gti_rlm_lms", lambda lm=None, sub_lm=None: (None, None)
+  )
+
+  beh_summary = make_bloated_behavior_summary()
+  make_httpserver_ipv4.expect_request(
+      f"/api/v3/files/{SHA256_SAMPLE}/behaviour_summary",
+      method="GET",
+      headers={"X-Apikey": "dummy_api_key"},
+  ).respond_with_json({"data": beh_summary})
+
+  beh_id = f"{SHA256_SAMPLE}_VirusTotal Jujubox"
+  make_httpserver_ipv4.expect_request(
+      f"/api/v3/file_behaviours/{beh_id}",
+      method="GET",
+      headers={"X-Apikey": "dummy_api_key"},
+  ).respond_with_json(
+      {
+          "data": {
+              "id": beh_id,
+              "type": "file_behaviour",
+              "attributes": beh_summary,
+          }
+      }
+  )
+
+  make_httpserver_ipv4.expect_request(
+      f"/api/v3/files/{SHA256_SAMPLE}/contacted_domains",
+      method="GET",
+      headers={"X-Apikey": "dummy_api_key"},
+  ).respond_with_json(
+      {
+          "data": [
+              {
+                  "id": "cdn-update-telemetry.com",
+                  "type": "domain",
+                  "attributes": {"reputation": -45},
+              }
+          ]
+      }
+  )
+
+  async with client_session(server._mcp_server) as client:
+    # 1. rlm_get_file_behavior_summary
+    res_sum = await client.call_tool(
+        "rlm_get_file_behavior_summary",
+        {"hash": SHA256_SAMPLE, "query": "Check persistence and mutexes"},
+    )
+    assert not res_sum.isError
+    data_sum = json.loads(res_sum.content[0].text)
+    assert data_sum["compression_metrics"]["api_calls_made"] == 1
+    assert (
+        "Global\\MSSE-4412-server-mutex"
+        in data_sum["high_signal_iocs"]["persistence_and_mutexes"]
+    )
+    assert (
+        "SyncRootManager"
+        not in data_sum["high_signal_iocs"]["persistence_and_mutexes"]
+    )
+
+    # 2. rlm_get_file_behavior_report
+    res_rep = await client.call_tool(
+        "rlm_get_file_behavior_report",
+        {"file_behaviour_id": beh_id},
+    )
+    assert not res_rep.isError
+    data_rep = json.loads(res_rep.content[0].text)
+    assert data_rep["id"] == beh_id
+    assert data_rep["compression_metrics"]["api_calls_made"] == 1
+
+    # 3. rlm_get_entities_related_to_a_file (valid relationship)
+    res_rel = await client.call_tool(
+        "rlm_get_entities_related_to_a_file",
+        {
+            "hash": SHA256_SAMPLE,
+            "relationship_name": "contacted_domains",
+            "descriptors_only": False,
+            "limit": 5,
+        },
+    )
+    assert not res_rel.isError
+    data_rel = json.loads(res_rel.content[0].text)
+    assert data_rel["compression_metrics"]["api_calls_made"] == 1
+
+    # 4. rlm_get_entities_related_to_a_file (invalid relationship short-circuits)
+    res_bad = await client.call_tool(
+        "rlm_get_entities_related_to_a_file",
+        {
+            "hash": SHA256_SAMPLE,
+            "relationship_name": "not_a_valid_rel",
+        },
+    )
+    assert not res_bad.isError
+    data_bad = json.loads(res_bad.content[0].text)
+    assert "error" in data_bad
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_rlm_investigate_file_autonomous_multi_call_pivoting_and_budget_cap(
+    make_httpserver_ipv4, monkeypatch
+):
+  """rlm_investigate_file binds VT tools inside the REPL, pivots across endpoints, and respects max_api_calls."""
+  import dspy
+  import vt
+  from gti_mcp.server import server
+  from mcp.shared.memory import (
+      create_connected_server_and_client_session as client_session,
+  )
+
+  monkeypatch.setattr(
+      "gti_mcp.server.vt_client_factory",
+      lambda _ctx: vt.Client(
+          "dummy_api_key",
+          host=f"http://{make_httpserver_ipv4.host}:{make_httpserver_ipv4.port}",
+          timeout=500,
+      ),
+  )
+
+  bloated_report = make_bloated_file_report()
+  beh_summary = make_bloated_behavior_summary()
+
+  make_httpserver_ipv4.expect_request(
+      f"/api/v3/files/{SHA256_SAMPLE}",
+      method="GET",
+      headers={"X-Apikey": "dummy_api_key"},
+  ).respond_with_json({"data": bloated_report})
+
+  make_httpserver_ipv4.expect_request(
+      f"/api/v3/files/{SHA256_SAMPLE}/behaviour_summary",
+      method="GET",
+      headers={"X-Apikey": "dummy_api_key"},
+  ).respond_with_json({"data": beh_summary})
+
+  make_httpserver_ipv4.expect_request(
+      "/api/v3/collections/threat-actor--apt41-dragon",
+      method="GET",
+      headers={"X-Apikey": "dummy_api_key"},
+  ).respond_with_json(
+      {
+          "data": {
+              "id": "threat-actor--apt41-dragon",
+              "type": "collection",
+              "attributes": {
+                  "name": "APT41",
+                  "collection_type": "threat-actor",
+                  "description": "State-sponsored cyber espionage group using Cobalt Strike.",
+              },
+          }
+      }
+  )
+
+  # Turn 0: REPL calls bound tools positionally and by keyword (also tries a 4th call over max_api_calls=3)
+  step_0_resp = (
+      "[[ ## reasoning ## ]]\n"
+      "Pivot into behaviour_summary and collection threat-actor--apt41-dragon from inside the REPL.\n\n"
+      "[[ ## code ## ]]\n"
+      "```python\n"
+      "beh = fetch_behavior_summary()\n"
+      "actor = fetch_collection_summary('threat-actor--apt41-dragon')\n"
+      "# Duplicate call should hit cache without spending budget\n"
+      "beh_dup = fetch_behavior_summary()\n"
+      "# 4th unique call should hit max_api_calls=3 cap\n"
+      "over_budget = fetch_related_entities('dropped_files', False, 5)\n"
+      "cmds = beh.get('command_executions', [])\n"
+      "actor_desc = actor.get('attributes', {}).get('description', '')\n"
+      "SUBMIT(\n"
+      "    verdict_and_summary=f'Malicious APT41 Cobalt Strike beacon: {actor_desc}',\n"
+      "    answer=f'Executes {len(cmds)} commands and is attributed to APT41. Budget check: { \"budget_exhausted\" in over_budget }',\n"
+      "    key_findings=['Static + dynamic pivot succeeded', f'Commands: {cmds[0]}'],\n"
+      "    high_signal_iocs={'network': ['198.51.100.42'], 'files_dropped_or_modified': ['C:\\\\Users\\\\Public\\\\beacon_cfg.bin'], 'process_and_command_lines': cmds, 'persistence_and_mutexes': ['Global\\\\MSSE-4412-server-mutex'], 'yara_and_sigma_matches': ['apt_cobaltstrike_beacon_x64']},\n"
+      "    attributions=[{'id': 'threat-actor--apt41-dragon', 'name': 'APT41', 'collection_type': 'threat-actor'}],\n"
+      "    mitre_techniques=[{'id': 'T1059.001', 'name': 'PowerShell', 'evidence': cmds[-1]}],\n"
+      "    filtered_noise_summary='Filtered 750 noisy registry reads and 400 locale file opens.'\n"
+      ")\n"
+      "```\n"
+  )
+  test_lm = dspy.LM(
+      "test/scripted", engine=ScriptedRLMEngine([step_0_resp]), cache=False
+  )
+  monkeypatch.setattr(
+      rlm_engine,
+      "configure_gti_rlm_lms",
+      lambda lm=None, sub_lm=None: (test_lm, test_lm),
+  )
+
+  async with client_session(server._mcp_server) as client:
+    res = await client.call_tool(
+        "rlm_investigate_file",
+        {
+            "hash": SHA256_SAMPLE,
+            "investigation_goal": "Correlate static report, sandbox behavior, and threat actor attribution.",
+            "max_api_calls": 3,
+        },
+    )
+    assert not res.isError
+    payload = json.loads(res.content[0].text)
+    assert payload["id"] == SHA256_SAMPLE
+    assert payload["tool"] == "rlm_investigate_file"
+    assert payload["verbatim_anchors"]["sha256"] == SHA256_SAMPLE
+    assert "APT41" in payload["verdict_and_summary"]
+    assert "Budget check: True" in payload["answer"]
+    assert payload["compression_metrics"]["api_calls_made"] == 3
+    assert payload["compression_metrics"]["endpoints_called"] == [
+        f"/files/{SHA256_SAMPLE}",
+        f"/files/{SHA256_SAMPLE}/behaviour_summary",
+        "/collections/threat-actor--apt41-dragon",
+    ]
+    assert payload["compression_metrics"]["reduction_pct"] > 90.0
