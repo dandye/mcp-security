@@ -85,16 +85,32 @@ def _extract_attributes(raw_data: Any) -> dict[str, Any]:
 
 
 def _extract_relationships(raw_data: Any) -> dict[str, Any]:
-  """Extracts the relationships dict from a VT object if present."""
+  """Extracts the relationships dict from a VT object and unwraps {'data': ...} envelopes."""
   if not isinstance(raw_data, dict):
     return {}
+  rel_dict: Optional[dict[str, Any]] = None
   if isinstance(raw_data.get("relationships"), dict):
-    return raw_data["relationships"]
-  if isinstance(raw_data.get("data"), dict):
+    rel_dict = raw_data["relationships"]
+  elif isinstance(raw_data.get("data"), dict):
     inner = raw_data["data"]
     if isinstance(inner.get("relationships"), dict):
-      return inner["relationships"]
-  return {}
+      rel_dict = inner["relationships"]
+  if not rel_dict:
+    return {}
+
+  normalized: dict[str, Any] = {}
+  for rel_name, rel_val in rel_dict.items():
+    if isinstance(rel_val, dict) and "data" in rel_val:
+      inner_data = rel_val["data"]
+      if isinstance(inner_data, list):
+        normalized[rel_name] = inner_data
+      elif isinstance(inner_data, dict):
+        normalized[rel_name] = [inner_data]
+      else:
+        normalized[rel_name] = []
+    else:
+      normalized[rel_name] = rel_val
+  return normalized
 
 
 def extract_verbatim_anchors(raw_data: Any) -> dict[str, Any]:
@@ -190,6 +206,7 @@ def build_payload_index(raw_data: Any) -> dict[str, Any]:
 
   return {
       "payload_type": "dict",
+      "verbatim_anchors": extract_verbatim_anchors(raw_data),
       "top_level_keys": sorted(list(raw_data.keys())),
       "attribute_keys": sorted(list(attrs.keys())),
       "collection_counts": collection_counts,
@@ -224,11 +241,13 @@ def deterministic_distill_payload(
     query: str,
     api_calls_made: int = 1,
     endpoints_called: Optional[list[str]] = None,
+    raw_bytes: Optional[int] = None,
     rlm_iters: int = 0,
     rlm_mode: str = "deterministic_fallback",
 ) -> dict[str, Any]:
   """Deterministically distills a VT file/behavior/relationship payload into high-signal JSON."""
-  raw_bytes = len(json.dumps(raw_data, default=str).encode("utf-8"))
+  if raw_bytes is None or raw_bytes <= 0:
+    raw_bytes = len(json.dumps(raw_data, default=str).encode("utf-8"))
   anchors = extract_verbatim_anchors(raw_data)
   attrs = _extract_attributes(raw_data)
   rels = _extract_relationships(raw_data)
@@ -530,7 +549,7 @@ class GTISandboxedInterpreter(LocalInterpreter):
       tools: Optional[dict[str, Callable[..., Any]]] = None,
       output_fields: Optional[list[dict[str, Any]]] = None,
       *,
-      min_sub_lm_prompt_chars: int = 35,
+      min_sub_lm_prompt_chars: int = 40,
       execution_timeout: Optional[float] = 30.0,
       callbacks: Optional[list[Any]] = None,
   ) -> None:
@@ -570,7 +589,7 @@ class GTISandboxedInterpreter(LocalInterpreter):
           return (
               "GROUNDING_ERROR: sub-LM prompt is too short and lacks embedded "
               "payload context. Slice raw_data in Python first and include the "
-              "relevant JSON snippet (>=35 chars) inside the prompt."
+              f"relevant JSON snippet (>={self.min_sub_lm_prompt_chars} chars) inside the prompt."
           )
 
     fn = (self.tools or {}).get(tool_name)
@@ -627,7 +646,12 @@ class APICallTracker:
       self.api_calls_made += 1
       self.endpoints_called.append(endpoint)
 
-    result = fetcher()
+    try:
+      result = fetcher()
+    except Exception as exc:
+      logger.warning("Tracker fetcher failed for %s: %s", endpoint, exc)
+      result = {"error": f"Failed to fetch {endpoint}: {exc}"}
+
     payload_bytes = len(json.dumps(result, default=str).encode("utf-8"))
     with self._lock:
       self._cache[cache_key] = result
@@ -877,6 +901,7 @@ def distill_gti_payload(
         query=effective_query,
         api_calls_made=tracker.api_calls_made,
         endpoints_called=list(tracker.endpoints_called),
+        raw_bytes=tracker.total_raw_bytes,
     )
 
   iters_cap = max_iters or int(os.getenv("GTI_RLM_MAX_ITERS", "5"))
@@ -939,6 +964,7 @@ def distill_gti_payload(
         query=effective_query,
         api_calls_made=tracker.api_calls_made,
         endpoints_called=list(tracker.endpoints_called),
+        raw_bytes=tracker.total_raw_bytes,
     )
 
 
@@ -957,6 +983,8 @@ async def distill_gti_payload_async(
     tracker: Optional[APICallTracker] = None,
     lm: Optional[dspy.LM] = None,
     sub_lm: Optional[dspy.LM] = None,
+    max_iters: Optional[int] = None,
+    max_llm_calls: Optional[int] = None,
 ) -> dict[str, Any]:
   """Runs distill_gti_payload in a background worker thread so FastMCP event loop never blocks."""
   return await asyncio.to_thread(
@@ -970,4 +998,6 @@ async def distill_gti_payload_async(
       tracker=tracker,
       lm=lm,
       sub_lm=sub_lm,
+      max_iters=max_iters,
+      max_llm_calls=max_llm_calls,
   )

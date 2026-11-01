@@ -46,10 +46,17 @@ async def _fetch_behaviour_summary_raw(
     client: Any, file_hash: str
 ) -> dict[str, Any]:
   """Fetches /files/{hash}/behaviour_summary and returns data or an error dict."""
-  res = await client.get_async(f"/files/{file_hash}/behaviour_summary")
-  res_json = await res.json_async()
-  if "data" not in res_json:
-    if "error" in res_json:
+  try:
+    res = await client.get_async(f"/files/{file_hash}/behaviour_summary")
+    res_json = await res.json_async()
+  except Exception as exc:
+    logger.warning(
+        "Failed to fetch behaviour_summary for %s: %s", file_hash, exc
+    )
+    return {"error": f"Failed to fetch behaviour_summary for {file_hash}: {exc}"}
+
+  if not isinstance(res_json, dict) or "data" not in res_json:
+    if isinstance(res_json, dict) and "error" in res_json:
       logger.warning("VirusTotal API Error: %s", res_json["error"])
       return {"error": f"VirusTotal API Error: {res_json['error']}"}
     logger.warning(
@@ -59,6 +66,43 @@ async def _fetch_behaviour_summary_raw(
         "error": f"Unexpected response format from VirusTotal API: {res_json}"
     }
   return utils.sanitize_response(res_json["data"])
+
+
+async def _safe_fetch_object_relationships(
+    client: Any,
+    resource_collection_type: str,
+    resource_id: str,
+    relationship_name: str,
+    *,
+    descriptors_only: bool = False,
+    limit: int = 10,
+) -> Any:
+  """Wraps utils.fetch_object_relationships to catch TaskGroup / API exceptions cleanly."""
+  try:
+    res = await utils.fetch_object_relationships(
+        client,
+        resource_collection_type,
+        resource_id,
+        relationships=[relationship_name],
+        descriptors_only=descriptors_only,
+        limit=limit,
+    )
+  except (asyncio.CancelledError, KeyboardInterrupt):
+    raise
+  except BaseException as exc:
+    logger.warning(
+        "Failed to fetch relationship %s for %s: %s",
+        relationship_name,
+        resource_id,
+        exc,
+    )
+    return {
+        "error": (
+            f"Failed to fetch relationship '{relationship_name}' "
+            f"for {resource_id}: {exc}"
+        )
+    }
+  return utils.sanitize_response(res.get(relationship_name, []))
 
 
 @server.tool()
@@ -242,15 +286,16 @@ async def rlm_get_entities_related_to_a_file(
     }
 
   async with vt_client(ctx) as client:
-    res = await utils.fetch_object_relationships(
+    related_items = await _safe_fetch_object_relationships(
         client,
         "files",
         hash,
-        relationships=[relationship_name],
+        relationship_name,
         descriptors_only=descriptors_only,
         limit=limit,
     )
-  related_items = utils.sanitize_response(res.get(relationship_name, []))
+  if isinstance(related_items, dict) and "error" in related_items:
+    return related_items
   endpoint = f"/files/{hash}/{relationship_name}"
   tracker = rlm_engine.APICallTracker(
       max_api_calls=1,
@@ -370,17 +415,16 @@ async def rlm_investigate_file(
       params = {"descriptors_only": descriptors_only, "limit": limit}
 
       def _do_fetch() -> Any:
-        coro = utils.fetch_object_relationships(
+        coro = _safe_fetch_object_relationships(
             client,
             "files",
             hash,
-            relationships=[relationship_name],
+            relationship_name,
             descriptors_only=descriptors_only,
             limit=limit,
         )
         fut = asyncio.run_coroutine_threadsafe(coro, loop)
-        rel_map = fut.result(timeout=30.0)
-        return utils.sanitize_response(rel_map.get(relationship_name, []))
+        return fut.result(timeout=30.0)
 
       return tracker.call(endpoint, params, _do_fetch)
 

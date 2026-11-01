@@ -306,16 +306,45 @@ def test_is_benign_sandbox_noise_filters_known_os_clutter():
 
 
 def test_build_payload_index_summarizes_structure_and_noise_counts():
-  """Payload index summarizes key shapes and counts benign noise without copying huge arrays."""
+  """Payload index summarizes key shapes, verbatim anchors, and noise counts without copying huge arrays."""
   behavior = make_bloated_behavior_summary()
   index = rlm_engine.build_payload_index(behavior)
 
   assert "top_level_keys" in index
+  assert "verbatim_anchors" in index
   assert index["collection_counts"]["registry_keys_opened"] == 750
   assert index["collection_counts"]["files_opened"] == 400
   assert index["benign_noise_counts"]["mutexes_created"] >= 3
   assert index["benign_noise_counts"]["registry_keys_opened"] == 750
   assert len(json.dumps(index)) < 4000
+
+  # Verify live VT v3 {"data": [...]} relationship envelope unwrapping
+  enveloped_report = make_bloated_file_report()
+  enveloped_report["relationships"] = {
+      "contacted_domains": {
+          "data": [{"type": "domain", "id": "cdn-update-telemetry.com"}],
+          "links": {"self": "https://www.virustotal.com/api/v3/..."},
+      },
+      "associations": {
+          "data": {
+              "type": "collection",
+              "id": "threat-actor--apt41-dragon",
+              "attributes": {"name": "APT41", "collection_type": "threat-actor"},
+          }
+      },
+  }
+  env_index = rlm_engine.build_payload_index(enveloped_report)
+  assert env_index["verbatim_anchors"]["sha256"] == SHA256_SAMPLE
+  assert env_index["relationship_counts"]["contacted_domains"] == 1
+  assert env_index["relationship_counts"]["associations"] == 1
+  env_distilled = rlm_engine.deterministic_distill_payload(
+      enveloped_report,
+      entity_id=SHA256_SAMPLE,
+      tool_name="rlm_get_file_report",
+      query="Check enveloped relationships",
+  )
+  assert "cdn-update-telemetry.com" in env_distilled["high_signal_iocs"]["network"]
+  assert any(a["name"] == "APT41" for a in env_distilled["attributions"])
 
 
 def test_deterministic_distill_payload_achieves_high_signal_compression():
@@ -471,6 +500,16 @@ def test_api_call_tracker_enforces_budget_and_deduplicates():
   assert "budget_exhausted" in res_over
   assert tracker.api_calls_made == 2
   assert call_count == 1
+
+  # Fetcher exceptions are caught and returned as {"error": ...} dicts
+  err_tracker = rlm_engine.APICallTracker(max_api_calls=3)
+
+  def failing_fetch() -> dict[str, typing.Any]:
+    raise RuntimeError("VT endpoint timeout")
+
+  res_err = err_tracker.call("/files/hash/behaviours", {}, failing_fetch)
+  assert "error" in res_err
+  assert "VT endpoint timeout" in res_err["error"]
 
 
 def test_distill_gti_payload_runs_dspy_rlm_end_to_end_with_scripted_lm():
