@@ -33,6 +33,7 @@ Each component provides different capabilities:
 - [**Autonomous SOC Agent (Google ADK v2)**](../run-with-google-adk/README.md) - Prebuilt autonomous security operations agent with CLI REPL, FastAPI server, and native MCP multi-transport
 
 - [Google Threat Intelligence (GTI) Server](servers/gti_mcp.md) - Access threat intelligence about IoCs, malware, and threat actors
+  - [Distilling 1 MB Threat Intelligence Payloads with DSPy RLM](gti_dspy_rlm_blog.md) - Deep-dive engineering blog post on out-of-core RLM REPL distillation for GTI file and sandbox behavior tools
 - [Security Command Center (SCC) Server](servers/scc_mcp.md) - Manage cloud security posture and vulnerabilities
 - [Chronicle Security Operations (SecOps) Server](servers/secops_mcp.md) - Search and analyze security events and alerts
 - [SecOps SOAR Server](servers/secops_soar_mcp.md) - Manage security cases and automate response actions
