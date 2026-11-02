@@ -816,27 +816,42 @@ def configure_gti_rlm_lms(
 
   if not root_model:
     if os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GOOGLE_GENAI_USE_VERTEXAI"):
-      root_model = "vertex_ai/gemini-2.5-flash"
-      sub_model = sub_model or "vertex_ai/gemini-2.5-flash-lite"
+      root_model = "vertex_ai/gemini-3.8-flash"
+      sub_model = sub_model or "vertex_ai/gemini-3.5-flash-lite"
     elif os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
-      root_model = "gemini/gemini-2.5-flash"
-      sub_model = sub_model or "gemini/gemini-2.5-flash-lite"
+      root_model = "gemini/gemini-3.8-flash"
+      sub_model = sub_model or "gemini/gemini-3.5-flash-lite"
     else:
       return None, None
 
   sub_model = sub_model or root_model
   max_tokens = int(os.getenv("GTI_RLM_MAX_TOKENS", "16384"))
   sub_max_tokens = int(os.getenv("GTI_RLM_SUB_MAX_TOKENS", "8192"))
-  temperature = float(os.getenv("GTI_RLM_TEMPERATURE", "0.2"))
+  explicit_temp = os.getenv("GTI_RLM_TEMPERATURE")
   reasoning_effort = os.getenv("GTI_RLM_REASONING_EFFORT", "low")
-  lm_kwargs: dict[str, Any] = {"temperature": temperature, "max_tokens": max_tokens}
-  sub_lm_kwargs: dict[str, Any] = {"temperature": temperature, "max_tokens": sub_max_tokens}
-  if reasoning_effort and ("gemini-2.5" in root_model or "gemini-3" in root_model):
-    lm_kwargs["reasoning_effort"] = reasoning_effort
-  if reasoning_effort and ("gemini-2.5" in sub_model or "gemini-3" in sub_model):
-    sub_lm_kwargs["reasoning_effort"] = reasoning_effort
-  resolved_lm = dspy.LM(root_model, **lm_kwargs)
-  resolved_sub_lm = dspy.LM(sub_model, **sub_lm_kwargs)
+  vertex_location = (
+      os.getenv("GTI_RLM_VERTEX_LOCATION")
+      or os.getenv("VERTEXAI_LOCATION")
+      or "global"
+  )
+
+  def _build_lm_kwargs(model_name: str, token_cap: int) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"max_tokens": token_cap}
+    is_gemini_3_plus = "gemini-3" in model_name or "gemini-4" in model_name
+    if explicit_temp is not None:
+      kwargs["temperature"] = float(explicit_temp)
+    elif not is_gemini_3_plus:
+      kwargs["temperature"] = 0.2
+    if reasoning_effort and (is_gemini_3_plus or "gemini-2.5" in model_name):
+      kwargs["reasoning_effort"] = reasoning_effort
+    if model_name.startswith("vertex_ai/"):
+      kwargs["vertex_location"] = vertex_location
+    return kwargs
+
+  resolved_lm = dspy.LM(root_model, **_build_lm_kwargs(root_model, max_tokens))
+  resolved_sub_lm = dspy.LM(
+      sub_model, **_build_lm_kwargs(sub_model, sub_max_tokens)
+  )
   return resolved_lm, resolved_sub_lm
 
 

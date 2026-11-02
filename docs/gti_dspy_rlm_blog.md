@@ -4,7 +4,7 @@ When an autonomous Security Operations Center (SOC) agent investigates a suspici
 
 A single call to `GET /files/{hash}/behaviour_summary` for a well-known ransomware sample like WannaCry (`24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c`) returns **998,460 bytes** of raw JSON. Even after stripping empty nulls and links with `utils.sanitize_response`, the payload still weighs **867,904 bytes**, or roughly 220,000 tokens. Over 95% of those bytes are benign operating system and sandbox background noise: thousands of Windows Error Reporting (`WER`) temporary file reads, `SyncRootManager` registry lookups, `MSIExecute` mutexes, standard Win32 DLL loads, and `.ttf` font opens.
 
-In this post, I explain how I built five new DSPy 3.4+ Recursive Language Model (`dspy.RLM`) tools for the Google Threat Intelligence MCP server (`server/gti`) in my fork of [`google/mcp-security`](https://github.com/google/mcp-security). By keeping raw VirusTotal v3 payloads out of the host model's context window and mounting them inside a sandboxed Python REPL driven by Gemini 2.5 Flash on Vertex AI, I reduced live payload sizes by **80.30% to 98.48%** while retaining 100% of high-signal indicators and guaranteeing zero cryptographic hash hallucinations.
+In this post, I explain how I built five new DSPy 3.4+ Recursive Language Model (`dspy.RLM`) tools for the Google Threat Intelligence MCP server (`server/gti`) in my fork of [`google/mcp-security`](https://github.com/google/mcp-security). By keeping raw VirusTotal v3 payloads out of the host model's context window and mounting them inside a sandboxed Python REPL driven by Gemini 3.8 Flash and Gemini 3.5 Flash-Lite on Vertex AI, I reduced live payload sizes by **84.53% to 98.49%** while retaining 100% of high-signal indicators and guaranteeing zero cryptographic hash hallucinations.
 
 ![Direct context dumping and syntactic compression vs. DSPy 3.4+ out-of-core RLM](img/gti_dspy_rlm/01_context_rot_vs_rlm_architecture.png)
 
@@ -79,14 +79,14 @@ class GTIPayloadDistillSignature(dspy.Signature):
   )
 ```
 
-### 3. Pairing Gemini 2.5 Flash and Gemini 2.5 Flash-Lite on Vertex AI
+### 3. Pairing Gemini 3.8 Flash and Gemini 3.5 Flash-Lite on Vertex AI
 
-To execute `dspy.RLM` efficiently in production, I paired two models from Google's [Gemini 2.5 model family on Vertex AI](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash):
+To execute `dspy.RLM` efficiently in production, I paired two models from Google's [Gemini 3 model family on Vertex AI](https://cloud.google.com/vertex-ai/generative-ai/docs/models):
 
-- **Root REPL controller (`vertex_ai/gemini-2.5-flash`):** Handles Python code generation, schema exploration, and cross-indicator correlation across REPL turns, configured with `reasoning_effort="low"` so internal thinking tokens remain fast and bounded.
-- **Recursive worker (`vertex_ai/gemini-2.5-flash-lite`):** Serves `llm_query` and `llm_query_batched` calls inside the REPL when the root model wants semantic summarization of unstructured report descriptions or GTI Code Insights.
+- **Root REPL controller (`vertex_ai/gemini-3.8-flash`):** Handles Python code generation, schema exploration, and cross-indicator correlation across REPL turns, served on the global Vertex AI endpoint (`vertex_location="global"`) and configured with `reasoning_effort="low"` so internal thinking tokens remain fast and bounded.
+- **Recursive worker (`vertex_ai/gemini-3.5-flash-lite`):** Serves `llm_query` and `llm_query_batched` calls inside the REPL when the root model wants semantic summarization of unstructured report descriptions or GTI Code Insights.
 
-When these GTI RLM MCP tools are consumed by an upstream agent built with the [Google Agent Development Kit (ADK)](https://google.github.io/adk-docs/) (such as the autonomous SOC agent in [`run-with-google-adk`](https://github.com/google/mcp-security/blob/main/run-with-google-adk/README.md)), the host ADK agent receives a 2 KB to 20 KB structured summary instead of a 1 MB raw dump, keeping its context window clean across dozens of investigative steps.
+When these GTI RLM MCP tools are consumed by an upstream agent built with the [Google Agent Development Kit (ADK)](https://google.github.io/adk-docs/) (such as the autonomous SOC agent in [`run-with-google-adk`](https://github.com/google/mcp-security/blob/main/run-with-google-adk/README.md)), the host ADK agent receives a 3 KB to 15 KB structured summary instead of a 1 MB raw dump, keeping its context window clean across dozens of investigative steps.
 
 ---
 
@@ -103,7 +103,7 @@ Over 98% of the raw payload consists of repetitive Windows background activity r
 3. **`modules_loaded` and benign Win32 DLLs (~165 KB):** Standard Windows runtime libraries loaded by every Win32 executable.
 4. **Duplicate multi-sandbox mutexes (~140.5 KB):** Benign Internet Explorer and Windows zone cache mutexes (`Local\ZonesCacheCounterMutex`, `RasPbFile`, `Local\!IETld!Mutex`).
 
-Inside `server/gti/gti_mcp/rlm_engine.py`, I give the RLM both a pre-computed `payload_index` (which summarizes collection lengths and noise counts before Turn 0) and a helper function `compact_behavior_for_repl()` that strips known benign sandbox patterns (`SyncRootManager`, `MSIExecute`, `WER\Temp\WER`, Fonts/Adobe/NLS reads) whenever the RLM fetches behavioral data. What survives inside the **17,951-byte** RLM output (`97.93%` reduction) is pure signal:
+Inside `server/gti/gti_mcp/rlm_engine.py`, I give the RLM both a pre-computed `payload_index` (which summarizes collection lengths and noise counts before Turn 0) and a helper function `compact_behavior_for_repl()` that strips known benign sandbox patterns (`SyncRootManager`, `MSIExecute`, `WER\Temp\WER`, Fonts/Adobe/NLS reads) whenever the RLM fetches behavioral data. What survives inside the **13,073-byte** RLM output (`98.49%` reduction) is pure signal:
 
 - The exact command-line launch chain (`C:\Windows\system32\cmd.exe /c "START /MIN cmd.exe /c "C:\XXX\lhdfrgui.exe""` and `%WINDIR%\explorer.exe -> %SAMPLEPATH%\lhdfrgui.exe`).
 - The WannaCry kill-switch DNS query (`www.iuqerfsodp9ifjaposdfjhgosurijfaewrwergwea.com`) and external C2 IP connections (`113.19.145.202`, `213.61.66.116`, `104.16.167.228`).
@@ -120,7 +120,7 @@ I added five tools in `server/gti/gti_mcp/tools/rlm_files.py`, keeping all exist
 2. **`rlm_get_file_behavior_summary(hash, ctx, query=None)` (1 VT API call):** Distills `GET /files/{hash}/behaviour_summary` (`~1 MB` raw) into high-signal process trees, command lines, persistence registry modifications, non-noisy mutexes, dropped files, network C2 traffic, and MITRE ATT&CK techniques.
 3. **`rlm_get_file_behavior_report(file_behaviour_id, ctx, query=None)` (1 VT API call):** Distills an individual sandbox execution report (`GET /file_behaviours/{file_hash}_{sandbox_name}`).
 4. **`rlm_get_entities_related_to_a_file(hash, relationship_name, ctx, descriptors_only=False, limit=10, query=None)` (1 VT API call):** Fetches full related entity objects (such as `contacted_domains`, `contacted_ips`, `dropped_files`, or `associations`) and compresses them in the REPL.
-5. **`rlm_investigate_file(hash, ctx, investigation_goal=None, max_api_calls=4, max_iterations=8)` (Multi-call autonomous investigator):** Seeds the RLM REPL with `GET /files/{hash}` and binds four VirusTotal pivot functions directly into the Python sandbox:
+5. **`rlm_investigate_file(hash, ctx, investigation_goal=None, max_api_calls=4)` (Multi-call autonomous investigator):** Seeds the RLM REPL with `GET /files/{hash}` and binds four VirusTotal pivot functions directly into the Python sandbox:
    - `fetch_behavior_summary()`
    - `fetch_sandbox_report(sandbox_id)`
    - `fetch_related_entities(relationship_name, limit=10)`
@@ -128,22 +128,22 @@ I added five tools in `server/gti/gti_mcp/tools/rlm_files.py`, keeping all exist
 
 ![Multi-call autonomous investigation trajectory: rlm_investigate_file](img/gti_dspy_rlm/04_autonomous_investigation_trajectory.png)
 
-When I run `rlm_investigate_file` on WannaCry with `max_api_calls=3`, the RLM inspects the static file report on Turn 0, notices the `WannaCry_Ransomware` YARA matches and 68 malicious vendor detections, and autonomously calls `fetch_behavior_summary()` inside the Python REPL. It correlates the static PE `imphash` (`9ecee117164e0b870a53dd187cdd7174`) and crowdsourced IDS rules with the dynamic ransom notes (`C:\@WanaDecryptor@.exe`, `C:\ProgramData\dizxlnqbvkb986\msg\m_bulgarian.wnry`) and service persistence (`T1543.003`), compressing **920,367 bytes** across 2 VirusTotal API calls into a single **20,391-byte** investigative report (`97.78%` reduction).
+When I run `rlm_investigate_file` on WannaCry with `max_api_calls=3`, the RLM inspects the static file report on Turn 0, notices the `WannaCry_Ransomware` YARA matches and 68 malicious vendor detections, and autonomously calls `fetch_behavior_summary()` inside the Python REPL. It correlates the static PE masquerading (`lhdfrgui.exe`, `imphash` `9ecee117164e0b870a53dd187cdd7174`) and crowdsourced YARA/IDS rules with the dynamic kill-switch DNS query (`www.iuqerfsodp9ifjaposdfjhgosurijfaewrwergwea.com`) and service persistence (`T1543.003`, `T1569.002`), compressing **920,367 bytes** across 2 VirusTotal API calls into a single **14,875-byte** investigative report (`98.38%` reduction) in 2 REPL turns.
 
 ---
 
 ## Live compression benchmarks on VirusTotal v3 and Vertex AI
 
-I benchmarked the tools against live VirusTotal v3 endpoints and Vertex AI (`vertex_ai/gemini-2.5-flash` root model + `vertex_ai/gemini-2.5-flash-lite` sub-model) on WannaCry (`24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c`).
+I benchmarked the tools against live VirusTotal v3 endpoints and Vertex AI (`vertex_ai/gemini-3.8-flash` root model + `vertex_ai/gemini-3.5-flash-lite` sub-model) on WannaCry (`24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c`).
 
 ![Live VirusTotal v3 payload compression on WannaCry](img/gti_dspy_rlm/02_payload_compression_benchmarks.png)
 
 | Tool | Raw Sanitized VT Payload | RLM Distilled Output | Byte Reduction | VT API Calls | RLM REPL Turns |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| `rlm_get_file_report` | `52,463 B` | `10,333 B` | **80.30%** | `1` | `3` |
-| `rlm_get_file_behavior_summary` | `867,904 B` (`998,460 B` raw) | `17,951 B` | **97.93%** | `1` | `4` |
-| `rlm_get_entities_related_to_a_file` (`contacted_domains`) | `116,330 B` | `1,763 B` | **98.48%** | `1` | `3` |
-| `rlm_investigate_file` (`/files/{hash}` + `/behaviour_summary`) | `920,367 B` | `20,391 B` | **97.78%** | `2` | `4` |
+| `rlm_get_file_report` | `52,463 B` | `8,117 B` | **84.53%** | `1` | `3` |
+| `rlm_get_file_behavior_summary` | `867,904 B` (`998,460 B` raw) | `13,073 B` | **98.49%** | `1` | `3` |
+| `rlm_get_entities_related_to_a_file` (`contacted_domains`) | `116,330 B` | `2,996 B` | **97.42%** | `1` | `2` |
+| `rlm_investigate_file` (`/files/{hash}` + `/behaviour_summary`) | `920,367 B` | `14,875 B` | **98.38%** | `2` | `2` |
 
 ---
 
@@ -165,11 +165,11 @@ In `GTISandboxedInterpreter(LocalInterpreter)`, I track which heavy immutable ke
 
 ### 3. Grounded `sub_lm` gate (`min_sub_lm_prompt_chars=40`)
 
-Inside the REPL, `llm_query` and `llm_query_batched` dispatch prompts to a stateless worker model (`vertex_ai/gemini-2.5-flash-lite`) that cannot see REPL variables unless the root model embeds a slice of `raw_data` into the prompt string. `GTISandboxedInterpreter.invoke_tool` rejects unattached short prompts (`< 40` characters) with a `ValueError` instructing the root LM to embed a concrete slice of `raw_data` or compute the filter directly in Python.
+Inside the REPL, `llm_query` and `llm_query_batched` dispatch prompts to a stateless worker model (`vertex_ai/gemini-3.5-flash-lite`) that cannot see REPL variables unless the root model embeds a slice of `raw_data` into the prompt string. `GTISandboxedInterpreter.invoke_tool` rejects unattached short prompts (`< 40` characters) with a `ValueError` instructing the root LM to embed a concrete slice of `raw_data` or compute the filter directly in Python.
 
-### 4. Tuning Gemini 2.5 Flash thinking budget and decoding temperature
+### 4. Tuning Gemini 3.8 Flash thinking budget and Gemini 3+ parameter defaults
 
-When I first ran `dspy.LM("vertex_ai/gemini-2.5-flash", temperature=0.0)` with default token limits against the 868 KB WannaCry behavior summary, Gemini 2.5 Flash's internal thinking tokens combined with greedy decoding on long indicator lists occasionally hit output token truncation (`LM response was truncated`). Configuring `max_tokens=16384`, `temperature=0.2`, and `reasoning_effort="low"` in `configure_gti_rlm_lms()` eliminated truncation and cut per-turn latency.
+When running `dspy.LM("vertex_ai/gemini-3.8-flash")` against the 868 KB WannaCry behavior summary on Vertex AI, two model-generation details matter. First, Gemini 3+ models on Vertex AI are served on the global endpoint (`vertex_location="global"`) and deprecate legacy sampling parameters (`temperature`, `top_p`, and `top_k`). Second, unbounded internal thinking tokens on large indicator lists can hit default output token limits (`LM response was truncated`). In `configure_gti_rlm_lms()`, I default `vertex_location="global"`, omit deprecated `temperature` flags on Gemini 3+ models unless explicitly overridden, and set `max_tokens=16384` with `reasoning_effort="low"` to eliminate truncation and cut per-turn latency.
 
 ### 5. Thread-safe `APICallTracker` and live VirusTotal v3 envelope normalization
 
@@ -186,22 +186,22 @@ WORKTREE_DIR="/path/to/mcp-security"
 SAMPLE_SHA256="24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c"
 cd "$WORKTREE_DIR/server/gti"
 
-# 1. Distill a full 76-vendor file report (52.5 KB -> 10.3 KB)
+# 1. Distill a full 76-vendor file report (52.5 KB -> 8.1 KB)
 direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py \
   --hash "$SAMPLE_SHA256" \
   --tool report
 
-# 2. Distill a ~1 MB multi-sandbox behaviour_summary (867.9 KB -> 18.0 KB)
+# 2. Distill a ~1 MB multi-sandbox behaviour_summary (867.9 KB -> 13.1 KB)
 direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py \
   --hash "$SAMPLE_SHA256" \
   --tool behavior
 
-# 3. Distill full related entity objects (116.3 KB -> 1.8 KB)
+# 3. Distill full related entity objects (116.3 KB -> 3.0 KB)
 direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py \
   --hash "$SAMPLE_SHA256" \
   --tool entities
 
-# 4. Run a multi-call autonomous file investigation (920.4 KB -> 20.4 KB)
+# 4. Run a multi-call autonomous file investigation (920.4 KB -> 14.9 KB)
 direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py \
   --hash "$SAMPLE_SHA256" \
   --tool investigate
@@ -217,4 +217,4 @@ direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py \
 4. **Liu, N. F., Lin, K., Hewitt, J., Paranjape, A., Bevilacqua, M., Petroni, F., & Liang, P. (2024).** *Lost in the Middle: How Language Models Use Long Contexts.* Transactions of the Association for Computational Linguistics (TACL), [arXiv:2307.03172](https://arxiv.org/abs/2307.03172).
 5. **TOON Contributors (2025).** *TOON: Token-Oriented Object Notation for LLMs.* [https://github.com/toon-format/toon](https://github.com/toon-format/toon).
 6. **Google Cloud Security & Google Threat Intelligence (2025-2026).** [Google Threat Intelligence Overview](https://cloud.google.com/security/products/threat-intelligence), [VirusTotal v3 API Reference](https://docs.virustotal.com/reference/overview), and the open-source [Google `mcp-security` Repository](https://github.com/google/mcp-security).
-7. **Google DeepMind & Google Cloud Vertex AI (2025-2026).** [Gemini 2.5 Flash on Vertex AI](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash) and the [Google Agent Development Kit (ADK)](https://google.github.io/adk-docs/).
+7. **Google DeepMind & Google Cloud Vertex AI (2025-2026).** [Gemini Models on Vertex AI](https://cloud.google.com/vertex-ai/generative-ai/docs/models) and the [Google Agent Development Kit (ADK)](https://google.github.io/adk-docs/).

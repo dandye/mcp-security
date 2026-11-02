@@ -37,22 +37,23 @@ These tools use [DSPy 3.4+ Recursive Language Models (`dspy.RLM`)](https://dspy.
 - **`rlm_investigate_file(hash, investigation_goal=None, max_api_calls=4)`**: Multi-call autonomous investigator that seeds the RLM REPL with `GET /files/{hash}` and binds `fetch_behavior_summary()`, `fetch_sandbox_report()`, `fetch_related_entities()`, and `fetch_collection_summary()` inside the sandbox so the RLM can pivot across static, dynamic, and attribution endpoints within `max_api_calls`.
 
 Optional environment variables for `dspy.RLM`:
-- `GTI_RLM_MODEL`: Root RLM model (defaults to `vertex_ai/gemini-2.5-flash` when `GOOGLE_CLOUD_PROJECT` is set, or `gemini/gemini-2.5-flash` when `GEMINI_API_KEY` is set; falls back to deterministic Python distillation when unconfigured).
-- `GTI_RLM_SUB_MODEL`: Recursive worker model for `llm_query` / `llm_query_batched` (defaults to `vertex_ai/gemini-2.5-flash-lite` or `gemini/gemini-2.5-flash-lite`).
+- `GTI_RLM_MODEL`: Root RLM model (defaults to `vertex_ai/gemini-3.8-flash` when `GOOGLE_CLOUD_PROJECT` is set, or `gemini/gemini-3.8-flash` when `GEMINI_API_KEY` is set; falls back to deterministic Python distillation when unconfigured).
+- `GTI_RLM_SUB_MODEL`: Recursive worker model for `llm_query` / `llm_query_batched` (defaults to `vertex_ai/gemini-3.5-flash-lite` or `gemini/gemini-3.5-flash-lite`).
+- `GTI_RLM_VERTEX_LOCATION`: Vertex AI endpoint location for `vertex_ai/*` models (default `global`).
 - `GTI_RLM_MAX_ITERS`: Maximum REPL iterations per call (default `8`).
 - `GTI_RLM_MAX_LLM_CALLS`: Maximum sub-LM calls per invocation (default `16`).
 - `GTI_RLM_MAX_TOKENS`: Maximum output token budget per RLM turn (default `16384`).
-- `GTI_RLM_TEMPERATURE`: Sampling temperature for RLM calls (default `0.2`).
-- `GTI_RLM_REASONING_EFFORT`: Thinking budget effort for Gemini 2.5+ models (default `low`).
+- `GTI_RLM_TEMPERATURE`: Optional sampling temperature override (omitted by default on Gemini 3+ models).
+- `GTI_RLM_REASONING_EFFORT`: Thinking budget effort for Gemini 3+ models (default `low`).
 
 #### Live Compression Benchmarks (WannaCry SHA-256 `24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c`)
 
 | Tool | Raw VT v3 Payload | RLM Distilled Output | Byte Reduction | VT API Calls | RLM REPL Turns |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| `rlm_get_file_report` | `52,463 B` | `10,333 B` | **80.30%** | `1` | `3` |
-| `rlm_get_file_behavior_summary` | `867,904 B` (`998,460 B` raw) | `17,951 B` | **97.93%** | `1` | `4` |
-| `rlm_get_entities_related_to_a_file` (`contacted_domains`) | `116,330 B` | `2,226 B` | **98.09%** | `1` | `2` |
-| `rlm_investigate_file` (`/files/{hash}` + `/behaviour_summary`) | `920,367 B` | `16,500 B` | **98.21%** | `2` | `4` |
+| `rlm_get_file_report` | `52,463 B` | `8,117 B` | **84.53%** | `1` | `3` |
+| `rlm_get_file_behavior_summary` | `867,904 B` (`998,460 B` raw) | `13,073 B` | **98.49%** | `1` | `3` |
+| `rlm_get_entities_related_to_a_file` (`contacted_domains`) | `116,330 B` | `2,996 B` | **97.42%** | `1` | `2` |
+| `rlm_investigate_file` (`/files/{hash}` + `/behaviour_summary`) | `920,367 B` | `14,875 B` | **98.38%** | `2` | `2` |
 
 #### Running the Examples
 

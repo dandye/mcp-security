@@ -113,9 +113,9 @@ If the initial VT API call returns an `"error"` dictionary (e.g., `NotFoundError
 ## 4. `dspy.RLM` Engine & `GTISandboxedInterpreter` Design
 
 ### 4.1 LM Configuration (`configure_gti_rlm_lms`)
-- Root LM default: `os.getenv("GTI_RLM_MODEL", "vertex_ai/gemini-2.5-flash")` (or `gemini/gemini-2.5-flash` if `GEMINI_API_KEY` / `GOOGLE_API_KEY` is set and `GOOGLE_CLOUD_PROJECT` is unset).
-- Sub-LM default: `os.getenv("GTI_RLM_SUB_MODEL", "vertex_ai/gemini-2.5-flash-lite")` (or `gemini/gemini-2.5-flash-lite`).
-- Iteration & call caps: `GTI_RLM_MAX_ITERS` (default `5`), `GTI_RLM_MAX_LLM_CALLS` (default `10`), `GTI_RLM_MAX_OUTPUT_CHARS` (default `12000`).
+- Root LM default: `os.getenv("GTI_RLM_MODEL", "vertex_ai/gemini-3.8-flash")` (or `gemini/gemini-3.8-flash` if `GEMINI_API_KEY` / `GOOGLE_API_KEY` is set and `GOOGLE_CLOUD_PROJECT` is unset), served on `vertex_location="global"`.
+- Sub-LM default: `os.getenv("GTI_RLM_SUB_MODEL", "vertex_ai/gemini-3.5-flash-lite")` (or `gemini/gemini-3.5-flash-lite`).
+- Iteration & call caps: `GTI_RLM_MAX_ITERS` (default `8`), `GTI_RLM_MAX_LLM_CALLS` (default `16`), `GTI_RLM_MAX_OUTPUT_CHARS` (default `12000`).
 
 ### 4.2 REPL Variables & Structural Pre-Indexing
 To minimize wasted discovery turns inside the REPL:

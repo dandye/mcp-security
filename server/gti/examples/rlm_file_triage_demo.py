@@ -144,7 +144,6 @@ async def run_examples(
             "behavior and threat actor/malware family attributions."
         ),
         max_api_calls=3,
-        max_iterations=5,
     )
     elapsed = time.monotonic() - t0
     _print_summary("rlm_investigate_file", res, elapsed)
