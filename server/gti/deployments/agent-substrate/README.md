@@ -5,9 +5,9 @@ This directory deploys the Google Threat Intelligence MCP server (`gti-mcp`) and
 ## Architecture
 
 1. **Zero Ambient Credentials in the Sandbox**: `gti-mcp` runs with `GTI_ZERO_SECRET_EGRESS=true` and no `VT_APIKEY`, `GOOGLE_APPLICATION_CREDENTIALS`, or OAuth bearer tokens in `os.environ` or `/proc/self/environ`. Startup calls `verify_zero_secret_sandbox_env()` and fails closed if raw secrets leaked into the sandbox, while `GuardedRLMInterpreter` additionally scrubs worker subprocess environments before executing RLM Python turns.
-2. **Projected CA Trust Bundle (`SSL_CERT_FILE`)**: The actor mounts the `atenet-egress` CA trust bundle at `/var/run/ate/egress-ca/ca-bundle.crt` and sets `SSL_CERT_FILE` so `vt.Client` (`aiohttp` with `trust_env=True`) trusts TLS interception at the egress gateway.
+2. **Projected CA Trust Bundle (`SSL_CERT_FILE`)**: The actor mounts the `atenet-egress` CA trust bundle (`egress-mitm.ate.dev` and `system-roots.ate.dev` via `systemInfo.dataSources[].trustBundle`) at `/var/run/ate/egress-ca/ca-bundle.crt` and sets `SSL_CERT_FILE` so `vt.Client` (`aiohttp` with `trust_env=True`) trusts TLS interception at the egress gateway.
 3. **Out-of-Sandbox `replaceHeaders` Injection (`atenet-egress`)**: `vt.Client` sends `x-apikey: ate-egress-injected`. `atenet-egress` terminates TLS, enforces a fail-closed default-deny `EgressPolicy`, resolves `ate-secret://secretmanager.googleapis.com/projects/${PROJECT_ID}/secrets/vt-apikey/versions/latest` over SPIFFE mTLS via `CredentialProvider.FetchSecret`, and overwrites `x-apikey` on the wire exclusively for `www.virustotal.com`.
-4. **GKE Node Compatibility (`ateworker-gvisor`)**: `sandbox-and-egress.yaml` selects the `gvisor` sandbox class (`runsc` user-space Sentry kernel with `CAP_NET_RAW` stripped), so pools schedule on standard GKE Linux nodes even when `/dev/kvm` nested virtualization is disabled.
+4. **GKE Node Compatibility (`ateworker-gvisor`)**: `sandbox-and-egress.yaml` configures the cluster-scoped `SandboxConfig` (`sandboxClass: gvisor`) and `WorkerPool` (`ateworker-gvisor`), so pools schedule on standard GKE Linux nodes even when `/dev/kvm` nested virtualization is disabled. `actor-template.yaml` and `egress-policy.yaml` are single-document `ateapi.v1` protojson manifests applied to `ate-api-server` via `kubectl-ate`.
 
 ## Prerequisites
 
@@ -23,6 +23,7 @@ This directory deploys the Google Threat Intelligence MCP server (`gti-mcp`) and
 export PROJECT_ID="my-secops-project"
 export ATESPACE="secops"
 export WORKLOAD_NAMESPACE="ate-workloads"
+export ACTOR_NAME="gti-mcp-rlm"
 ```
 
 ### 2. Provision Secrets Outside the Sandbox
@@ -51,20 +52,23 @@ kubectl create secret generic gemini-api-secret \
   --from-literal=GEMINI_API_KEY="$REAL_GEMINI_API_KEY"
 ```
 
-### 3. Apply Agent Substrate `SandboxConfig`, `WorkerPool`, and `EgressPolicy`
+### 3. Apply Agent Substrate `SandboxConfig`, `WorkerPool`, `ActorTemplate`, and `EgressPolicy`
 
-Render `${PROJECT_ID}` and apply the Kubernetes CRDs (`SandboxConfig`, `WorkerPool`) and Substrate control-plane resources (`ActorTemplate`, `EgressPolicy`):
+Apply the Kubernetes CRDs (`SandboxConfig`, `WorkerPool`) with `kubectl apply`, then register the `ate-api-server` `ActorTemplate` and singleton actor `EgressPolicy` via `kubectl ate`:
 
 ```bash
 export PROJECT_ID="my-secops-project"
 export ATESPACE="secops"
 export WORKLOAD_NAMESPACE="ate-workloads"
+export ACTOR_NAME="gti-mcp-rlm"
 
 kubectl create namespace "$WORKLOAD_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
-kubectl ate create atespace "$ATESPACE"
+kubectl apply -f sandbox-and-egress.yaml
 
-envsubst '${PROJECT_ID}' < sandbox-and-egress.yaml > /tmp/rendered-sandbox-and-egress.yaml
-kubectl apply -f /tmp/rendered-sandbox-and-egress.yaml
+kubectl ate create atespace "$ATESPACE"
+envsubst '${PROJECT_ID}' < actor-template.yaml | kubectl ate create actor-template --atespace "$ATESPACE" -f -
+kubectl ate create actor "$ACTOR_NAME" --atespace "$ATESPACE" --template gti-mcp-rlm
+envsubst '${PROJECT_ID}' < egress-policy.yaml | kubectl ate create egress-policy "$ACTOR_NAME" --atespace "$ATESPACE" -f -
 ```
 
 ### 4. Apply AX `Model`, `Workspace`, and `Task`
@@ -86,7 +90,9 @@ Confirm that `atenet-egress` denies non-allowlisted outbound hosts fail-closed a
 
 ```bash
 export ATESPACE="secops"
+export ACTOR_NAME="gti-mcp-rlm"
 
+kubectl ate get egress-policy "$ACTOR_NAME" --atespace "$ATESPACE" -o yaml
 kubectl -n ate-system rollout status deployment/atenet-egress
 kubectl -n ate-system logs deployment/atenet-egress -c ext-proc | grep "egress denied" || true
 ```

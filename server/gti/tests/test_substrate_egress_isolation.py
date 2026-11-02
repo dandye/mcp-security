@@ -951,20 +951,30 @@ def test_adversarial_repl_probe_in_guarded_rlm_interpreter_recovers_zero_secrets
 
 
 def test_agent_substrate_and_ax_deployment_manifests_match_specs() -> None:
-  """Validates sandbox-and-egress.yaml, ax-gti-rlm.yaml, and README.md invariants."""
+  """Validates sandbox-and-egress.yaml, actor-template.yaml, egress-policy.yaml, ax-gti-rlm.yaml, and README.md invariants."""
   deploy_dir = (
       Path(__file__).resolve().parents[1] / "deployments" / "agent-substrate"
   )
   sandbox_yaml_path = deploy_dir / "sandbox-and-egress.yaml"
+  actor_tpl_path = deploy_dir / "actor-template.yaml"
+  egress_yaml_path = deploy_dir / "egress-policy.yaml"
   ax_yaml_path = deploy_dir / "ax-gti-rlm.yaml"
   readme_path = deploy_dir / "README.md"
 
   assert sandbox_yaml_path.is_file()
+  assert actor_tpl_path.is_file()
+  assert egress_yaml_path.is_file()
   assert ax_yaml_path.is_file()
   assert readme_path.is_file()
 
   # Zero emojis in deployment artifacts
-  for file_path in (sandbox_yaml_path, ax_yaml_path, readme_path):
+  for file_path in (
+      sandbox_yaml_path,
+      actor_tpl_path,
+      egress_yaml_path,
+      ax_yaml_path,
+      readme_path,
+  ):
     content = file_path.read_text(encoding="utf-8")
     assert not _EMOJI_PATTERN.search(content), f"Emoji found in {file_path}"
 
@@ -972,35 +982,68 @@ def test_agent_substrate_and_ax_deployment_manifests_match_specs() -> None:
   assert 'export PROJECT_ID="' in readme_text
   assert "$PROJECT_ID" in readme_text
 
-  # 1. Validate Agent Substrate sandbox-and-egress.yaml
+  # 1. Validate Agent Substrate K8s CRDs (SandboxConfig + WorkerPool) in sandbox-and-egress.yaml
   substrate_docs = list(
       yaml.safe_load_all(sandbox_yaml_path.read_text(encoding="utf-8"))
   )
   by_kind = {doc["kind"]: doc for doc in substrate_docs if doc}
-  assert "SandboxConfig" in by_kind
-  assert "EgressPolicy" in by_kind
+  assert set(by_kind.keys()) == {"SandboxConfig", "WorkerPool"}
 
   sandbox_cfg = by_kind["SandboxConfig"]
   assert sandbox_cfg["spec"]["sandboxClass"] == "gvisor"
-  assert "ateworker-gvisor" in sandbox_cfg["spec"]["workerImage"]
+  assert sandbox_cfg["spec"]["defaultVersion"] == "runsc-20261001"
+  assert len(sandbox_cfg["spec"]["versions"]) == 1
+  assert "gvisor" in sandbox_cfg["spec"]["versions"][0]["assets"]["amd64"]
 
-  actor_tpl = by_kind["ActorTemplate"]
+  worker_pool = by_kind["WorkerPool"]
+  assert "ateworker-gvisor@sha256:" in worker_pool["spec"]["workerImage"]
+  assert worker_pool["spec"]["template"]["labels"] == {
+      "workload": "gti-rlm-gvisor"
+  }
+  assert worker_pool["spec"]["sandboxClasses"] == [
+      {"name": "gvisor", "configRef": {"name": "gvisor-gti-rlm"}}
+  ]
+
+  # 2. Validate single-document ateapi.v1.ActorTemplate and EgressPolicy protojson manifests
+  actor_tpl_docs = [
+      doc
+      for doc in yaml.safe_load_all(actor_tpl_path.read_text(encoding="utf-8"))
+      if doc
+  ]
+  assert len(actor_tpl_docs) == 1
+  actor_tpl = actor_tpl_docs[0]
+  assert "apiVersion" not in actor_tpl and "kind" not in actor_tpl
+  assert actor_tpl["metadata"] == {"atespace": "secops", "name": "gti-mcp-rlm"}
+  assert actor_tpl["workerSelector"] == {
+      "matchLabels": {"workload": "gti-rlm-gvisor"}
+  }
+  assert (
+      actor_tpl["snapshotConfig"]["preferredFidelity"]
+      == "SNAPSHOT_FIDELITY_MEMORY"
+  )
   container_env = {
-      item["name"]: item["value"]
-      for item in actor_tpl["spec"]["containers"][0]["env"]
+      item["name"]: item["value"] for item in actor_tpl["containers"][0]["env"]
   }
   assert container_env.get("GTI_ZERO_SECRET_EGRESS") == "true"
   assert "SSL_CERT_FILE" in container_env
   assert "VT_APIKEY" not in container_env
 
-  egress_policy = by_kind["EgressPolicy"]
-  assert egress_policy["spec"]["defaultAction"] == "DENY"
+  egress_docs = [
+      doc
+      for doc in yaml.safe_load_all(egress_yaml_path.read_text(encoding="utf-8"))
+      if doc
+  ]
+  assert len(egress_docs) == 1
+  egress_policy = egress_docs[0]
+  assert "apiVersion" not in egress_policy and "kind" not in egress_policy
+  assert egress_policy["metadata"] == {"atespace": "secops", "name": "default"}
   vt_rules = [
       rule
-      for rule in egress_policy["spec"]["rules"]
+      for rule in egress_policy["rules"]
       if "www.virustotal.com" in rule.get("https", {}).get("hostnames", [])
   ]
   assert len(vt_rules) == 1
+  assert vt_rules[0]["https"]["ports"] == {"numbers": [443]}
   replace_headers = vt_rules[0]["https"]["effects"]["replaceHeaders"]
   assert replace_headers == [
       {
