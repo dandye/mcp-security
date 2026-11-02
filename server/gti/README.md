@@ -80,6 +80,9 @@ direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py --tool all 
 
 # 6. Compare multi-turn SOC investigations without vs. with DSPy RLM tools
 direnv exec "$WORKTREE_DIR" python3 examples/compare_baseline_vs_rlm_investigation.py --output-json /tmp/gti_rlm_comparison.json
+
+# 7. Compare cross-platform Google SecOps (Chronicle SIEM) + GTI threat hunts without vs. with DSPy RLM tools
+direnv exec "$WORKTREE_DIR" python3 examples/secops_gti_threat_hunt_comparison.py --output-json /tmp/secops_gti_hunt_comparison.json
 ```
 
 ### Intelligence Search

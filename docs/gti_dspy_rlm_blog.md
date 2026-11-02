@@ -177,6 +177,45 @@ Two qualitative differences stand out when comparing the transcripts side by sid
 
 ---
 
+## Cross-platform threat hunting in Google SecOps (Chronicle SIEM) and GTI
+
+Single-sample file triage is only half of the story. The context explosion problem becomes even more acute during a live cross-platform threat hunt in [Google Security Operations (Chronicle SIEM)](https://cloud.google.com/security/products/security-operations), where a single UDM process timeline often uncovers *multiple* distinct binaries that must be enriched in GTI to separate attacker malware from legitimate operating system Living-off-the-Land Binaries (LOLBins).
+
+To measure this multi-hash amplification effect in a real SIEM tenant (`dandye-0324-chronicle`), I configured `direnv` to load both `secops-mcp` (`server/secops`) and `gti-mcp` (`server/gti`) and wrote a reproducible cross-platform threat hunt harness in `server/gti/examples/secops_gti_threat_hunt_comparison.py`.
+
+### The live Active Directory Domain Controller intrusion chain (`activedir.stackedpads.local`)
+
+In Stage 1 of the hunt, `secops-mcp` queries live Chronicle SIEM telemetry (`get_ioc_matches`, `lookup_entity`, `get_security_alerts`, and `chronicle.search_udm` for `WINDOWS_SYSMON` process and file events on `activedir.stackedpads.local`, `10.10.20.60`), returning `29,922 bytes` across 50 UDM events:
+
+1. **Initial access & SIEM IoC correlation:** `lookup_entity("activedir")` surfaces 12 `win_repeatedAuthFailure_thenSuccess_T1110_001` brute-force alerts (`T1110.001`), and `get_ioc_matches` surfaces active `Google Threat Intelligence` MD5 IoC matches (`priority="ACTIVE_BREACH"`, `rawSeverity="HIGH"`) attributed to `MALWARE:MIMIKATZ` and threat actor clusters `UNC3313`, `UNC3591`, `UNC3661`, `UNC2727`, and `UNC5883`.
+2. **Stage 1 - LSASS memory credential dumping (`T1003.001`):** Compromised domain account `frank.kolzig` (`fkolzig`) extracts `C:\Users\fkolzig\Downloads\mimikatz_trunk\x64\` (`mimikatz.exe` MD5 `bb8bdb3e8c92e97e2f63626bc3b254c4` and `mimilib.dll` MD5 `ddfad0d55be70acdfea36acf28d418b3`) and executes `mimikatz "privilege::debug" "sekurlsa::logonpasswords" exit`, triggering 19 alerts for `MimiKatz Command Arguments [Mandiant Intel Emerging Threats]`.
+3. **Stage 2 - DiskShadow script & `ntds.dit` extraction (`T1003.003`):** `cmd.exe` runs `diskshadow /s c:\temp\orange.txt`, which spawns `"c:\windows\system32\cmd.exe" /c copy x:\windows\ntds\ntds.dit c:\ntds.dit` to exfiltrate the Active Directory database.
+4. **Stage 3 - WMI execution & Volume Shadow Copy creation (`T1047` / `T1003.003`):** `WMIC.exe` executes `wmic process call create "cmd /c vssadmin create shadow /for=C:"`, which spawns `C:\Windows\System32\vssadmin.exe` (MD5 `614b5c4238977130aa2270c8ad58ce6c`).
+
+To recommend safe containment actions, the threat hunting agent must enrich all **three** kill-chain file hashes (`bb8bdb3e8c92e97e2f63626bc3b254c4`, `ddfad0d55be70acdfea36acf28d418b3`, and `614b5c4238977130aa2270c8ad58ce6c`) with GTI static reports and dynamic sandbox behavior summaries so it does not accidentally block a core Microsoft Windows system executable (`vssadmin.exe`).
+
+![Cross-platform Google SecOps (Chronicle SIEM) + GTI threat hunt: baseline vs. DSPy RLM](img/gti_dspy_rlm/08_secops_siem_gti_threat_hunt_comparison.png)
+
+| Cross-Platform SIEM + GTI Threat Hunt Metric | 1. Baseline Raw GTI + SecOps MCP | 2. Stepwise RLM (`rlm_get_*`) + SecOps MCP | 3. Autonomous RLM (`rlm_investigate_file`) + SecOps MCP |
+| :--- | ---: | ---: | ---: |
+| **SIEM Telemetry Payload (`secops-mcp`, 50 UDM Events)** | `29,922 B` | `29,922 B` | `29,922 B` |
+| **GTI Enrichment Payload (3 Kill-Chain File Hashes)** | `1,268,723 B` (`1.27 MB`) | `77,937 B` (**-93.86%**) | `61,561 B` (**-95.15%**) |
+| **Total Combined SIEM + GTI Bytes Injected** | `1,298,645 B` (`1.30 MB`) | `107,859 B` (**-91.69%**) | `91,483 B` (**-92.96%**) |
+| **Turn 1 Host Prompt Tokens (SIEM Discovery)** | `13,301` | `13,301` | `41,027` (single turn) |
+| **Turn 2 Host Prompt Tokens (`mimikatz.exe` + `mimilib.dll`)** | `444,506` | `37,709` | — |
+| **Turn 3 Host Prompt Tokens (`vssadmin.exe` + Final Synthesis)** | `580,201` | `52,648` | — |
+| **Cumulative Host Prompt Tokens Billed** | **`1,038,008` (`1.04M`)** | **`103,658` (-90.01%)** | **`41,027` (-96.05%)** |
+| **Host Threat Hunter LLM Synthesis Time** | `153.79 s` | `71.97 s` (`2.1x` faster) | `43.90 s` (`3.5x` faster) |
+| **72-Vendor Signatures Visible in REPL?** | **No** (stripped by `exclude_attributes`) | **Yes** (`Microsoft`, `ESET`, `Kaspersky`) | **Yes** (`Microsoft`, `ESET`, `Kaspersky`) |
+| **18-Point SIEM + GTI + LOLBin Rubric Recall** | `17 / 18` (`94.4%`) | **`18 / 18` (`100.0%`)** | **`18 / 18` (`100.0%`)** |
+
+Enriching three binaries in a single SIEM investigation demonstrates why raw GTI JSON does not scale in multi-artifact threat hunts:
+
+- **1.27 MB of raw GTI JSON vs. 29.9 KB of SIEM telemetry:** While the entire Chronicle SIEM telemetry bundle (IoC matches, entity lookups, alerts, and 50 `WINDOWS_SYSMON` UDM events) occupies just `29,922 bytes`, enriching `mimikatz.exe` (`433.8 KB`), `mimilib.dll` (`539.9 KB`), and `vssadmin.exe` (`295.0 KB`) with legacy raw GTI tools injects **`1,268,723 bytes` (`1.27 MB`)** into the host Threat Hunter conversation, pushing cumulative billed host tokens past **1.038 million tokens** (`1,038,008 tokens`).
+- **90.0% to 96.1% host token reduction with 100% rubric recall:** Mode 2 (`rlm_get_*` tools) compresses the 3-hash GTI enrichment payload by **93.86%** (`1,268,723 B` -> `77,937 B`) and cuts cumulative host prompt tokens by **90.01%** (`1,038,008` -> `103,658 tokens`). Mode 3 (`rlm_investigate_file` across all 3 hashes in parallel) compresses GTI enrichment by **95.15%** (`61,561 B`) and cuts cumulative host tokens by **96.05%** (`41,027 tokens`), while recovering the exact per-vendor detection signatures (`Microsoft: HackTool:Win32/Mimikatz!pz`, `ESET-NOD32: Win64/Riskware.Mimikatz.G`, `Kaspersky: HEUR:Trojan.Win32.Generic`) and verifying that `vssadmin.exe` (`614b5c4238977130aa2270c8ad58ce6c`, `0/76` detections, signed by `Microsoft Windows Production PCA 2011`) is a legitimate LOLBin that must not be hash-blocked globally.
+
+---
+
 ## Five production guardrails I built into `GTISandboxedInterpreter`
 
 Running `dspy.RLM` against synthetic unit tests is straightforward; running it reliably against 1 MB live VirusTotal v3 payloads on Vertex AI surfaced five engineering edge cases that required dedicated guardrails in `server/gti/gti_mcp/rlm_engine.py`.
@@ -239,6 +278,10 @@ direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py \
 # 5. Run the head-to-head SOC investigation comparison (Baseline vs. RLM)
 direnv exec "$WORKTREE_DIR" python3 examples/compare_baseline_vs_rlm_investigation.py \
   --output-json /tmp/gti_rlm_comparison.json
+
+# 6. Run the cross-platform Google SecOps (Chronicle SIEM) + GTI threat hunt comparison
+direnv exec "$WORKTREE_DIR" python3 examples/secops_gti_threat_hunt_comparison.py \
+  --output-json /tmp/secops_gti_hunt_comparison.json
 ```
 
 ---
