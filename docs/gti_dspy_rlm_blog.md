@@ -1,10 +1,8 @@
 # Distilling 1 MB threat intelligence payloads with DSPy Recursive Language Models
 
-When an autonomous Security Operations Center (SOC) agent investigates a suspicious binary, its first instinct is to pull the file report and dynamic sandbox behavior from Google Threat Intelligence (GTI) and the VirusTotal v3 API. That instinct is sound for a human analyst clicking through tabs in a browser. For an LLM agent operating through the Model Context Protocol (MCP), it is a context window disaster.
-
-A single call to `GET /files/{hash}/behaviour_summary` for a well-known ransomware sample like WannaCry (`24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c`) returns **998,460 bytes** of raw JSON. Even after stripping empty nulls and links with `utils.sanitize_response`, the payload still weighs **867,904 bytes**, or roughly 220,000 tokens. Over 95% of those bytes are benign operating system and sandbox background noise: thousands of Windows Error Reporting (`WER`) temporary file reads, `SyncRootManager` registry lookups, `MSIExecute` mutexes, standard Win32 DLL loads, and `.ttf` font opens.
-
 In this post, I explain how I built five new DSPy 3.4+ Recursive Language Model (`dspy.RLM`) tools for the Google Threat Intelligence MCP server (`server/gti`) in my fork of [`google/mcp-security`](https://github.com/google/mcp-security). By keeping raw VirusTotal v3 payloads out of the host model's context window and mounting them inside a sandboxed Python REPL driven by Gemini 3.8 Flash and Gemini 3.5 Flash-Lite on Vertex AI, I reduced live payload sizes by **84.53% to 98.49%** while retaining 100% of high-signal indicators and guaranteeing zero cryptographic hash hallucinations.
+
+Google Threat Intelligence (GTI) and the VirusTotal v3 API return far more JSON than an LLM agent's context window should absorb through the Model Context Protocol (MCP). A single call to `GET /files/{hash}/behaviour_summary` for a sample like WannaCry (`24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c`) returns **998,460 bytes** of raw JSON. Even after stripping empty nulls and links with `utils.sanitize_response`, the payload still weighs **867,904 bytes**, or roughly 220,000 tokens. Over 95% of those bytes are benign operating system and sandbox background noise: thousands of Windows Error Reporting (`WER`) temporary file reads, `SyncRootManager` registry lookups, `MSIExecute` mutexes, standard Win32 DLL loads, and `.ttf` font opens.
 
 ![Direct context dumping and syntactic compression vs. DSPy 3.4+ out-of-core RLM](img/gti_dspy_rlm/01_context_rot_vs_rlm_architecture.png)
 
@@ -83,10 +81,15 @@ class GTIPayloadDistillSignature(dspy.Signature):
 
 To execute `dspy.RLM` efficiently in production, I paired two models from Google's [Gemini 3 model family on Vertex AI](https://cloud.google.com/vertex-ai/generative-ai/docs/models):
 
-- **Root REPL controller (`vertex_ai/gemini-3.8-flash`):** Handles Python code generation, schema exploration, and cross-indicator correlation across REPL turns, served on the global Vertex AI endpoint (`vertex_location="global"`) and configured with `reasoning_effort="low"` so internal thinking tokens remain fast and bounded.
+- **Root REPL controller (`vertex_ai/gemini-3.8-flash`):** Handles Python code generation, schema exploration, and cross-indicator correlation across REPL turns on the global Vertex AI endpoint (`vertex_location="global"`).
+  - *ProTip on thinking budget and output token limits:* On reasoning models like Gemini 3.8 Flash, `max_tokens` caps the combined total of internal thinking tokens and visible output tokens. When the RLM emits its final `SUBMIT(...)` call containing 34 MITRE ATT&CK techniques and dozens of structured IOCs, default thinking budgets can consume enough of the output allowance to truncate the JSON response mid-stream. Setting `reasoning_effort="low"` keeps per-turn REPL code generation fast and concise, while setting `max_tokens=16384` provides ample headroom so large `SUBMIT(...)` payloads never truncate.
 - **Recursive worker (`vertex_ai/gemini-3.5-flash-lite`):** Serves `llm_query` and `llm_query_batched` calls inside the REPL when the root model wants semantic summarization of unstructured report descriptions or GTI Code Insights.
 
-When these GTI RLM MCP tools are consumed by an upstream agent built with the [Google Agent Development Kit (ADK)](https://google.github.io/adk-docs/) (such as the autonomous SOC agent in [`run-with-google-adk`](https://github.com/google/mcp-security/blob/main/run-with-google-adk/README.md)), the host ADK agent receives a 3 KB to 15 KB structured summary instead of a 1 MB raw dump, keeping its context window clean across dozens of investigative steps.
+### 4. Guaranteeing zero hash hallucinations with deterministic verbatim anchors
+
+A single transposed character in a 64-character SHA-256 hash or a 72-character TLSH digest breaks downstream SIEM and EDR pivoting. Rather than asking the LLM to copy cryptographic digests into its `SUBMIT(...)` call, `extract_verbatim_anchors(raw_data)` extracts `sha256`, `sha1`, `md5`, `imphash`, `ssdeep`, `tlsh`, `meaningful_name`, `size`, `last_analysis_stats`, `popular_threat_classification`, `gti_assessment`, and `code_insights` deterministically in pure Python and merges them into the final response outside the LLM generation path.
+
+When these GTI RLM MCP tools are consumed by an upstream agent built with the [Google Agent Development Kit (ADK)](https://google.github.io/adk-docs/) (such as the autonomous SOC agent in [`run-with-google-adk`](https://github.com/google/mcp-security/blob/main/run-with-google-adk/README.md)), the host ADK agent receives a 3 KB to 15 KB structured summary with guaranteed-exact hashes instead of a 1 MB raw dump.
 
 ---
 
@@ -109,6 +112,8 @@ Inside `server/gti/gti_mcp/rlm_engine.py`, I give the RLM both a pre-computed `p
 - The WannaCry kill-switch DNS query (`www.iuqerfsodp9ifjaposdfjhgosurijfaewrwergwea.com`) and external C2 IP connections (`113.19.145.202`, `213.61.66.116`, `104.16.167.228`).
 - All 34 MITRE ATT&CK techniques observed across sandboxes, including `T1543.003` (Windows service creation and persistence), `T1486` (ransomware document encryption), `T1070.004` (shadow volume deletion), `T1490` (`bcdedit` boot configuration modification), `T1135` (SMB lateral movement across private subnets), and `T1090.003` (Tor anonymizer installation).
 - An explicit `filtered_noise_summary` audit string documenting how many benign command executions, system mutexes, and Microsoft background DNS queries were omitted.
+
+**Future work: Externalizing benign sandbox noise rules from code.** Currently, the benign sandbox filter patterns (`_NOISY_PROCESS_PATTERNS`, `_NOISY_MUTEX_EXACT`, `_NOISY_FILE_SUBSTRINGS`, and `_NOISY_DNS_DOMAINS`) are defined as Python constants inside `rlm_engine.py`. As sandbox vendors update their base OS images or new background noise patterns emerge, we can decouple these filter definitions from code by loading them from a versioned YAML/JSON ruleset or a Google SecOps Reference List at startup, allowing detection engineers to continuously tune benign sandbox baselines without redeploying the MCP server.
 
 ---
 
@@ -149,13 +154,13 @@ I benchmarked the tools against live VirusTotal v3 endpoints and Vertex AI (`ver
 
 ## Head-to-head SOC investigation: without vs. with the RLM refactor
 
-Single-endpoint byte compression only tells half the story. In a real incident response workflow, an agent conducts a multi-turn investigation: it triages the primary file report (Turn 1), inspects dynamic sandbox behavior (Turn 2), and pivots into network infrastructure and dropped artifacts (Turn 3). Because conversational agents re-send prior turns on every subsequent step, raw tool payloads compound quadratically across the session.
+When an agent conducts a multi-turn investigation, it triages the primary file report (Turn 1), inspects dynamic sandbox behavior (Turn 2), and pivots into network infrastructure and dropped artifacts (Turn 3).
 
 To measure the end-to-end impact on a host SOC agent (`vertex_ai/gemini-3.8-flash`), I wrote [`server/gti/examples/compare_baseline_vs_rlm_investigation.py`](https://github.com/google/mcp-security) and ran the exact same multi-artifact WannaCry investigation (primary dropper `24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c` plus dropped shortcut artifact `0a989a89d77d48f9a25ec64cb30043896bc976e85b8940b59dcf2afce2797227`) across three modes:
 
-1. **Mode 1 — Baseline (Without Refactor):** Uses the legacy raw tools (`get_file_report`, `get_file_behavior_summary`, `get_entities_related_to_a_file`) across 3 host turns.
-2. **Mode 2 — Refactored Stepwise RLM (`rlm_get_*`):** Uses `rlm_get_file_report`, `rlm_get_file_behavior_summary`, and `rlm_get_entities_related_to_a_file` across the same 3 host turns.
-3. **Mode 3 — Refactored Autonomous RLM (`rlm_investigate_file`):** Uses `rlm_investigate_file` to correlate static and dynamic telemetry inside the sandboxed Python REPL and synthesize the investigation in a single host turn.
+1. **Mode 1 - Baseline (Without Refactor):** Uses the legacy raw tools (`get_file_report`, `get_file_behavior_summary`, `get_entities_related_to_a_file`) across 3 host turns.
+2. **Mode 2 - Refactored Stepwise RLM (`rlm_get_*`):** Uses `rlm_get_file_report`, `rlm_get_file_behavior_summary`, and `rlm_get_entities_related_to_a_file` across the same 3 host turns.
+3. **Mode 3 - Refactored Autonomous RLM (`rlm_investigate_file`):** Uses `rlm_investigate_file` to correlate static and dynamic telemetry inside the sandboxed Python REPL and synthesize the investigation in a single host turn.
 
 ![End-to-end SOC investigation comparison: baseline raw tools vs. DSPy RLM tools](img/gti_dspy_rlm/07_baseline_vs_rlm_investigation_comparison.png)
 
@@ -173,15 +178,15 @@ To measure the end-to-end impact on a host SOC agent (`vertex_ai/gemini-3.8-flas
 Two qualitative differences stand out when comparing the transcripts side by side:
 
 - **Eliminating the `exclude_attributes` blind spot:** In Mode 1 (Baseline), `get_file_report` hardcodes `params={"exclude_attributes": "last_analysis_results"}` to keep the raw JSON under 50 KB. When asked for specific vendor classifications from Kaspersky, Microsoft, and ESET, the baseline host agent had to report that per-vendor engine signatures were missing from the payload (`14/15` rubric score). In Modes 2 and 3, `rlm_get_file_report` and `rlm_investigate_file` load all 76 vendor results into the Python REPL and extract the exact signatures (`Kaspersky: Trojan-Ransom.Win32.Wanna.m`, `Microsoft: Ransom:Win32/WannaCrypt!pz`, `ESET-NOD32: Win32/Exploit.CVE-2017-0147.A trojan`, and on the dropped `.lnk` file `Symantec: Ransom.Wannacry`, `Skyhigh: Ransom-WannaCry!lnk`) while discarding undetected rows (`15/15` rubric score).
-- **Preventing multi-turn token compounding:** In Mode 1, injecting `867,904 bytes` of raw `behaviour_summary` on Turn 2 swells the host prompt to `423,870 tokens`, and Turn 3 re-sends that entire buffer plus `123,824 bytes` of domain and dropped-file JSON (`467,732 tokens`), billing **910,466 cumulative prompt tokens** for a single investigation. Modes 2 and 3 reduce cumulative host prompt tokens by **96.71%** (`29,986 tokens`) and **98.95%** (`9,579 tokens`), cutting host LLM synthesis time from `109.92s` to `42.63s` and `25.51s`.
+- **Cutting host context volume and synthesis latency:** Mode 1 injects `1,030,327 bytes` (`1.03 MB`) of raw JSON into the host agent across the three steps (`109.92s` of host LLM synthesis time). Modes 2 and 3 reduce total injected tool bytes by **97.37%** (`27,087 B`) and **97.95%** (`21,083 B`), cutting host LLM synthesis time to `42.63s` and `25.51s`.
 
 ---
 
 ## Cross-platform threat hunting in Google SecOps (Chronicle SIEM) and GTI
 
-Single-sample file triage is only half of the story. The context explosion problem becomes even more acute during a live cross-platform threat hunt in [Google Security Operations (Chronicle SIEM)](https://cloud.google.com/security/products/security-operations), where a single UDM process timeline often uncovers *multiple* distinct binaries that must be enriched in GTI to separate attacker malware from legitimate operating system Living-off-the-Land Binaries (LOLBins).
+While a single-sample file investigation demonstrates the problem, the context explosion becomes even more acute during a live cross-platform threat hunt in [Google Security Operations (Chronicle SIEM)](https://cloud.google.com/security/products/security-operations), where a single UDM process timeline often uncovers *multiple* distinct binaries that must be enriched in GTI to separate attacker malware from legitimate operating system Living-off-the-Land Binaries (LOLBins).
 
-To measure this multi-hash amplification effect in a real SIEM tenant (`dandye-0324-chronicle`), I configured `direnv` to load both `secops-mcp` (`server/secops`) and `gti-mcp` (`server/gti`) and wrote a reproducible cross-platform threat hunt harness in `server/gti/examples/secops_gti_threat_hunt_comparison.py`.
+To measure this multi-hash amplification effect in a test Google SecOps tenant, I connected both `secops-mcp` (`server/secops`) and `gti-mcp` (`server/gti`) and wrote a reproducible cross-platform threat hunt harness in `server/gti/examples/secops_gti_threat_hunt_comparison.py`.
 
 ### The live Active Directory Domain Controller intrusion chain (`activedir.stackedpads.local`)
 
@@ -211,44 +216,14 @@ To recommend safe containment actions, the threat hunting agent must enrich all 
 
 Enriching three binaries in a single SIEM investigation demonstrates why raw GTI JSON does not scale in multi-artifact threat hunts:
 
-- **1.27 MB of raw GTI JSON vs. 29.9 KB of SIEM telemetry:** While the entire Chronicle SIEM telemetry bundle (IoC matches, entity lookups, alerts, and 50 `WINDOWS_SYSMON` UDM events) occupies just `29,922 bytes`, enriching `mimikatz.exe` (`433.8 KB`), `mimilib.dll` (`539.9 KB`), and `vssadmin.exe` (`295.0 KB`) with legacy raw GTI tools injects **`1,268,723 bytes` (`1.27 MB`)** into the host Threat Hunter conversation, pushing cumulative billed host tokens past **1.038 million tokens** (`1,038,008 tokens`).
+- **1.27 MB of raw GTI JSON vs. 29.9 KB of SIEM telemetry:** While the entire Chronicle SIEM telemetry bundle (IoC matches, entity lookups, alerts, and 50 `WINDOWS_SYSMON` UDM events) occupies just `29,922 bytes`, enriching `mimikatz.exe` (`433.8 KB`), `mimilib.dll` (`539.9 KB`), and `vssadmin.exe` (`295.0 KB`) with legacy raw GTI tools injects **`1,268,723 bytes` (`1.27 MB`)** into the host Threat Hunter conversation (`1,038,008` cumulative prompt tokens).
 - **90.0% to 96.1% host token reduction with 100% rubric recall:** Mode 2 (`rlm_get_*` tools) compresses the 3-hash GTI enrichment payload by **93.86%** (`1,268,723 B` -> `77,937 B`) and cuts cumulative host prompt tokens by **90.01%** (`1,038,008` -> `103,658 tokens`). Mode 3 (`rlm_investigate_file` across all 3 hashes in parallel) compresses GTI enrichment by **95.15%** (`61,561 B`) and cuts cumulative host tokens by **96.05%** (`41,027 tokens`), while recovering the exact per-vendor detection signatures (`Microsoft: HackTool:Win32/Mimikatz!pz`, `ESET-NOD32: Win64/Riskware.Mimikatz.G`, `Kaspersky: HEUR:Trojan.Win32.Generic`) and verifying that `vssadmin.exe` (`614b5c4238977130aa2270c8ad58ce6c`, `0/76` detections, signed by `Microsoft Windows Production PCA 2011`) is a legitimate LOLBin that must not be hash-blocked globally.
-
----
-
-## Five production guardrails I built into `GTISandboxedInterpreter`
-
-Running `dspy.RLM` against synthetic unit tests is straightforward; running it reliably against 1 MB live VirusTotal v3 payloads on Vertex AI surfaced five engineering edge cases that required dedicated guardrails in `server/gti/gti_mcp/rlm_engine.py`.
-
-![Five production guardrails for DSPy RLM on security telemetry](img/gti_dspy_rlm/06_production_guardrails.png)
-
-### 1. Deterministic verbatim anchor split (`extract_verbatim_anchors`)
-
-A single transposed character in a 64-character SHA-256 hash or a 72-character TLSH digest breaks downstream SIEM/EDR pivoting. Rather than asking the LLM to copy hashes into its `SUBMIT()` call, `extract_verbatim_anchors(raw_data)` extracts `sha256`, `sha1`, `md5`, `imphash`, `ssdeep`, `tlsh`, `meaningful_name`, `size`, `last_analysis_stats`, `popular_threat_classification`, `gti_assessment`, and `code_insights` deterministically in pure Python and merges them into the final dictionary outside the LLM generation path.
-
-### 2. Turn-0 subprocess pipe caching in `GTISandboxedInterpreter.execute`
-
-By default, `dspy.RLM` passes the full `input_args` dictionary (`variables={"raw_data": ...}`) into `LocalInterpreter.execute(code, variables)` on every REPL iteration. Because `LocalInterpreter` communicates with its sandbox worker over a JSON-RPC pipe, re-serializing an 868 KB `behaviour_summary` dictionary on Turns 1, 2, 3, and 4 adds seconds of serialization overhead even though the worker already holds `raw_data` in its top-level globals from Turn 0.
-
-In `GTISandboxedInterpreter(LocalInterpreter)`, I track which heavy immutable keys (`raw_data`, `payload_index`, `entity_id`, `tool_name`, `query`) have been injected after `SHIM_SETUP` (`__dspy_host_token`) completes, and strip unchanged keys from `variables` on subsequent turns.
-
-### 3. Grounded `sub_lm` gate (`min_sub_lm_prompt_chars=40`)
-
-Inside the REPL, `llm_query` and `llm_query_batched` dispatch prompts to a stateless worker model (`vertex_ai/gemini-3.5-flash-lite`) that cannot see REPL variables unless the root model embeds a slice of `raw_data` into the prompt string. `GTISandboxedInterpreter.invoke_tool` rejects unattached short prompts (`< 40` characters) with a `ValueError` instructing the root LM to embed a concrete slice of `raw_data` or compute the filter directly in Python.
-
-### 4. Tuning Gemini 3.8 Flash thinking budget and Gemini 3+ parameter defaults
-
-When running `dspy.LM("vertex_ai/gemini-3.8-flash")` against the 868 KB WannaCry behavior summary on Vertex AI, two model-generation details matter. First, Gemini 3+ models on Vertex AI are served on the global endpoint (`vertex_location="global"`) and deprecate legacy sampling parameters (`temperature`, `top_p`, and `top_k`). Second, unbounded internal thinking tokens on large indicator lists can hit default output token limits (`LM response was truncated`). In `configure_gti_rlm_lms()`, I default `vertex_location="global"`, omit deprecated `temperature` flags on Gemini 3+ models unless explicitly overridden, and set `max_tokens=16384` with `reasoning_effort="low"` to eliminate truncation and cut per-turn latency.
-
-### 5. Thread-safe `APICallTracker` and live VirusTotal v3 envelope normalization
-
-During live testing, I also caught a subtle difference between `vt-py` live responses and typical unit test fixtures: `vt.Object.to_dict()` preserves the raw VirusTotal v3 relationship envelope `{"data": [...], "meta": {...}, "links": {...}}`, whereas mocked fixtures often use a flat list `[...]`. Unwrapping `{"data": ...}` envelopes in `_extract_relationships()` and wrapping bound REPL tool calls in a thread-safe `APICallTracker` (with `max_api_calls` enforcement, per-endpoint caching, and `BaseExceptionGroup` handling) ensures that an RLM investigation never exceeds its VirusTotal API quota or crashes on a missing relationship.
 
 ---
 
 ## Try it yourself
 
-I included a runnable CLI script at `server/gti/examples/rlm_file_triage_demo.py` so you can reproduce every benchmark above against your own VirusTotal API key and Google Cloud project:
+I included runnable CLI scripts in `server/gti/examples/` so you can reproduce every benchmark above against your own VirusTotal API key and Google Cloud project:
 
 ```bash
 WORKTREE_DIR="/path/to/mcp-security"
@@ -256,33 +231,39 @@ SAMPLE_SHA256="24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c"
 cd "$WORKTREE_DIR/server/gti"
 
 # 1. Distill a full 76-vendor file report (52.5 KB -> 8.1 KB)
-direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py \
+python3 examples/rlm_file_triage_demo.py \
   --hash "$SAMPLE_SHA256" \
   --tool report
 
 # 2. Distill a ~1 MB multi-sandbox behaviour_summary (867.9 KB -> 13.1 KB)
-direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py \
+python3 examples/rlm_file_triage_demo.py \
   --hash "$SAMPLE_SHA256" \
   --tool behavior
 
 # 3. Distill full related entity objects (116.3 KB -> 3.0 KB)
-direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py \
+python3 examples/rlm_file_triage_demo.py \
   --hash "$SAMPLE_SHA256" \
   --tool entities
 
 # 4. Run a multi-call autonomous file investigation (920.4 KB -> 14.9 KB)
-direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py \
+python3 examples/rlm_file_triage_demo.py \
   --hash "$SAMPLE_SHA256" \
   --tool investigate
 
 # 5. Run the head-to-head SOC investigation comparison (Baseline vs. RLM)
-direnv exec "$WORKTREE_DIR" python3 examples/compare_baseline_vs_rlm_investigation.py \
+python3 examples/compare_baseline_vs_rlm_investigation.py \
   --output-json /tmp/gti_rlm_comparison.json
 
 # 6. Run the cross-platform Google SecOps (Chronicle SIEM) + GTI threat hunt comparison
-direnv exec "$WORKTREE_DIR" python3 examples/secops_gti_threat_hunt_comparison.py \
+python3 examples/secops_gti_threat_hunt_comparison.py \
   --output-json /tmp/secops_gti_hunt_comparison.json
 ```
+
+---
+
+## Conclusion
+
+While these five new GTI MCP tools work out of the box, I built them as a reference implementation to show how Recursive Language Models (`dspy.RLM`) can be applied to high-volume security telemetry. Any MCP endpoint that returns tens or hundreds of kilobytes of noisy JSON, whether from sandbox behavior reports, SIEM event searches, cloud configuration snapshots, or vulnerability scans, can use this same out-of-core Python REPL pattern to keep the host agent's context window compact, fast, and grounded.
 
 ---
 
