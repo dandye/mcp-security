@@ -1,0 +1,92 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# AX (github.com/google/ax, commit b82f57ee) declarative orchestration manifest
+# for zero-secret gti-mcp DSPy RLM tasks on Agent Substrate.
+apiVersion: ax.io/v1alpha1
+kind: Model
+metadata:
+  name: gemini-rlm-flash
+  atespace: secops
+spec:
+  provider: google
+  model: gemini-3.8-flash
+  secretKey:
+    name: gemini-api-secret
+    key: GEMINI_API_KEY
+  parameters:
+    maxOutputTokens: 16384
+---
+apiVersion: ax.io/v1alpha1
+kind: Workspace
+metadata:
+  name: gti-rlm-triage-ws
+  atespace: secops
+spec:
+  git:
+    - name: mcp-security
+      repo: "https://github.com/google/mcp-security.git"
+      branch: "main"
+      dir: "mcp-security"
+      depth: 1
+  files:
+    - path: "AGENTS.md"
+      content: |
+        # GTI Zero-Secret RLM Triage Guidelines
+        - Use rlm_get_file_report, rlm_get_file_behavior_summary, and rlm_investigate_file to distill VirusTotal v3 payloads inside GuardedRLMInterpreter.
+        - Never place raw API keys in environment variables, files, or prompts; atenet-egress injects x-apikey on the wire for www.virustotal.com.
+        - Cite exact cryptographic digests (sha256, sha1, md5, imphash) from verbatim_anchors.
+  mcp:
+    servers:
+      - name: gti-mcp
+        command: "gti_mcp"
+---
+apiVersion: ax.io/v1alpha1
+kind: Task
+metadata:
+  name: gti-rlm-file-investigator
+  atespace: secops
+spec:
+  image: "us-docker.pkg.dev/${PROJECT_ID}/secops-mcp/gti-mcp@sha256:4b825dc642cb6eb9a060e54bf8d69288fbee4904e8a9c3d7b6f9a1c2d3e4f5a6"
+  command:
+    - "gti_mcp"
+  env:
+    - name: GTI_ZERO_SECRET_EGRESS
+      value: "true"
+    - name: SSL_CERT_FILE
+      value: "/var/run/ate/egress-ca/ca-bundle.crt"
+    - name: GTI_RLM_MODEL
+      value: "gemini/gemini-3.8-flash"
+    - name: GTI_RLM_SUB_MODEL
+      value: "gemini/gemini-3.5-flash-lite"
+    - name: GTI_RLM_MAX_ITERS
+      value: "6"
+    - name: GTI_RLM_MAX_LLM_CALLS
+      value: "12"
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+  workspace:
+    name: gti-rlm-triage-ws
+    path: "/workspace"
+  debug: false
+  config:
+    mode: "zero-secret-egress"
+    modelRef: "gemini-rlm-flash"
+    egressGateway: "atenet-egress"
+    allowedUpstreamHosts:
+      - "www.virustotal.com"
+      - "generativelanguage.googleapis.com"
+    maxApiCallsPerInvestigation: 4

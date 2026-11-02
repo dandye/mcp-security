@@ -45,6 +45,8 @@ Optional environment variables for `dspy.RLM`:
 - `GTI_RLM_MAX_TOKENS`: Maximum output token budget per RLM turn (default `16384`).
 - `GTI_RLM_TEMPERATURE`: Optional sampling temperature override (omitted by default on Gemini 3+ models).
 - `GTI_RLM_REASONING_EFFORT`: Thinking budget effort for Gemini 3+ models (default `low`).
+- `GTI_ZERO_SECRET_EGRESS`: Set to `true` when running inside an Agent Substrate sandbox behind `atenet-egress` (`replaceHeaders` injects `x-apikey` outside the sandbox while `vt.Client` sends `ate-egress-injected` and `verify_zero_secret_sandbox_env()` enforces zero raw secrets in `os.environ` and `/proc/self/environ`; see [`deployments/agent-substrate/README.md`](deployments/agent-substrate/README.md)).
+- `SSL_CERT_FILE`: Optional path to a projected gateway or corporate proxy CA certificate bundle trusted by `vt.Client` (`HTTPS_PROXY`, `HTTP_PROXY`, and `NO_PROXY` are also honored via `trust_env=True`).
 
 #### Live Compression Benchmarks (WannaCry SHA-256 `24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c`)
 
