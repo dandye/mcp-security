@@ -77,6 +77,9 @@ direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py --tool inve
 
 # 5. Run all 4 examples and write full JSON output
 direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py --tool all --output-json /tmp/gti_rlm_examples.json
+
+# 6. Compare multi-turn SOC investigations without vs. with DSPy RLM tools
+direnv exec "$WORKTREE_DIR" python3 examples/compare_baseline_vs_rlm_investigation.py --output-json /tmp/gti_rlm_comparison.json
 ```
 
 ### Intelligence Search

@@ -147,6 +147,36 @@ I benchmarked the tools against live VirusTotal v3 endpoints and Vertex AI (`ver
 
 ---
 
+## Head-to-head SOC investigation: without vs. with the RLM refactor
+
+Single-endpoint byte compression only tells half the story. In a real incident response workflow, an agent conducts a multi-turn investigation: it triages the primary file report (Turn 1), inspects dynamic sandbox behavior (Turn 2), and pivots into network infrastructure and dropped artifacts (Turn 3). Because conversational agents re-send prior turns on every subsequent step, raw tool payloads compound quadratically across the session.
+
+To measure the end-to-end impact on a host SOC agent (`vertex_ai/gemini-3.8-flash`), I wrote [`server/gti/examples/compare_baseline_vs_rlm_investigation.py`](https://github.com/google/mcp-security) and ran the exact same multi-artifact WannaCry investigation (primary dropper `24d004a104d4d54034dbcffc2a4b19a11f39008a575aa614ea04703480b1022c` plus dropped shortcut artifact `0a989a89d77d48f9a25ec64cb30043896bc976e85b8940b59dcf2afce2797227`) across three modes:
+
+1. **Mode 1 — Baseline (Without Refactor):** Uses the legacy raw tools (`get_file_report`, `get_file_behavior_summary`, `get_entities_related_to_a_file`) across 3 host turns.
+2. **Mode 2 — Refactored Stepwise RLM (`rlm_get_*`):** Uses `rlm_get_file_report`, `rlm_get_file_behavior_summary`, and `rlm_get_entities_related_to_a_file` across the same 3 host turns.
+3. **Mode 3 — Refactored Autonomous RLM (`rlm_investigate_file`):** Uses `rlm_investigate_file` to correlate static and dynamic telemetry inside the sandboxed Python REPL and synthesize the investigation in a single host turn.
+
+![End-to-end SOC investigation comparison: baseline raw tools vs. DSPy RLM tools](img/gti_dspy_rlm/07_baseline_vs_rlm_investigation_comparison.png)
+
+| Investigation Metric | 1. Baseline Raw Tools (Without Refactor) | 2. Stepwise RLM (`rlm_get_*`) | 3. Autonomous RLM (`rlm_investigate_file`) |
+| :--- | ---: | ---: | ---: |
+| **Host Context Tool Bytes Injected** | `1,030,327 B` (`1.03 MB`) | `27,087 B` (**-97.37%**) | `21,083 B` (**-97.95%**) |
+| **Turn 1 Host Prompt Tokens** | `18,864` | `4,486` | `9,579` (single turn) |
+| **Turn 2 Host Prompt Tokens** | `423,870` | `10,074` | — |
+| **Turn 3 Host Prompt Tokens** | `467,732` | `15,426` | — |
+| **Cumulative Host Prompt Tokens Billed** | **`910,466`** | **`29,986` (-96.71%)** | **`9,579` (-98.95%)** |
+| **Host Agent LLM Synthesis Time** | `109.92 s` | `42.63 s` (`2.6x` faster) | `25.51 s` (`4.3x` faster) |
+| **76-Vendor Engine Signatures Visible?** | **No** (stripped by `exclude_attributes`) | **Yes** (analyzed in REPL) | **Yes** (analyzed in REPL) |
+| **15-Point Ground-Truth Rubric Recall** | `14 / 15` (`93.3%`) | **`15 / 15` (`100.0%`)** | **`15 / 15` (`100.0%`)** |
+
+Two qualitative differences stand out when comparing the transcripts side by side:
+
+- **Eliminating the `exclude_attributes` blind spot:** In Mode 1 (Baseline), `get_file_report` hardcodes `params={"exclude_attributes": "last_analysis_results"}` to keep the raw JSON under 50 KB. When asked for specific vendor classifications from Kaspersky, Microsoft, and ESET, the baseline host agent had to report that per-vendor engine signatures were missing from the payload (`14/15` rubric score). In Modes 2 and 3, `rlm_get_file_report` and `rlm_investigate_file` load all 76 vendor results into the Python REPL and extract the exact signatures (`Kaspersky: Trojan-Ransom.Win32.Wanna.m`, `Microsoft: Ransom:Win32/WannaCrypt!pz`, `ESET-NOD32: Win32/Exploit.CVE-2017-0147.A trojan`, and on the dropped `.lnk` file `Symantec: Ransom.Wannacry`, `Skyhigh: Ransom-WannaCry!lnk`) while discarding undetected rows (`15/15` rubric score).
+- **Preventing multi-turn token compounding:** In Mode 1, injecting `867,904 bytes` of raw `behaviour_summary` on Turn 2 swells the host prompt to `423,870 tokens`, and Turn 3 re-sends that entire buffer plus `123,824 bytes` of domain and dropped-file JSON (`467,732 tokens`), billing **910,466 cumulative prompt tokens** for a single investigation. Modes 2 and 3 reduce cumulative host prompt tokens by **96.71%** (`29,986 tokens`) and **98.95%** (`9,579 tokens`), cutting host LLM synthesis time from `109.92s` to `42.63s` and `25.51s`.
+
+---
+
 ## Five production guardrails I built into `GTISandboxedInterpreter`
 
 Running `dspy.RLM` against synthetic unit tests is straightforward; running it reliably against 1 MB live VirusTotal v3 payloads on Vertex AI surfaced five engineering edge cases that required dedicated guardrails in `server/gti/gti_mcp/rlm_engine.py`.
@@ -205,6 +235,10 @@ direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py \
 direnv exec "$WORKTREE_DIR" python3 examples/rlm_file_triage_demo.py \
   --hash "$SAMPLE_SHA256" \
   --tool investigate
+
+# 5. Run the head-to-head SOC investigation comparison (Baseline vs. RLM)
+direnv exec "$WORKTREE_DIR" python3 examples/compare_baseline_vs_rlm_investigation.py \
+  --output-json /tmp/gti_rlm_comparison.json
 ```
 
 ---
