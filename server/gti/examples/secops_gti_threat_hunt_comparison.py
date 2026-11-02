@@ -14,7 +14,7 @@
 """Cross-platform Google SecOps (Chronicle SIEM) + GTI Threat Hunt Comparison.
 
 Executes a live multi-stage Active Directory Domain Controller compromise threat
-hunt in the Argolis SecOps tenant (`dandye-0324-chronicle`) combining `secops-mcp`
+hunt in a test Google SecOps tenant combining `secops-mcp`
 (Chronicle SIEM IoC matches, entity lookups, alerts, and UDM telemetry) with
 `gti-mcp` (VirusTotal v3 static + behavioral enrichment across 3 kill-chain
 file hashes: `mimikatz.exe`, `mimilib.dll`, and `vssadmin.exe` LOLBin).
@@ -328,14 +328,12 @@ def evaluate_rubric(all_turn_texts: list[str]) -> dict[str, Any]:
 
 
 async def collect_live_siem_telemetry() -> dict[str, Any]:
-  """Stage 1: Queries live Argolis SecOps (`dandye-0324-chronicle`) via `secops-mcp`."""
+  """Stage 1: Queries live Google SecOps (Chronicle SIEM) via `secops-mcp`."""
   print("\n[Stage 1] Collecting Live Google SecOps (Chronicle SIEM) Telemetry...")
   t0 = time.monotonic()
 
-  project_id = os.getenv("CHRONICLE_PROJECT_ID", "dandye-0324-chronicle")
-  customer_id = os.getenv(
-      "CHRONICLE_CUSTOMER_ID", "7e977ce4-f45d-43b2-aea0-52f8b66acd80"
-  )
+  project_id = os.getenv("CHRONICLE_PROJECT_ID", "")
+  customer_id = os.getenv("CHRONICLE_CUSTOMER_ID", "")
   region = os.getenv("CHRONICLE_REGION", "us")
 
   # 1. SIEM IoC Matches (`get_ioc_matches`)
@@ -457,7 +455,7 @@ async def run_baseline_threat_hunt(
           "role": "user",
           "content": (
               f"{TURN_1_PROMPT}\n\n"
-              f"### Google SecOps SIEM Telemetry (`dandye-0324-chronicle`, {b_siem:,} bytes)\n"
+              f"### Google SecOps SIEM Telemetry ({b_siem:,} bytes)\n"
               f"```json\n{json.dumps(siem_bundle, default=str)}\n```"
           ),
       },
@@ -621,7 +619,7 @@ async def run_rlm_stepwise_threat_hunt(
           "role": "user",
           "content": (
               f"{TURN_1_PROMPT}\n\n"
-              f"### Google SecOps SIEM Telemetry (`dandye-0324-chronicle`, {b_siem:,} bytes)\n"
+              f"### Google SecOps SIEM Telemetry ({b_siem:,} bytes)\n"
               f"```json\n{json.dumps(siem_bundle, default=str)}\n```"
           ),
       },
@@ -890,7 +888,7 @@ async def run_rlm_autonomous_threat_hunt(
           "role": "user",
           "content": (
               f"{TURN_3_PROMPT}\n\n"
-              f"### Google SecOps SIEM Telemetry (`dandye-0324-chronicle`, {b_siem:,} bytes)\n"
+              f"### Google SecOps SIEM Telemetry ({b_siem:,} bytes)\n"
               f"```json\n{json.dumps(siem_bundle, default=str)}\n```\n\n"
               f"### GTI Autonomous Investigation 1: `rlm_investigate_file('{HASH_MIMIKATZ_EXE}')` ({b_mimi:,} bytes)\n"
               f"```json\n{json.dumps(inv_mimi, default=str)}\n```\n\n"
@@ -1035,12 +1033,8 @@ async def main_async(output_json: str | None) -> None:
   rlm_auto_res = await run_rlm_autonomous_threat_hunt(ctx, siem_data)
 
   summary = {
-      "tenant_project_id": os.getenv(
-          "CHRONICLE_PROJECT_ID", "dandye-0324-chronicle"
-      ),
-      "tenant_customer_id": os.getenv(
-          "CHRONICLE_CUSTOMER_ID", "7e977ce4-f45d-43b2-aea0-52f8b66acd80"
-      ),
+      "tenant_project_id": os.getenv("CHRONICLE_PROJECT_ID", ""),
+      "tenant_customer_id": os.getenv("CHRONICLE_CUSTOMER_ID", ""),
       "compromised_host": "activedir.stackedpads.local",
       "compromised_user": "frank.kolzig",
       "hashes": {
