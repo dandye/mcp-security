@@ -109,6 +109,20 @@ Threats like actors, malware, campaigns, reports, and vulnerabilities are modele
 - **`get_file_behavior_report(file_behaviour_id)`**: Retrieves a specific sandbox behavior report for a file, identified by `{file_hash}_{sandbox_name}`.
 - **`get_file_behavior_summary(hash)`**: Retrieves a summary of all sandbox behavior reports for a file hash.
 
+### DSPy RLM High-Signal File, Sandbox Behavior & Network IOC Tools
+
+For multi-step agent investigations where raw VirusTotal v3 JSON payloads (`50 KB` to `~1 MB`) would overwhelm the host LLM context window, use the DSPy 3.4+ `dspy.RLM` tools (see [Distilling 1 MB Threat Intelligence Payloads with DSPy Recursive Language Models](../gti_dspy_rlm_blog.md) for architecture and benchmarks):
+
+- **`rlm_get_file_report(hash, query=None)`**: Distills `GET /files/{hash}` (1 VT API call), analyzing all 76 vendor results inside the Python REPL while preserving 100% verbatim cryptographic digests (`sha256`, `sha1`, `md5`, `imphash`, `ssdeep`, `tlsh`).
+- **`rlm_get_file_behavior_summary(hash, query=None)`**: Distills `GET /files/{hash}/behaviour_summary` (1 VT API call), filtering benign OS/sandbox clutter (`SyncRootManager`, `MSIExecute`, `WER`, Fonts/NLS reads) and extracting malicious process trees, command lines, persistence, network C2 traffic, and MITRE ATT&CK techniques.
+- **`rlm_get_file_behavior_report(file_behaviour_id, query=None)`**: Distills `GET /file_behaviours/{file_behaviour_id}` (1 VT API call) for an individual sandbox execution report.
+- **`rlm_get_entities_related_to_a_file(hash, relationship_name, descriptors_only=False, limit=10, query=None)`**: Fetches and distills full related entity objects (1 VT API call).
+- **`rlm_investigate_file(hash, investigation_goal=None, max_api_calls=4, max_iterations=8)`**: Multi-call autonomous investigator that seeds the RLM REPL with `GET /files/{hash}` and binds `fetch_behavior_summary()`, `fetch_sandbox_report()`, `fetch_related_entities()`, and `fetch_collection_summary()` under a strict `max_api_calls` budget.
+- **`rlm_get_domain_report(domain, query=None)`**: Distills `GET /domains/{domain}` (1 VT API call), analyzing all 70+ vendor results, DNS records, WHOIS, TLS certificate metadata, JARM, and GTI assessment inside the Python REPL while stripping `undetected`/`harmless` rows and raw X.509 hex dumps.
+- **`rlm_get_ip_address_report(ip_address, query=None)`**: Distills `GET /ip_addresses/{ip_address}` (1 VT API call), preserving verbatim ASN, AS owner, country, CIDR network, JARM, and high-signal vendor/GTI verdicts while stripping 70+ benign vendor rows.
+- **`rlm_get_url_report(url, query=None)`**: Distills `GET /urls/{url_id}` (1 VT API call), preserving final redirect URL, HTTP response code/headers, title, SHA-256 body hash, and malicious phishing/C2 classifications.
+- **`rlm_investigate_network_ioc(ioc, ioc_type="auto", investigation_goal=None, max_api_calls=4, max_iterations=8)`**: Multi-call autonomous network IOC investigator for domains, IPv4/IPv6 addresses, and URLs that seeds the RLM REPL with the core report and binds `fetch_related_entities(relationship_name, limit)` (`resolutions`, `communicating_files`, `downloaded_files`, `referrer_files`, `subdomains`, `urls`, `redirecting_urls`) and `fetch_collection_summary(collection_id)` under `max_api_calls`.
+
 ### Intelligence Search
 
 - **`search_iocs(query, limit=10, order_by="last_submission_date-")`**: Searches for Indicators of Compromise (files, URLs, domains, IPs) using advanced GTI query syntax. Supports entity-specific modifiers and ordering.

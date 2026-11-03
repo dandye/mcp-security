@@ -22,6 +22,7 @@ setup(
     version="0.7.1",
     py_modules=["secops_mcp", "main"],  # Include both modules
     install_requires=[
+        "dspy>=3.4.1",
         "httpx>=0.28.1",
         "mcp[cli]>=1.26.0,<2.0",
         "secops>=0.35.1",

@@ -1,0 +1,1450 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""DSPy 3.4+ RLM distillation engine and sandboxed REPL interpreter for GTI MCP."""
+
+from __future__ import annotations
+
+import asyncio
+import inspect
+import json
+import logging
+import os
+import re
+import threading
+import typing
+from typing import Any, Callable, Optional
+
+import dspy
+from dspy.primitives.local_interpreter import LocalInterpreter
+
+logger = logging.getLogger(__name__)
+
+# Known benign OS/sandbox artifacts that pollute VirusTotal behaviour_summary
+# and file_behaviour payloads (per GTI malware_analysis guidelines).
+COMMON_BENIGN_NOISE_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"(?:^|\\)SyncRootManager$", re.IGNORECASE),
+    re.compile(r"(?:^|\\)MSIExecute$", re.IGNORECASE),
+    re.compile(r"WilStaging_\d+", re.IGNORECASE),
+    re.compile(r"SM0:\d+:\d+:WilStaging", re.IGNORECASE),
+    re.compile(
+        r"\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts(?:\\|$)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\\Software\\Adobe\\Acrobat Reader\\DC\\Privileged(?:\\|$)",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\\Windows\\System32\\locale_.*\.nls$", re.IGNORECASE),
+    re.compile(r"\\Windows\\Globalization\\Sorting\\", re.IGNORECASE),
+    re.compile(r"\\Software\\Microsoft\\CTF\\TIP\\", re.IGNORECASE),
+)
+
+
+def is_benign_sandbox_noise(value: Any) -> bool:
+  """Returns True if a mutex, registry key, or file path is known benign OS noise."""
+  if not isinstance(value, str):
+    if isinstance(value, dict):
+      candidate = (
+          value.get("key")
+          or value.get("path")
+          or value.get("name")
+          or value.get("mutex")
+          or ""
+      )
+      return is_benign_sandbox_noise(candidate) if candidate else False
+    return False
+  stripped = value.strip()
+  if not stripped:
+    return True
+  return any(pattern.search(stripped) for pattern in COMMON_BENIGN_NOISE_PATTERNS)
+
+
+def compact_behavior_for_repl(
+    raw_beh: Any, *, max_list_items: int = 40
+) -> Any:
+  """Filters benign sandbox noise and caps massive arrays on bound REPL tool returns."""
+  if not isinstance(raw_beh, dict):
+    return raw_beh
+  compacted: dict[str, Any] = {}
+  omitted_counts: dict[str, int] = {}
+  for k, v in raw_beh.items():
+    if k == "attributes" and isinstance(v, dict):
+      compacted[k] = compact_behavior_for_repl(v, max_list_items=max_list_items)
+    elif isinstance(v, list):
+      filtered = [item for item in v if not is_benign_sandbox_noise(item)]
+      omitted = len(v) - len(filtered[:max_list_items])
+      if omitted > 0:
+        omitted_counts[k] = omitted
+      compacted[k] = filtered[:max_list_items]
+    else:
+      compacted[k] = v
+  if omitted_counts:
+    compacted["_filtered_noise_and_truncated_counts"] = omitted_counts
+  return compacted
+
+
+def _extract_attributes(raw_data: Any) -> dict[str, Any]:
+  """Extracts the primary attributes dict from a VT object or returns raw_data if flat."""
+  if not isinstance(raw_data, dict):
+    return {}
+  if isinstance(raw_data.get("attributes"), dict):
+    return raw_data["attributes"]
+  if isinstance(raw_data.get("data"), dict):
+    inner = raw_data["data"]
+    if isinstance(inner.get("attributes"), dict):
+      return inner["attributes"]
+    return inner
+  return raw_data
+
+
+def _extract_relationships(raw_data: Any) -> dict[str, Any]:
+  """Extracts the relationships dict from a VT object and unwraps {'data': ...} envelopes."""
+  if not isinstance(raw_data, dict):
+    return {}
+  rel_dict: Optional[dict[str, Any]] = None
+  if isinstance(raw_data.get("relationships"), dict):
+    rel_dict = raw_data["relationships"]
+  elif isinstance(raw_data.get("data"), dict):
+    inner = raw_data["data"]
+    if isinstance(inner.get("relationships"), dict):
+      rel_dict = inner["relationships"]
+  if not rel_dict:
+    return {}
+
+  normalized: dict[str, Any] = {}
+  for rel_name, rel_val in rel_dict.items():
+    if isinstance(rel_val, dict) and "data" in rel_val:
+      inner_data = rel_val["data"]
+      if isinstance(inner_data, list):
+        normalized[rel_name] = inner_data
+      elif isinstance(inner_data, dict):
+        normalized[rel_name] = [inner_data]
+      else:
+        normalized[rel_name] = []
+    else:
+      normalized[rel_name] = rel_val
+  return normalized
+
+
+def extract_verbatim_anchors(raw_data: Any) -> dict[str, Any]:
+  """Deterministically extracts exact cryptographic digests and core GTI scores."""
+  attrs = _extract_attributes(raw_data)
+  pe_info = attrs.get("pe_info") if isinstance(attrs.get("pe_info"), dict) else {}
+
+  code_insights: Optional[str] = None
+  ai_results = attrs.get("crowdsourced_ai_results")
+  if isinstance(ai_results, list):
+    snippets = []
+    for item in ai_results:
+      if isinstance(item, dict) and item.get("analysis"):
+        snippets.append(str(item["analysis"]).strip())
+    if snippets:
+      code_insights = "\n".join(snippets)
+
+  cert = (
+      attrs.get("last_https_certificate")
+      if isinstance(attrs.get("last_https_certificate"), dict)
+      else {}
+  )
+  cert_subj = (
+      cert.get("subject") if isinstance(cert.get("subject"), dict) else {}
+  )
+  cert_issuer = (
+      cert.get("issuer") if isinstance(cert.get("issuer"), dict) else {}
+  )
+  network_infra: dict[str, Any] = {}
+  for net_key in (
+      "asn",
+      "as_owner",
+      "country",
+      "continent",
+      "network",
+      "regional_internet_registry",
+      "jarm",
+      "registrar",
+      "reputation",
+      "url",
+      "final_url",
+      "last_http_response_code",
+      "last_http_response_content_sha256",
+  ):
+    if attrs.get(net_key) is not None:
+      network_infra[net_key] = attrs.get(net_key)
+  if isinstance(attrs.get("categories"), dict) and attrs.get("categories"):
+    network_infra["categories"] = attrs["categories"]
+  if isinstance(attrs.get("threat_severity"), dict) and attrs.get(
+      "threat_severity"
+  ):
+    network_infra["threat_severity"] = attrs["threat_severity"]
+  if cert:
+    network_infra["tls_certificate"] = {
+        "thumbprint_sha256": (
+            cert.get("thumbprint_sha256") or cert.get("thumbprint")
+        ),
+        "serial_number": cert.get("serial_number"),
+        "subject_cn": cert_subj.get("CN"),
+        "issuer_cn": cert_issuer.get("CN") or cert_issuer.get("O"),
+        "validity": cert.get("validity"),
+    }
+
+  result_anchors: dict[str, Any] = {
+      "sha256": attrs.get("sha256"),
+      "sha1": attrs.get("sha1"),
+      "md5": attrs.get("md5"),
+      "imphash": pe_info.get("imphash") or attrs.get("imphash"),
+      "ssdeep": attrs.get("ssdeep"),
+      "tlsh": attrs.get("tlsh"),
+      "meaningful_name": attrs.get("meaningful_name") or attrs.get("name"),
+      "type_description": (
+          attrs.get("type_description") or attrs.get("collection_type")
+      ),
+      "size": attrs.get("size"),
+      "last_analysis_stats": (
+          attrs.get("last_analysis_stats")
+          if isinstance(attrs.get("last_analysis_stats"), dict)
+          else {}
+      ),
+      "popular_threat_classification": (
+          attrs.get("popular_threat_classification")
+          if isinstance(attrs.get("popular_threat_classification"), dict)
+          else {}
+      ),
+      "gti_assessment": (
+          attrs.get("gti_assessment")
+          if isinstance(attrs.get("gti_assessment"), dict)
+          else {}
+      ),
+      "code_insights": code_insights,
+  }
+  if network_infra:
+    result_anchors["network_infrastructure"] = network_infra
+  return result_anchors
+
+
+def build_payload_index(raw_data: Any) -> dict[str, Any]:
+  """Builds a compact structural index of a VT response for turn-0 REPL inspection."""
+  if isinstance(raw_data, list):
+    return {
+        "payload_type": "list",
+        "item_count": len(raw_data),
+        "sample_keys": (
+            sorted(list(raw_data[0].keys()))[:20]
+            if raw_data and isinstance(raw_data[0], dict)
+            else []
+        ),
+        "collection_counts": {"items": len(raw_data)},
+        "benign_noise_counts": {},
+    }
+
+  if not isinstance(raw_data, dict):
+    return {
+        "payload_type": type(raw_data).__name__,
+        "collection_counts": {},
+        "benign_noise_counts": {},
+    }
+
+  attrs = _extract_attributes(raw_data)
+  rels = _extract_relationships(raw_data)
+  collection_counts: dict[str, int] = {}
+  benign_noise_counts: dict[str, int] = {}
+
+  for key, val in attrs.items():
+    if isinstance(val, (list, dict)):
+      collection_counts[key] = len(val)
+      if isinstance(val, list):
+        noise_count = sum(1 for item in val if is_benign_sandbox_noise(item))
+        if noise_count > 0:
+          benign_noise_counts[key] = noise_count
+
+  pe_info = attrs.get("pe_info")
+  if isinstance(pe_info, dict):
+    for sub_key, sub_val in pe_info.items():
+      if isinstance(sub_val, (list, dict)):
+        collection_counts[f"pe_info.{sub_key}"] = len(sub_val)
+
+  relationship_counts = {
+      rel_name: len(rel_items)
+      for rel_name, rel_items in rels.items()
+      if isinstance(rel_items, list)
+  }
+
+  return {
+      "payload_type": "dict",
+      "verbatim_anchors": extract_verbatim_anchors(raw_data),
+      "top_level_keys": sorted(list(raw_data.keys())),
+      "attribute_keys": sorted(list(attrs.keys())),
+      "collection_counts": collection_counts,
+      "relationship_counts": relationship_counts,
+      "benign_noise_counts": benign_noise_counts,
+  }
+
+
+def _flatten_process_tree(tree: list[Any], depth: int = 0) -> list[str]:
+  """Flattens a nested VT processes_tree list into readable parent -> child chains."""
+  lines: list[str] = []
+  for node in tree:
+    if not isinstance(node, dict):
+      continue
+    name = node.get("name") or node.get("process_id") or "unknown"
+    pid = node.get("process_id")
+    prefix = "  " * depth + ("-> " if depth > 0 else "")
+    label = f"{prefix}{name} (pid={pid})" if pid else f"{prefix}{name}"
+    if not is_benign_sandbox_noise(name):
+      lines.append(label)
+    children = node.get("children")
+    if isinstance(children, list) and children:
+      lines.extend(_flatten_process_tree(children, depth + 1))
+  return lines
+
+
+def deterministic_distill_payload(
+    raw_data: Any,
+    *,
+    entity_id: str,
+    tool_name: str,
+    query: str,
+    api_calls_made: int = 1,
+    endpoints_called: Optional[list[str]] = None,
+    raw_bytes: Optional[int] = None,
+    rlm_iters: int = 0,
+    rlm_mode: str = "deterministic_fallback",
+) -> dict[str, Any]:
+  """Deterministically distills a VT file/behavior/relationship payload into high-signal JSON."""
+  if raw_bytes is None or raw_bytes <= 0:
+    raw_bytes = len(json.dumps(raw_data, default=str).encode("utf-8"))
+  anchors = extract_verbatim_anchors(raw_data)
+  attrs = _extract_attributes(raw_data)
+  rels = _extract_relationships(raw_data)
+
+  network_iocs: list[str] = []
+  files_dropped: list[str] = []
+  process_cmds: list[str] = []
+  persistence_mutexes: list[str] = []
+  yara_sigma_matches: list[str] = []
+  attributions: list[dict[str, str]] = []
+  mitre_techniques: list[dict[str, str]] = []
+  key_findings: list[str] = []
+  filtered_noise_total = 0
+
+  # 1. Extract network IOCs from relationships and behaviour fields
+  for rel_key in (
+      "contacted_domains",
+      "contacted_ips",
+      "contacted_urls",
+      "embedded_domains",
+      "embedded_ips",
+      "embedded_urls",
+      "itw_domains",
+      "itw_ips",
+      "itw_urls",
+      "urls",
+      "subdomains",
+      "siblings",
+      "redirecting_urls",
+      "redirects_to",
+      "parent_resource_urls",
+      "last_serving_ip_address",
+      "network_location",
+  ):
+    items = rels.get(rel_key) or attrs.get(rel_key)
+    if isinstance(items, list):
+      seen_url_bases: dict[str, int] = {}
+      for item in items[:25]:
+        if isinstance(item, dict):
+          ctx_url = (
+              (item.get("context_attributes") or {}).get("url")
+              if isinstance(item.get("context_attributes"), dict)
+              else None
+          )
+          attr_url = (
+              (item.get("attributes") or {}).get("url")
+              if isinstance(item.get("attributes"), dict)
+              else None
+          )
+          ioc_val = ctx_url or attr_url or item.get("url") or item.get("id")
+        else:
+          ioc_val = str(item)
+        if not ioc_val:
+          continue
+        ioc_str = str(ioc_val).strip()
+        if "?" in ioc_str:
+          base_url = ioc_str.split("?", 1)[0]
+          seen_url_bases[base_url] = seen_url_bases.get(base_url, 0) + 1
+          if seen_url_bases[base_url] > 2:
+            filtered_noise_total += 1
+            continue
+        if len(ioc_str) > 200:
+          ioc_str = f"{ioc_str[:180]}...[+{len(ioc_str) - 180} chars]"
+        if ioc_str not in network_iocs:
+          network_iocs.append(ioc_str)
+
+  # Extract passive DNS resolutions (from IP or Domain relationships)
+  resolutions_list = rels.get("resolutions")
+  if isinstance(resolutions_list, list):
+    for res_item in resolutions_list[:25]:
+      if isinstance(res_item, dict):
+        r_attrs = (
+            res_item.get("attributes")
+            if isinstance(res_item.get("attributes"), dict)
+            else {}
+        )
+        host_name = r_attrs.get("host_name")
+        ip_addr = r_attrs.get("ip_address")
+        if host_name and ip_addr:
+          entry = f"{host_name} ({ip_addr})"
+        else:
+          entry = str(host_name or ip_addr or res_item.get("id") or "")
+        if entry and entry not in network_iocs:
+          network_iocs.append(entry)
+
+  # Extract DNS records on domain reports
+  dns_records = attrs.get("last_dns_records")
+  if isinstance(dns_records, list):
+    for rec in dns_records[:20]:
+      if isinstance(rec, dict) and rec.get("value"):
+        rtype = rec.get("type", "DNS")
+        rval = f"{rtype}:{rec['value']}"
+        if rval not in network_iocs:
+          network_iocs.append(rval)
+
+  for traffic in attrs.get("ip_traffic", []) if isinstance(attrs.get("ip_traffic"), list) else []:
+    if isinstance(traffic, dict) and traffic.get("destination_ip"):
+      port = traffic.get("destination_port")
+      entry = (
+          f"{traffic['destination_ip']}:{port}"
+          if port
+          else str(traffic["destination_ip"])
+      )
+      if entry not in network_iocs:
+        network_iocs.append(entry)
+      if str(traffic["destination_ip"]) not in network_iocs:
+        network_iocs.append(str(traffic["destination_ip"]))
+
+  for dns in attrs.get("dns_lookups", []) if isinstance(attrs.get("dns_lookups"), list) else []:
+    if isinstance(dns, dict) and dns.get("hostname"):
+      host = str(dns["hostname"])
+      if host not in network_iocs:
+        network_iocs.append(host)
+
+  for http in (
+      attrs.get("http_conversations", [])
+      if isinstance(attrs.get("http_conversations"), list)
+      else []
+  ):
+    if isinstance(http, dict) and http.get("url"):
+      url_val = str(http["url"])
+      if url_val not in network_iocs:
+        network_iocs.append(url_val)
+
+  # 2. Extract dropped/modified/communicating/downloaded files
+  for drop_source in (
+      rels.get("dropped_files"),
+      rels.get("communicating_files"),
+      rels.get("downloaded_files"),
+      rels.get("referrer_files"),
+      rels.get("embedded_js_files"),
+      rels.get("http_response_contents"),
+      attrs.get("files_dropped"),
+      attrs.get("files_written"),
+  ):
+    if isinstance(drop_source, list):
+      for item in drop_source:
+        if is_benign_sandbox_noise(item):
+          filtered_noise_total += 1
+          continue
+        if isinstance(item, dict):
+          item_attrs = (
+              item.get("attributes")
+              if isinstance(item.get("attributes"), dict)
+              else {}
+          )
+          path = (
+              item.get("path")
+              or item_attrs.get("meaningful_name")
+              or item_attrs.get("type_description")
+              or ""
+          )
+          sha = (
+              item.get("sha256")
+              or item_attrs.get("sha256")
+              or item.get("id")
+              or ""
+          )
+          desc = f"{path} (sha256={sha})" if path and sha else (path or sha)
+        else:
+          desc = str(item)
+        if desc and desc not in files_dropped:
+          files_dropped.append(desc)
+
+  # 3. Extract processes and command executions
+  if isinstance(attrs.get("processes_tree"), list):
+    for proc_line in _flatten_process_tree(attrs["processes_tree"]):
+      if proc_line not in process_cmds:
+        process_cmds.append(proc_line)
+
+  for cmd_field in ("command_executions", "processes_created", "processes_injected"):
+    cmds = attrs.get(cmd_field)
+    if isinstance(cmds, list):
+      for cmd in cmds:
+        if is_benign_sandbox_noise(cmd):
+          filtered_noise_total += 1
+          continue
+        cmd_str = str(cmd).strip()
+        if cmd_str and cmd_str not in process_cmds:
+          process_cmds.append(cmd_str)
+
+  # 4. Extract persistence (registry keys set, non-noisy mutexes)
+  for mutex_field in ("mutexes_created", "mutexes_opened"):
+    mutexes = attrs.get(mutex_field)
+    if isinstance(mutexes, list):
+      for mutex in mutexes:
+        if is_benign_sandbox_noise(mutex):
+          filtered_noise_total += 1
+          continue
+        m_str = str(mutex).strip()
+        if m_str and m_str not in persistence_mutexes:
+          persistence_mutexes.append(m_str)
+
+  for reg_field in ("registry_keys_set", "registry_keys_deleted"):
+    regs = attrs.get(reg_field)
+    if isinstance(regs, list):
+      for reg in regs:
+        if is_benign_sandbox_noise(reg):
+          filtered_noise_total += 1
+          continue
+        if isinstance(reg, dict):
+          k = reg.get("key") or ""
+          v = reg.get("value")
+          reg_str = f"{k} = {v}" if v is not None else k
+        else:
+          reg_str = str(reg)
+        if reg_str and reg_str not in persistence_mutexes:
+          persistence_mutexes.append(reg_str)
+
+  # Count filtered noisy read-only arrays
+  for noisy_read_field in ("registry_keys_opened", "files_opened", "modules_loaded"):
+    arr = attrs.get(noisy_read_field)
+    if isinstance(arr, list):
+      filtered_noise_total += sum(1 for item in arr if is_benign_sandbox_noise(item))
+
+  # 5. Extract YARA, Sigma, IDS, and sandbox signature matches
+  for yara in (
+      attrs.get("crowdsourced_yara_results", [])
+      if isinstance(attrs.get("crowdsourced_yara_results"), list)
+      else []
+  ):
+    if isinstance(yara, dict) and yara.get("rule_name"):
+      entry = f"YARA:{yara['rule_name']}"
+      if yara.get("ruleset_name"):
+        entry += f" ({yara['ruleset_name']})"
+      if entry not in yara_sigma_matches:
+        yara_sigma_matches.append(entry)
+
+  for sigma in (
+      attrs.get("sigma_analysis_results", [])
+      if isinstance(attrs.get("sigma_analysis_results"), list)
+      else []
+  ):
+    if isinstance(sigma, dict) and sigma.get("rule_title"):
+      lvl = sigma.get("rule_level", "unknown")
+      entry = f"Sigma:{sigma['rule_title']} [{lvl}]"
+      if entry not in yara_sigma_matches:
+        yara_sigma_matches.append(entry)
+
+  for ids_hit in (
+      attrs.get("crowdsourced_ids_results", [])
+      if isinstance(attrs.get("crowdsourced_ids_results"), list)
+      else []
+  ):
+    if isinstance(ids_hit, dict) and ids_hit.get("rule_msg"):
+      entry = f"IDS:{ids_hit['rule_msg']}"
+      if entry not in yara_sigma_matches:
+        yara_sigma_matches.append(entry)
+
+  for sig in (
+      attrs.get("signature_matches", [])
+      if isinstance(attrs.get("signature_matches"), list)
+      else []
+  ):
+    if isinstance(sig, dict) and sig.get("description"):
+      sev = sig.get("severity", "")
+      entry = f"SandboxSig:{sig['description']}" + (f" [{sev}]" if sev else "")
+      if entry not in yara_sigma_matches:
+        yara_sigma_matches.append(entry)
+
+  # Also extract malicious/suspicious vendor verdicts from last_analysis_results
+  vendor_results = attrs.get("last_analysis_results")
+  if isinstance(vendor_results, dict):
+    vendor_hits = 0
+    for eng_name, eng_data in vendor_results.items():
+      if isinstance(eng_data, dict):
+        cat = str(eng_data.get("category") or "").lower()
+        res_str = eng_data.get("result")
+        if cat in ("malicious", "suspicious") and res_str:
+          entry = f"Vendor:{eng_name}:{res_str}"
+          if entry not in yara_sigma_matches:
+            yara_sigma_matches.append(entry)
+            vendor_hits += 1
+            if vendor_hits >= 10:
+              break
+        elif cat in ("undetected", "harmless"):
+          filtered_noise_total += 1
+
+  # 6. Extract attributions / associations (and classify list-root entity payloads)
+  _ATTRIBUTION_TYPES = {
+      "collection",
+      "threat-actor",
+      "threat_actor",
+      "malware-family",
+      "malware_family",
+      "campaign",
+      "software-toolkit",
+      "software_toolkit",
+      "report",
+      "vulnerability",
+  }
+  assoc_items: list[Any] = []
+  if isinstance(rels.get("associations"), list):
+    assoc_items.extend(rels["associations"])
+  for rel_attr_key in (
+      "malware_families",
+      "related_threat_actors",
+      "threat_actors",
+      "campaigns",
+      "software_toolkits",
+      "vulnerabilities",
+      "reports",
+      "collections",
+  ):
+    if isinstance(rels.get(rel_attr_key), list):
+      assoc_items.extend(rels[rel_attr_key])
+  if isinstance(raw_data, list):
+    for item in raw_data:
+      if isinstance(item, dict):
+        item_type = str(
+            (item.get("attributes") or {}).get("collection_type")
+            or item.get("type")
+            or ""
+        ).lower()
+        item_id = str(item.get("id") or "")
+        if item_type in ("domain", "ip_address", "ip-address", "url"):
+          ctx_url = (
+              (item.get("context_attributes") or {}).get("url")
+              if isinstance(item.get("context_attributes"), dict)
+              else None
+          )
+          attr_url = (
+              (item.get("attributes") or {}).get("url")
+              if isinstance(item.get("attributes"), dict)
+              else None
+          )
+          url_or_id = ctx_url or attr_url or item_id
+          if url_or_id and str(url_or_id) not in network_iocs:
+            network_iocs.append(str(url_or_id))
+        elif item_type == "resolution":
+          r_attrs = (
+              item.get("attributes")
+              if isinstance(item.get("attributes"), dict)
+              else {}
+          )
+          host_name = r_attrs.get("host_name")
+          ip_addr = r_attrs.get("ip_address")
+          res_str = (
+              f"{host_name} ({ip_addr})"
+              if host_name and ip_addr
+              else str(host_name or ip_addr or item_id)
+          )
+          if res_str and res_str not in network_iocs:
+            network_iocs.append(res_str)
+        elif item_type == "file":
+          f_attrs = (
+              item.get("attributes")
+              if isinstance(item.get("attributes"), dict)
+              else {}
+          )
+          f_name = f_attrs.get("meaningful_name") or f_attrs.get("type_description") or ""
+          f_desc = f"{f_name} (sha256={item_id})" if f_name and item_id else item_id
+          if f_desc and f_desc not in files_dropped:
+            files_dropped.append(f_desc)
+        else:
+          assoc_items.append(item)
+
+  opaque_assoc_Check = re.compile(r"^[0-9a-f]{64}$", re.IGNORECASE)
+  named_attributions: list[dict[str, str]] = []
+  opaque_attributions: list[dict[str, str]] = []
+  seen_assoc_ids: set[str] = set()
+  for assoc in assoc_items:
+    if isinstance(assoc, dict):
+      a_id = str(assoc.get("id") or "")
+      if not a_id or a_id in seen_assoc_ids:
+        continue
+      seen_assoc_ids.add(a_id)
+      a_attrs = assoc.get("attributes") if isinstance(assoc.get("attributes"), dict) else {}
+      a_name = str(a_attrs.get("name") or a_id)
+      a_type = str(
+          a_attrs.get("collection_type") or assoc.get("type") or "collection"
+      )
+      if a_type.lower() not in _ATTRIBUTION_TYPES:
+        continue
+      entry = {"id": a_id, "name": a_name, "collection_type": a_type}
+      if a_name == a_id and opaque_assoc_Check.match(a_id):
+        opaque_attributions.append(entry)
+      else:
+        named_attributions.append(entry)
+  attributions = named_attributions if named_attributions else opaque_attributions[:5]
+
+  # 7. Extract MITRE ATT&CK techniques
+  raw_techniques = attrs.get("attack_techniques") or rels.get("attack_techniques")
+  if isinstance(raw_techniques, list):
+    for tech in raw_techniques:
+      if isinstance(tech, str):
+        mitre_techniques.append({"id": tech, "name": tech, "evidence": "behaviour_summary"})
+      elif isinstance(tech, dict):
+        t_id = str(tech.get("id") or "")
+        t_attrs = tech.get("attributes") if isinstance(tech.get("attributes"), dict) else {}
+        t_name = str(t_attrs.get("name") or tech.get("name") or t_id)
+        if t_id:
+          mitre_techniques.append({"id": t_id, "name": t_name, "evidence": "relationship"})
+  elif isinstance(raw_techniques, dict):
+    for t_id, details in raw_techniques.items():
+      t_name = t_id
+      if isinstance(details, list) and details and isinstance(details[0], dict):
+        t_name = str(details[0].get("description") or t_id)
+      mitre_techniques.append({"id": str(t_id), "name": t_name, "evidence": "behaviour"})
+
+  # 8. Build key findings and verdict summary
+  stats = anchors.get("last_analysis_stats") or {}
+  malicious_count = stats.get("malicious", 0)
+  suspicious_count = stats.get("suspicious", 0)
+  threat_label = (
+      anchors.get("popular_threat_classification", {}).get("suggested_threat_label")
+      or ""
+  )
+  gti_verdict = (
+      anchors.get("gti_assessment", {}).get("verdict", {}).get("value")
+      if isinstance(anchors.get("gti_assessment", {}).get("verdict"), dict)
+      else None
+  )
+
+  if malicious_count or gti_verdict:
+    key_findings.append(
+        f"Detections: {malicious_count} malicious, {suspicious_count} suspicious"
+        + (f"; label={threat_label}" if threat_label else "")
+        + (f"; gti_verdict={gti_verdict}" if gti_verdict else "")
+    )
+  net_infra = anchors.get("network_infrastructure")
+  if isinstance(net_infra, dict) and net_infra:
+    infra_parts: list[str] = []
+    if net_infra.get("asn") is not None or net_infra.get("as_owner"):
+      infra_parts.append(
+          f"ASN={net_infra.get('asn')} ({net_infra.get('as_owner', 'unknown')})"
+      )
+    if net_infra.get("country"):
+      infra_parts.append(f"country={net_infra['country']}")
+    if net_infra.get("network"):
+      infra_parts.append(f"network={net_infra['network']}")
+    if net_infra.get("jarm"):
+      infra_parts.append(f"jarm={net_infra['jarm']}")
+    if net_infra.get("reputation") is not None:
+      infra_parts.append(f"reputation={net_infra['reputation']}")
+    if infra_parts:
+      key_findings.append("Network Infrastructure: " + ", ".join(infra_parts))
+  if anchors.get("code_insights"):
+    key_findings.append(f"Code Insights: {anchors['code_insights']}")
+  if yara_sigma_matches:
+    key_findings.append(f"Rule Matches ({len(yara_sigma_matches)}): " + "; ".join(yara_sigma_matches[:5]))
+  if network_iocs:
+    key_findings.append(f"Network IOCs ({len(network_iocs)}): " + ", ".join(network_iocs[:8]))
+  if files_dropped:
+    key_findings.append(f"Associated Files ({len(files_dropped)}): " + ", ".join(files_dropped[:5]))
+  if process_cmds:
+    key_findings.append(f"Execution Activity ({len(process_cmds)}): " + "; ".join(process_cmds[:5]))
+  if attributions:
+    key_findings.append(
+        "Attributions: " + ", ".join(f"{a['name']} ({a['collection_type']})" for a in attributions[:5])
+    )
+
+  verdict_summary = (
+      f"Entity {entity_id}: "
+      + (f"GTI Verdict {gti_verdict}, " if gti_verdict else "")
+      + (f"{malicious_count} malicious vendor detections, " if malicious_count else "")
+      + (f"classified as {threat_label}." if threat_label else f"{len(key_findings)} high-signal findings extracted.")
+  ).strip()
+
+  result: dict[str, Any] = {
+      "id": entity_id,
+      "tool": tool_name,
+      "query": query,
+      "verbatim_anchors": anchors,
+      "verdict_and_summary": verdict_summary,
+      "answer": " | ".join(key_findings) if key_findings else verdict_summary,
+      "key_findings": key_findings,
+      "high_signal_iocs": {
+          "network": network_iocs[:30],
+          "files_dropped_or_modified": files_dropped[:25],
+          "process_and_command_lines": process_cmds[:25],
+          "persistence_and_mutexes": persistence_mutexes[:25],
+          "yara_and_sigma_matches": yara_sigma_matches[:25],
+      },
+      "attributions": attributions[:20],
+      "mitre_techniques": mitre_techniques[:25],
+      "filtered_noise_summary": (
+          f"Filtered {filtered_noise_total} benign OS/sandbox noise entries "
+          f"(SyncRootManager, MSIExecute, Fonts/Adobe/NLS clutter) and omitted bulky static import/vendor tables."
+      ),
+  }
+
+  output_bytes = len(json.dumps(result, default=str).encode("utf-8"))
+  reduction_pct = (
+      round((1.0 - (output_bytes / raw_bytes)) * 100.0, 2)
+      if raw_bytes > 0
+      else 0.0
+  )
+  result["compression_metrics"] = {
+      "raw_bytes": raw_bytes,
+      "output_bytes": output_bytes,
+      "reduction_pct": reduction_pct,
+      "api_calls_made": api_calls_made,
+      "endpoints_called": endpoints_called or [],
+      "rlm_iters": rlm_iters,
+      "rlm_mode": rlm_mode,
+  }
+  return result
+
+
+class GTISandboxedInterpreter(LocalInterpreter):
+  """Hardened LocalInterpreter for GTI payload exploration and bound tool calls."""
+
+  def __init__(
+      self,
+      tools: Optional[dict[str, Callable[..., Any]]] = None,
+      output_fields: Optional[list[dict[str, Any]]] = None,
+      *,
+      min_sub_lm_prompt_chars: int = 40,
+      execution_timeout: Optional[float] = 90.0,
+      callbacks: Optional[list[Any]] = None,
+  ) -> None:
+    super().__init__(
+        tools=tools,
+        output_fields=output_fields,
+        execution_timeout=execution_timeout,
+        callbacks=callbacks,
+    )
+    self.user_turns: int = 0
+    self.min_sub_lm_prompt_chars = min_sub_lm_prompt_chars
+    self._injected_large_vars: set[str] = set()
+
+  def execute(
+      self, code: str, variables: Optional[dict[str, Any]] = None
+  ) -> Any:
+    """Executes REPL Python while skipping FacadeInvocation SHIM_SETUP turn counting."""
+    if variables and "__dspy_host_token" in variables:
+      return super().execute(code, variables=variables)
+    self.user_turns += 1
+    if variables:
+      filtered_vars = {
+          k: v
+          for k, v in variables.items()
+          if k not in self._injected_large_vars
+      }
+      for k in ("raw_data", "payload_index"):
+        if k in variables:
+          self._injected_large_vars.add(k)
+      return super().execute(code, variables=filtered_vars)
+    return super().execute(code, variables=variables)
+
+  def invoke_tool(
+      self, tool_name: str, args: list[Any] | tuple[Any, ...], kwargs: dict[str, Any]
+  ) -> Any:
+    """Binds positional arguments on wrapped dspy.Tool functions and gates sub_lm grounding."""
+    if tool_name in ("llm_query", "llm_query_batched"):
+      prompts: list[str] = []
+      if tool_name == "llm_query":
+        p = args[0] if args else kwargs.get("prompt", "")
+        prompts = [str(p)]
+      else:
+        batch = args[0] if args else kwargs.get("prompts", [])
+        if isinstance(batch, list):
+          prompts = [str(item) for item in batch]
+      for prompt_text in prompts:
+        if len(prompt_text.strip()) < self.min_sub_lm_prompt_chars:
+          return (
+              "GROUNDING_ERROR: sub-LM prompt is too short and lacks embedded "
+              "payload context. Slice raw_data in Python first and include the "
+              f"relevant JSON snippet (>={self.min_sub_lm_prompt_chars} chars) inside the prompt."
+          )
+
+    fn = (self.tools or {}).get(tool_name)
+    if fn is not None and args and (
+        hasattr(fn, "__wrapped__") or hasattr(fn, "__signature__")
+    ):
+      sig = getattr(fn, "__signature__", None) or inspect.signature(
+          getattr(fn, "__wrapped__", fn)
+      )
+      bound = sig.bind(*args, **kwargs)
+      bound.apply_defaults()
+      return super().invoke_tool(tool_name, [], dict(bound.arguments))
+
+    return super().invoke_tool(tool_name, list(args), kwargs)
+
+
+class APICallTracker:
+  """Tracks VT API call budget, caches duplicate calls, and accumulates raw payload bytes."""
+
+  def __init__(
+      self,
+      *,
+      max_api_calls: int = 4,
+      initial_endpoint: Optional[str] = None,
+      initial_bytes: int = 0,
+  ) -> None:
+    self.max_api_calls = max(1, min(int(max_api_calls), 10))
+    self._lock = threading.Lock()
+    self._cache: dict[str, Any] = {}
+    self.endpoints_called: list[str] = (
+        [initial_endpoint] if initial_endpoint else []
+    )
+    self.api_calls_made: int = 1 if initial_endpoint else 0
+    self.total_raw_bytes: int = max(0, int(initial_bytes))
+    self.fetched_payloads: list[Any] = []
+
+  def call(
+      self,
+      endpoint: str,
+      params: Optional[dict[str, Any]],
+      fetcher: Callable[[], Any],
+  ) -> Any:
+    """Executes fetcher if within max_api_calls budget or returns cached response."""
+    cache_key = f"{endpoint}?{json.dumps(params or {}, sort_keys=True, default=str)}"
+    with self._lock:
+      if cache_key in self._cache:
+        return self._cache[cache_key]
+      if self.api_calls_made >= self.max_api_calls:
+        return {
+            "budget_exhausted": (
+                f"API call budget ({self.max_api_calls}) reached; "
+                f"already called {self.endpoints_called}. Synthesize findings from loaded data."
+            )
+        }
+      self.api_calls_made += 1
+      self.endpoints_called.append(endpoint)
+
+    try:
+      result = fetcher()
+    except Exception as exc:
+      logger.warning("Tracker fetcher failed for %s: %s", endpoint, exc)
+      result = {"error": f"Failed to fetch {endpoint}: {exc}"}
+
+    payload_bytes = len(json.dumps(result, default=str).encode("utf-8"))
+    with self._lock:
+      self._cache[cache_key] = result
+      self.total_raw_bytes += payload_bytes
+      if not (isinstance(result, dict) and "error" in result):
+        self.fetched_payloads.append(result)
+    return result
+
+
+class GTIPayloadDistillSignature(dspy.Signature):
+  """Explore a Google Threat Intelligence (VirusTotal v3) payload in Python to extract high-signal threat intelligence.
+
+  Instructions for the Python REPL:
+  1. `payload_index` already contains `verbatim_anchors`, `collection_counts`, `relationship_counts`, and `benign_noise_counts`. Do NOT waste a turn just printing `payload_index`—write a single Python script on Turn 0 that slices the high-signal fields from `raw_data` (and calls bound `fetch_*` tools if needed).
+  2. When `tool_name == "rlm_investigate_file"`, call `fetch_behavior_summary()` (and `fetch_collection_summary(...)` or `fetch_related_entities(...)` if relevant) on Turn 0, inspect a concise summary of the returned dict, and call `SUBMIT(...)` on Turn 1.
+  3. When `tool_name == "rlm_investigate_network_ioc"`, inspect `raw_data` (ASN, JARM, TLS certificate, vendor verdicts, embedded relationships) and call `fetch_downloaded_files()`, `fetch_communicating_files()`, `fetch_resolutions()`, or `fetch_related_urls()` on Turn 0 to pivot into malware hashes and passive DNS history, then call `SUBMIT(...)` on Turn 1.
+  4. Filter out benign OS/sandbox clutter (SyncRootManager, MSIExecute, Fonts/Adobe/NLS reads, and `undetected` vendor rows) in Python.
+  5. Keep all output lists concise (at most 10-15 top high-signal items per list; never dump full raw lists or repeat items). Never fabricate or alter cryptographic hashes (`sha256`, `sha1`, `md5`, `imphash`) or network indicators.
+  6. Call `SUBMIT(verdict_and_summary=..., answer=..., key_findings=..., high_signal_iocs=..., attributions=..., mitre_techniques=..., filtered_noise_summary=...)` by Turn 1 or Turn 2 at the latest.
+  """
+
+  entity_id: str = dspy.InputField(
+      desc="Target file hash, behaviour ID, IP address, domain, or URL."
+  )
+  tool_name: str = dspy.InputField(desc="MCP tool name being executed.")
+  query: str = dspy.InputField(
+      desc="Specific analyst question or triage objective."
+  )
+  payload_index: dict[str, Any] = dspy.InputField(
+      desc="Compact structural index of top-level keys, collection lengths, and benign noise counts."
+  )
+  raw_data: Any = dspy.InputField(
+      desc="Full un-truncated VirusTotal v3 JSON payload (dict or list) loaded in the Python REPL."
+  )
+
+  verdict_and_summary: str = dspy.OutputField(
+      desc="Concise executive threat assessment (verdict, malware family, severity, and primary capability)."
+  )
+  answer: str = dspy.OutputField(
+      desc="Direct, evidence-backed answer to `query`."
+  )
+  key_findings: list[str] = dspy.OutputField(
+      desc="Bullet list of grounded technical findings."
+  )
+  high_signal_iocs: dict[str, list[str]] = dspy.OutputField(
+      desc="Dict with keys: network, files_dropped_or_modified, process_and_command_lines, persistence_and_mutexes, yara_and_sigma_matches."
+  )
+  attributions: list[dict[str, str]] = dspy.OutputField(
+      desc="List of associated threat actors, malware families, campaigns, or reports: [{'id': ..., 'name': ..., 'collection_type': ...}]."
+  )
+  mitre_techniques: list[dict[str, str]] = dspy.OutputField(
+      desc="List of MITRE ATT&CK techniques: [{'id': ..., 'name': ..., 'evidence': ...}]."
+  )
+  filtered_noise_summary: str = dspy.OutputField(
+      desc="Summary of noisy/benign fields and entries omitted during distillation."
+  )
+
+
+def configure_gti_rlm_lms(
+    lm: Optional[dspy.LM] = None,
+    sub_lm: Optional[dspy.LM] = None,
+) -> tuple[Optional[dspy.LM], Optional[dspy.LM]]:
+  """Resolves root LM and sub-LM from explicit args, dspy.settings, or environment variables."""
+  if lm is not None:
+    return lm, sub_lm or lm
+
+  if getattr(dspy.settings, "lm", None) is not None:
+    active_lm = dspy.settings.lm
+    return active_lm, sub_lm or active_lm
+
+  root_model = os.getenv("GTI_RLM_MODEL")
+  sub_model = os.getenv("GTI_RLM_SUB_MODEL")
+
+  if not root_model:
+    if os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GOOGLE_GENAI_USE_VERTEXAI"):
+      root_model = "vertex_ai/gemini-3.8-flash"
+      sub_model = sub_model or "vertex_ai/gemini-3.5-flash-lite"
+    elif os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
+      root_model = "gemini/gemini-3.8-flash"
+      sub_model = sub_model or "gemini/gemini-3.5-flash-lite"
+    else:
+      return None, None
+
+  sub_model = sub_model or root_model
+  max_tokens = int(os.getenv("GTI_RLM_MAX_TOKENS", "16384"))
+  sub_max_tokens = int(os.getenv("GTI_RLM_SUB_MAX_TOKENS", "8192"))
+  explicit_temp = os.getenv("GTI_RLM_TEMPERATURE")
+  reasoning_effort = os.getenv("GTI_RLM_REASONING_EFFORT", "low")
+  vertex_location = (
+      os.getenv("GTI_RLM_VERTEX_LOCATION")
+      or os.getenv("VERTEXAI_LOCATION")
+      or "global"
+  )
+
+  def _build_lm_kwargs(model_name: str, token_cap: int) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"max_tokens": token_cap}
+    is_gemini_3_plus = "gemini-3" in model_name or "gemini-4" in model_name
+    if explicit_temp is not None:
+      kwargs["temperature"] = float(explicit_temp)
+    elif not is_gemini_3_plus:
+      kwargs["temperature"] = 0.2
+    if reasoning_effort and (is_gemini_3_plus or "gemini-2.5" in model_name):
+      kwargs["reasoning_effort"] = reasoning_effort
+    if model_name.startswith("vertex_ai/"):
+      kwargs["vertex_location"] = vertex_location
+    return kwargs
+
+  resolved_lm = dspy.LM(root_model, **_build_lm_kwargs(root_model, max_tokens))
+  resolved_sub_lm = dspy.LM(
+      sub_model, **_build_lm_kwargs(sub_model, sub_max_tokens)
+  )
+  return resolved_lm, resolved_sub_lm
+
+
+def _ensure_json_compatible(data: Any) -> Any:
+  """Ensures REPL input variables are strictly JSON-serializable for LocalInterpreter's pipe."""
+  return json.loads(json.dumps(data, default=str))
+
+
+def normalize_rlm_prediction(
+    prediction: Any,
+    *,
+    raw_data: Any,
+    entity_id: str,
+    tool_name: str,
+    query: str,
+    api_calls_made: int,
+    endpoints_called: list[str],
+    raw_bytes: int,
+    rlm_iters: int,
+    extra_payloads: Optional[list[Any]] = None,
+) -> dict[str, Any]:
+  """Validates and normalizes a dspy.RLM Prediction and merges deterministic verbatim anchors."""
+  anchors = extract_verbatim_anchors(raw_data)
+  baseline = deterministic_distill_payload(
+      raw_data,
+      entity_id=entity_id,
+      tool_name=tool_name,
+      query=query,
+      api_calls_made=api_calls_made,
+      endpoints_called=endpoints_called,
+      raw_bytes=raw_bytes,
+  )
+  extra_baselines = [
+      deterministic_distill_payload(
+          p,
+          entity_id=entity_id,
+          tool_name=tool_name,
+          query=query,
+      )
+      for p in (extra_payloads or [])
+  ]
+  base_iocs = {
+      cat: list(baseline["high_signal_iocs"].get(cat, []))
+      for cat in (
+          "network",
+          "files_dropped_or_modified",
+          "process_and_command_lines",
+          "persistence_and_mutexes",
+          "yara_and_sigma_matches",
+      )
+  }
+  for eb in extra_baselines:
+    for cat, items in eb.get("high_signal_iocs", {}).items():
+      for it in items:
+        if it not in base_iocs[cat] and len(base_iocs[cat]) < 30:
+          base_iocs[cat].append(it)
+    for attr in eb.get("attributions", []):
+      if attr not in baseline["attributions"]:
+        baseline["attributions"].append(attr)
+    for mt in eb.get("mitre_techniques", []):
+      if mt not in baseline["mitre_techniques"]:
+        baseline["mitre_techniques"].append(mt)
+
+  raw_iocs = getattr(prediction, "high_signal_iocs", None)
+  if isinstance(raw_iocs, str):
+    try:
+      raw_iocs = json.loads(raw_iocs)
+    except Exception:
+      raw_iocs = {}
+  if not isinstance(raw_iocs, dict):
+    raw_iocs = {}
+
+  def _collect_ioc_keys(keys: tuple[str, ...], fallback: list[str]) -> list[str]:
+    merged: list[str] = []
+
+    def _add(val_str: str) -> None:
+      s = val_str.strip()
+      if len(s) > 220:
+        s = f"{s[:180]}...[+{len(s) - 180} chars]"
+      if s and s not in merged and len(merged) < 25:
+        merged.append(s)
+
+    for k in keys:
+      val = raw_iocs.get(k)
+      if isinstance(val, list):
+        for item in val:
+          if item:
+            _add(str(item))
+      elif isinstance(val, str) and val.strip():
+        _add(val.strip())
+    for item in fallback:
+      if item:
+        _add(str(item))
+    return merged
+
+  normalized_iocs = {
+      "network": _collect_ioc_keys(
+          ("network", "contacted_domains", "contacted_ips", "contacted_urls", "domains", "ips", "urls"),
+          base_iocs.get("network", []),
+      ),
+      "files_dropped_or_modified": _collect_ioc_keys(
+          ("files_dropped_or_modified", "dropped_files", "files_dropped", "files"),
+          base_iocs.get("files_dropped_or_modified", []),
+      ),
+      "process_and_command_lines": _collect_ioc_keys(
+          ("process_and_command_lines", "command_executions", "commands", "processes", "processes_tree"),
+          base_iocs.get("process_and_command_lines", []),
+      ),
+      "persistence_and_mutexes": [
+          x
+          for x in _collect_ioc_keys(
+              ("persistence_and_mutexes", "mutexes", "mutexes_created", "registry_keys", "registry_keys_set", "persistence"),
+              base_iocs.get("persistence_and_mutexes", []),
+          )
+          if not is_benign_sandbox_noise(x)
+      ],
+      "yara_and_sigma_matches": _collect_ioc_keys(
+          ("yara_and_sigma_matches", "yara_rules", "sigma_rules", "yara", "sigma", "ids"),
+          base_iocs.get("yara_and_sigma_matches", []),
+      ),
+  }
+
+  raw_findings = getattr(prediction, "key_findings", None)
+  if isinstance(raw_findings, str):
+    key_findings = [line.strip("- *") for line in raw_findings.splitlines() if line.strip()]
+  elif isinstance(raw_findings, list):
+    key_findings = [str(item) for item in raw_findings if item]
+  else:
+    key_findings = []
+  if not key_findings:
+    key_findings = baseline.get("key_findings", [])
+
+  raw_attributions = getattr(prediction, "attributions", None)
+  attributions: list[dict[str, str]] = []
+  seen_attr_names: set[str] = set()
+  if isinstance(raw_attributions, list):
+    for item in raw_attributions:
+      if isinstance(item, dict):
+        attr_id = str(item.get("id") or "").strip()
+        attr_name = str(item.get("name") or "").strip()
+        attr_type = str(item.get("collection_type") or item.get("type") or "").strip()
+        if not attr_name:
+          for alt_type in ("threat_actor", "malware_family", "campaign", "vulnerability", "report", "software_toolkit"):
+            if item.get(alt_type):
+              attr_name = str(item[alt_type]).strip()
+              attr_type = attr_type or alt_type.replace("_", "-")
+              break
+        attr_id = attr_id or attr_name
+        attr_name = attr_name or attr_id
+        if attr_id or attr_name:
+          dedup_key = f"{attr_id}:{attr_name}".lower()
+          if dedup_key not in seen_attr_names:
+            seen_attr_names.add(dedup_key)
+            attributions.append(
+                {
+                    "id": attr_id,
+                    "name": attr_name,
+                    "collection_type": attr_type or "collection",
+                }
+            )
+      elif isinstance(item, str) and item.strip():
+        val = item.strip()
+        if val.lower() not in seen_attr_names:
+          seen_attr_names.add(val.lower())
+          attributions.append({"id": val, "name": val, "collection_type": "collection"})
+  for base_attr in baseline.get("attributions", []):
+    dedup_key = f"{base_attr.get('id', '')}:{base_attr.get('name', '')}".lower()
+    if (base_attr.get("id") or base_attr.get("name")) and dedup_key not in seen_attr_names:
+      seen_attr_names.add(dedup_key)
+      attributions.append(base_attr)
+
+  raw_mitre = getattr(prediction, "mitre_techniques", None)
+  mitre_techniques: list[dict[str, str]] = []
+  seen_mitre_ids: set[str] = set()
+  if isinstance(raw_mitre, list):
+    for item in raw_mitre:
+      if isinstance(item, dict):
+        tid = str(item.get("id") or item.get("technique_id") or "").strip()
+        tname = str(item.get("name") or tid or "").strip()
+        tev = str(item.get("evidence") or item.get("description") or "").strip()
+        if tid or tname:
+          key = (tid or tname).lower()
+          if key not in seen_mitre_ids:
+            seen_mitre_ids.add(key)
+            mitre_techniques.append(
+                {
+                    "id": tid or tname,
+                    "name": tname or tid,
+                    "evidence": tev,
+                }
+            )
+      elif isinstance(item, str) and item.strip():
+        val = item.strip()
+        if val.lower() not in seen_mitre_ids:
+          seen_mitre_ids.add(val.lower())
+          mitre_techniques.append({"id": val, "name": val, "evidence": ""})
+  for base_m in baseline.get("mitre_techniques", []):
+    key = str(base_m.get("id") or base_m.get("name") or "").lower()
+    if key and key not in seen_mitre_ids:
+      seen_mitre_ids.add(key)
+      mitre_techniques.append(base_m)
+
+  verdict_summary = str(getattr(prediction, "verdict_and_summary", "") or "").strip()
+  answer = str(getattr(prediction, "answer", "") or verdict_summary).strip()
+  filtered_noise = str(
+      getattr(prediction, "filtered_noise_summary", "")
+      or "Filtered benign sandbox and vendor noise via DSPy RLM REPL."
+  ).strip()
+  noise_lines = [line.strip() for line in filtered_noise.splitlines() if line.strip()]
+  if len(noise_lines) > 3:
+    filtered_noise = (
+        f"{noise_lines[0]}; {noise_lines[1]} "
+        f"(+{len(noise_lines) - 2} additional benign noise entries omitted)"
+    )
+  elif len(filtered_noise) > 350:
+    filtered_noise = filtered_noise[:347] + "..."
+
+  result: dict[str, Any] = {
+      "id": entity_id,
+      "tool": tool_name,
+      "query": query,
+      "verbatim_anchors": anchors,
+      "verdict_and_summary": verdict_summary,
+      "answer": answer,
+      "key_findings": key_findings,
+      "high_signal_iocs": normalized_iocs,
+      "attributions": attributions,
+      "mitre_techniques": mitre_techniques,
+      "filtered_noise_summary": filtered_noise,
+  }
+  output_bytes = len(json.dumps(result, default=str).encode("utf-8"))
+  reduction_pct = (
+      round((1.0 - (output_bytes / raw_bytes)) * 100.0, 2)
+      if raw_bytes > 0
+      else 0.0
+  )
+  result["compression_metrics"] = {
+      "raw_bytes": raw_bytes,
+      "output_bytes": output_bytes,
+      "reduction_pct": reduction_pct,
+      "api_calls_made": api_calls_made,
+      "endpoints_called": endpoints_called,
+      "rlm_iters": rlm_iters,
+      "rlm_mode": "dspy_rlm",
+  }
+  return result
+
+
+def distill_gti_payload(
+    raw_data: Any,
+    *,
+    entity_id: str,
+    tool_name: str,
+    query: Optional[str] = None,
+    default_objective: str = (
+        "Extract verdict, malware family, high-signal IOCs (network, dropped files, "
+        "process chains, persistence, YARA/Sigma/IDS hits), attributions, and MITRE "
+        "techniques while filtering out benign OS/sandbox clutter."
+    ),
+    extra_tools: Optional[list[Callable[..., Any]]] = None,
+    tracker: Optional[APICallTracker] = None,
+    lm: Optional[dspy.LM] = None,
+    sub_lm: Optional[dspy.LM] = None,
+    max_iters: Optional[int] = None,
+    max_llm_calls: Optional[int] = None,
+) -> dict[str, Any]:
+  """Runs dspy.RLM over a GTI payload in a sandboxed REPL, with deterministic fallback."""
+  effective_query = (query or "").strip() or default_objective
+  initial_bytes = len(json.dumps(raw_data, default=str).encode("utf-8"))
+  if tracker is None:
+    tracker = APICallTracker(
+        max_api_calls=1,
+        initial_endpoint=tool_name,
+        initial_bytes=initial_bytes,
+    )
+
+  resolved_lm, resolved_sub_lm = configure_gti_rlm_lms(lm=lm, sub_lm=sub_lm)
+  if resolved_lm is None:
+    logger.info(
+        "No DSPy LM configured for %s on %s; using deterministic distillation.",
+        tool_name,
+        entity_id,
+    )
+    return deterministic_distill_payload(
+        raw_data,
+        entity_id=entity_id,
+        tool_name=tool_name,
+        query=effective_query,
+        api_calls_made=tracker.api_calls_made,
+        endpoints_called=list(tracker.endpoints_called),
+        raw_bytes=tracker.total_raw_bytes,
+    )
+
+  iters_cap = max_iters or int(os.getenv("GTI_RLM_MAX_ITERS", "5"))
+  llm_calls_cap = max_llm_calls or int(os.getenv("GTI_RLM_MAX_LLM_CALLS", "10"))
+  output_chars_cap = int(os.getenv("GTI_RLM_MAX_OUTPUT_CHARS", "12000"))
+
+  created_interpreters: list[GTISandboxedInterpreter] = []
+
+  def _make_interpreter() -> GTISandboxedInterpreter:
+    interp = GTISandboxedInterpreter()
+    created_interpreters.append(interp)
+    return interp
+
+  try:
+    safe_raw_data = _ensure_json_compatible(raw_data)
+    payload_index = _ensure_json_compatible(build_payload_index(safe_raw_data))
+
+    rlm = dspy.RLM(
+        GTIPayloadDistillSignature,
+        max_iters=iters_cap,
+        max_llm_calls=llm_calls_cap,
+        max_output_chars=output_chars_cap,
+        tools=extra_tools or [],
+        sub_lm=resolved_sub_lm,
+        interpreter_factory=_make_interpreter,
+    )
+    with dspy.context(lm=resolved_lm):
+      prediction = rlm(
+          entity_id=entity_id,
+          tool_name=tool_name,
+          query=effective_query,
+          payload_index=payload_index,
+          raw_data=safe_raw_data,
+      )
+
+    total_iters = sum(i.user_turns for i in created_interpreters) or 1
+    return normalize_rlm_prediction(
+        prediction,
+        raw_data=safe_raw_data,
+        entity_id=entity_id,
+        tool_name=tool_name,
+        query=effective_query,
+        api_calls_made=tracker.api_calls_made,
+        endpoints_called=list(tracker.endpoints_called),
+        raw_bytes=tracker.total_raw_bytes,
+        rlm_iters=total_iters,
+        extra_payloads=list(tracker.fetched_payloads),
+    )
+  except Exception as exc:
+    logger.warning(
+        "dspy.RLM failed for %s on %s (%s); falling back to deterministic distillation.",
+        tool_name,
+        entity_id,
+        exc,
+        exc_info=True,
+    )
+    return deterministic_distill_payload(
+        raw_data,
+        entity_id=entity_id,
+        tool_name=tool_name,
+        query=effective_query,
+        api_calls_made=tracker.api_calls_made,
+        endpoints_called=list(tracker.endpoints_called),
+        raw_bytes=tracker.total_raw_bytes,
+    )
+
+
+async def distill_gti_payload_async(
+    raw_data: Any,
+    *,
+    entity_id: str,
+    tool_name: str,
+    query: Optional[str] = None,
+    default_objective: str = (
+        "Extract verdict, malware family, high-signal IOCs (network, dropped files, "
+        "process chains, persistence, YARA/Sigma/IDS hits), attributions, and MITRE "
+        "techniques while filtering out benign OS/sandbox clutter."
+    ),
+    extra_tools: Optional[list[Callable[..., Any]]] = None,
+    tracker: Optional[APICallTracker] = None,
+    lm: Optional[dspy.LM] = None,
+    sub_lm: Optional[dspy.LM] = None,
+    max_iters: Optional[int] = None,
+    max_llm_calls: Optional[int] = None,
+) -> dict[str, Any]:
+  """Runs distill_gti_payload in a background worker thread so FastMCP event loop never blocks."""
+  return await asyncio.to_thread(
+      distill_gti_payload,
+      raw_data,
+      entity_id=entity_id,
+      tool_name=tool_name,
+      query=query,
+      default_objective=default_objective,
+      extra_tools=extra_tools,
+      tracker=tracker,
+      lm=lm,
+      sub_lm=sub_lm,
+      max_iters=max_iters,
+      max_llm_calls=max_llm_calls,
+  )

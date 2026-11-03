@@ -24,6 +24,7 @@ setup(
     install_requires=[
         "mcp>=1.23.0,<2.0",
         "vt-py",
+        "dspy>=3.4.1",
     ],
     extras_require={
         "test": ["pytest", "pytest_httpserver", "pytest_asyncio", "pytest-mock"]

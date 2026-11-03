@@ -24,6 +24,7 @@ The documentation covers:
 - Detailed information about each MCP server
 - Configuration options and requirements
 - Usage examples and best practices
+- [Distilling 1 MB Threat Intelligence & SIEM Payloads with DSPy RLM](docs/gti_dspy_rlm_blog.md) - Out-of-core DSPy 3.4+ Recursive Language Model (`dspy.RLM`) tools for `gti-mcp` (`rlm_get_file_report`, `rlm_get_file_behavior_summary`, `rlm_get_file_behavior_report`, `rlm_get_entities_related_to_a_file`, `rlm_investigate_file`, `rlm_get_domain_report`, `rlm_get_ip_address_report`, `rlm_get_url_report`, `rlm_investigate_network_ioc`) and `secops-mcp` (`rlm_search_security_events`, `rlm_investigate_entity_timeline`), reducing live VirusTotal v3 and Chronicle UDM payloads by **84.5% to 98.5%** with 100% verbatim cryptographic hash and IOC preservation.
 
 To get started with the documentation, see [docs/index.md](docs/index.md).
 

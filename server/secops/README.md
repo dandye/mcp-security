@@ -41,6 +41,21 @@ Chronicle Security Operations suite.
 - **`search_udm(query, hours_back=24, max_events=100, project_id=None, customer_id=None, region=None)`**
     - Searches UDM events directly in Chronicle using raw UDM query syntax. Useful for precise, technical searches when you know the exact UDM field paths.
 
+- **`rlm_search_security_events(query, hours_back=24, max_events=100, investigation_question=None, project_id=None, customer_id=None, region=None)`**
+    - Executes a raw UDM query via `chronicle.search_udm(limit=max_events)`, loads all returned UDM events into a sandboxed [DSPy 3.4+ `dspy.RLM`](https://dspy.ai/current/diving-deeper/rlm/) Python REPL (`SecOpsSandboxedInterpreter`), strips repetitive `WINDOWS_SYSMON` / `WINEVTLOG` metadata envelopes and benign Windows system background noise, and returns a compact threat-hunting dictionary with 100% verbatim cryptographic hashes (`md5`, `sha256`, `sha1`), command lines, external IPs, and `compression_metrics` (`-97.91%` byte compaction on 120 live UDM events: `909,837 B` -> `19,047 B`).
+
+- **`rlm_investigate_entity_timeline(entity_value, hours_back=168, max_events_per_query=100, investigation_goal=None, max_api_calls=4, max_iterations=6, project_id=None, customer_id=None, region=None)`**
+    - Multi-call autonomous Chronicle SIEM entity investigator that seeds the `dspy.RLM` REPL with `lookup_entity`, `get_security_alerts`, and an initial UDM search for `entity_value`, and binds `search_udm(query, hours_back, limit)` and `lookup_entity(value)` inside the sandbox under a strict `max_api_calls` budget.
+
+Optional environment variables for `dspy.RLM` in `server/secops`:
+- `SECOPS_RLM_MODEL`: Root RLM model (defaults to `vertex_ai/gemini-3.8-flash` when `GOOGLE_CLOUD_PROJECT` is set, or `gemini/gemini-3.8-flash` when `GEMINI_API_KEY` is set; falls back to deterministic Python UDM distillation when unconfigured).
+- `SECOPS_RLM_SUB_MODEL`: Recursive worker model for `llm_query` / `llm_query_batched` (defaults to `vertex_ai/gemini-3.5-flash-lite` or `gemini/gemini-3.5-flash-lite`).
+- `SECOPS_RLM_VERTEX_LOCATION`: Vertex AI endpoint location for `vertex_ai/*` models (default `global`).
+- `SECOPS_RLM_MAX_ITERS`: Maximum REPL iterations per call (default `2`).
+- `SECOPS_RLM_MAX_LLM_CALLS`: Maximum sub-LM calls per invocation (default `12`).
+- `SECOPS_RLM_MAX_TOKENS`: Maximum output token budget per RLM turn (default `16384`).
+- `SECOPS_RLM_REASONING_EFFORT`: Thinking budget effort for Gemini 3+ models (default `low`).
+
 - **`export_udm_search_csv(query, fields, hours_back=24, case_insensitive=True, project_id=None, customer_id=None, region=None)`**
     - Exports UDM search results to CSV format with specified fields for analysis and reporting. Great for exporting security event data for offline analysis.
 

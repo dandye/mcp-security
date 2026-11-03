@@ -192,6 +192,28 @@ The service account or user credentials need the following Chronicle roles:
       }
       ```
 
+- **`rlm_search_security_events(query, hours_back=24, max_events=100, investigation_question=None, project_id=None, customer_id=None, region=None)`**
+    - **Description:** Executes a raw UDM query via `chronicle.search_udm(limit=max_events)`, loads all returned UDM events into a sandboxed DSPy 3.4+ `dspy.RLM` Python REPL (`SecOpsSandboxedInterpreter`), strips repetitive `WINDOWS_SYSMON` / `WINEVTLOG` metadata envelopes and benign Windows system background noise, and returns a compact threat-hunting dictionary with 100% verbatim cryptographic hashes (`md5`, `sha256`, `sha1`), command lines, external IPs, and `compression_metrics` (`-97.91%` byte compaction on 120 live UDM events: `909,837 B` -> `19,047 B`; see [Distilling 1 MB Threat Intelligence Payloads with DSPy Recursive Language Models](../gti_dspy_rlm_blog.md)).
+    - **Parameters:**
+        - `query` (required): Raw Chronicle UDM search query (for example, `'principal.hostname = "activedir" OR target.hostname = "activedir"'`).
+        - `hours_back` (optional): Lookback window in hours (default: `24`).
+        - `max_events` (optional): Maximum number of raw UDM events to fetch into the RLM REPL (default: `100`, capped at `500`).
+        - `investigation_question` (optional): Specific threat-hunting question to answer from the telemetry.
+        - `project_id`, `customer_id`, `region` (optional): Chronicle instance overrides.
+    - **Returns:** Distilled dictionary containing `verdict_and_summary`, `answer`, `attack_timeline`, `high_signal_iocs`, `verbatim_anchors`, `filtered_noise_summary`, and `compression_metrics`.
+
+- **`rlm_investigate_entity_timeline(entity_value, hours_back=168, max_events_per_query=100, investigation_goal=None, max_api_calls=4, max_iterations=6, project_id=None, customer_id=None, region=None)`**
+    - **Description:** Multi-call autonomous Chronicle SIEM entity investigator that seeds the `dspy.RLM` REPL with `lookup_entity`, `get_security_alerts`, and an initial UDM search for `entity_value`, and binds `search_udm(query, hours_back, limit)` and `lookup_entity(value)` inside the sandbox under a strict `max_api_calls` budget.
+    - **Parameters:**
+        - `entity_value` (required): Hostname, IP address, username, domain, or file hash to investigate.
+        - `hours_back` (optional): Lookback window in hours (default: `168` / 7 days).
+        - `max_events_per_query` (optional): Maximum UDM events fetched per query into the RLM sandbox (default: `100`).
+        - `investigation_goal` (optional): Specific threat hunting hypothesis or triage goal.
+        - `max_api_calls` (optional): Hard cap on Chronicle API calls inside the RLM session (default: `4`).
+        - `max_iterations` (optional): Maximum RLM REPL iterations (default: `6`).
+        - `project_id`, `customer_id`, `region` (optional): Chronicle instance overrides.
+    - **Returns:** Distilled dictionary containing `verdict_and_summary`, `answer`, `attack_timeline`, `high_signal_iocs`, `verbatim_anchors`, `api_call_log`, and `compression_metrics`.
+
 - **`get_security_alerts(project_id=None, customer_id=None, hours_back=24, max_alerts=10, status_filter='feedback_summary.status != "CLOSED"', region=None)`**
     - **Description:** Retrieves security alerts from Chronicle, filtered by time range and status.
     - **Parameters:**
