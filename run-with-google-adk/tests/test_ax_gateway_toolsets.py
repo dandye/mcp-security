@@ -158,3 +158,33 @@ def test_zero_secret_sandbox_rejects_leaked_secrets_in_env_and_proc(
         proc_environ_path=str(proc_env),
     )
   assert synthetic_oauth not in str(exc_info.value)
+
+
+def test_zero_secret_sandbox_agent_builds_egress_llm() -> None:
+  """Verifies create_security_agent uses placeholder credentials + LLM_GATEWAY_URL in zero-secret mode."""
+  from google.adk.models.google_llm import Gemini
+  from mcp_security_agent.agent import create_security_agent
+
+  with patch.dict(
+      os.environ,
+      {
+          "AX_ZERO_SECRET_SANDBOX": "true",
+          "SECOPS_MCP_URL": "http://secops-mcp.secops-gateways.svc.cluster.local:8080/mcp",
+          "LLM_GATEWAY_URL": "http://llm-gateway.secops-gateways.svc.cluster.local:8080/vertex",
+          "GOOGLE_CLOUD_PROJECT": "my-secops-project",
+          "GOOGLE_CLOUD_LOCATION": "global",
+          "GOOGLE_MODEL": "gemini-3.8-flash",
+      },
+      clear=True,
+  ):
+    settings = AgentSettings(_env_file=None)
+    agent = create_security_agent(settings)
+    assert isinstance(agent.model, Gemini)
+    assert (
+        agent.model.base_url
+        == "http://llm-gateway.secops-gateways.svc.cluster.local:8080/vertex"
+    )
+    creds = agent.model.client_kwargs["credentials"]
+    assert creds.valid is True
+    assert creds.expired is False
+    assert creds.token == "ate-egress-injected"

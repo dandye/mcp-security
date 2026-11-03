@@ -142,3 +142,16 @@ uv run --directory run-with-google-adk --extra test pytest \
   ../deployments/ax-mcp-gateway/tests \
   tests/
 ```
+
+### Live Multi-Gateway & Zero-Secret ADK Agent Smoke Test
+
+When configured with a test Google SecOps tenant (`CHRONICLE_PROJECT_ID`,
+`CHRONICLE_CUSTOMER_ID`, `SOAR_URL`, `SOAR_APP_KEY`) and `VT_APIKEY`, run the
+multi-process live end-to-end harness to launch all four out-of-sandbox gateways
+with ES256 `actorJwt` JWKS enforcement, an `atenet-egress` mediation proxy, and
+an isolated `AX_ZERO_SECRET_SANDBOX=true` ADK agent child process:
+
+```bash
+REPO_ROOT="$(pwd)"
+python -P "$REPO_ROOT/deployments/ax-mcp-gateway/scripts/verify_live_gateways.py"
+```

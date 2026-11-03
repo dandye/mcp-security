@@ -32,6 +32,47 @@ Guidelines:
 """
 
 
+def _build_zero_secret_llm(settings: AgentSettings) -> Any:
+    """Builds an ADK Gemini model using placeholder credentials for egress header replacement."""
+    from google.adk.models.google_llm import Gemini
+    from google.auth.credentials import Credentials as BaseGoogleCredentials
+
+    raw_header = (settings.mcp_gateway_auth_header or "Bearer ate-egress-injected").strip()
+    parts = raw_header.split(None, 1)
+    token = parts[1].strip() if len(parts) == 2 and parts[0].lower() == "bearer" else raw_header
+
+    class _EgressPlaceholderCredentials(BaseGoogleCredentials):
+        def __init__(self, placeholder_token: str) -> None:
+            super().__init__()
+            self.token = placeholder_token
+
+        @property
+        def valid(self) -> bool:
+            return True
+
+        @property
+        def expired(self) -> bool:
+            return False
+
+        def refresh(self, request: Any) -> None:
+            return None
+
+    client_kwargs: dict[str, Any] = {
+        "vertexai": True,
+        "credentials": _EgressPlaceholderCredentials(token),
+    }
+    if settings.google_cloud_project:
+        client_kwargs["project"] = settings.google_cloud_project
+    if settings.google_cloud_location:
+        client_kwargs["location"] = settings.google_cloud_location
+
+    return Gemini(
+        model=settings.google_model,
+        base_url=settings.llm_gateway_url,
+        client_kwargs=client_kwargs,
+    )
+
+
 def create_security_agent(settings: Optional[AgentSettings] = None) -> Any:
     """Initializes and returns the configured SOC Security Agent.
 
@@ -52,9 +93,15 @@ def create_security_agent(settings: Optional[AgentSettings] = None) -> Any:
         logger.warning("google.adk.agents.llm_agent not available; returning dummy agent.")
         return None
 
+    resolved_model: Any = settings.google_model
+    if settings.ax_zero_secret_sandbox or (
+        settings.llm_gateway_url and settings.llm_gateway_url.strip()
+    ):
+        resolved_model = _build_zero_secret_llm(settings)
+
     agent = LlmAgent(
         name="SecurityOperationsAgent",
-        model=settings.google_model,
+        model=resolved_model,
         instruction=settings.default_prompt or SOC_AGENT_SYSTEM_PROMPT,
         tools=toolsets,
         before_model_callback=bmc_trim_llm_request,

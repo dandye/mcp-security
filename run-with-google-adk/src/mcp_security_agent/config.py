@@ -171,6 +171,7 @@ class AgentSettings(BaseSettings):
     gti_mcp_url: Optional[str] = Field(default=None, alias="GTI_MCP_URL")
     secops_soar_mcp_url: Optional[str] = Field(default=None, alias="SECOPS_SOAR_MCP_URL")
     mcp_gateway_auth_header: Optional[str] = Field(default=None, alias="MCP_GATEWAY_AUTH_HEADER")
+    llm_gateway_url: Optional[str] = Field(default=None, alias="LLM_GATEWAY_URL")
     ax_zero_secret_sandbox: bool = Field(default=False, alias="AX_ZERO_SECRET_SANDBOX")
     http_timeout_seconds: float = Field(default=30.0, alias="HTTP_MCP_TIMEOUT")
 
