@@ -14,6 +14,7 @@
 """Centralized configuration and settings for MCP Security Agent."""
 
 import functools
+import os
 from pathlib import Path
 from typing import Optional
 from pydantic import Field, field_validator, model_validator
@@ -60,7 +61,6 @@ def discover_user_identity() -> str:
     Returns:
         The detected username or service account email, falling back to 'secops_user'.
     """
-    import os
     import json
     import getpass
     import shutil
@@ -70,6 +70,10 @@ def discover_user_identity() -> str:
     explicit = os.getenv("SECOPS_USER") or os.getenv("AGENT_USER")
     if explicit and explicit.strip():
         return explicit.strip()
+
+    # In zero-secret AX sandboxes, never probe local ADC files, google.auth, or gcloud.
+    if is_ax_zero_secret_sandbox():
+        return "ax_sandbox_agent"
 
     # 2. Impersonated service account
     impersonate_sa = os.getenv("SECOPS_IMPERSONATE_SERVICE_ACCOUNT")
@@ -141,8 +145,6 @@ def discover_user_identity() -> str:
     return "secops_user"
 
 
-
-
 class AgentSettings(BaseSettings):
     """Configuration settings loaded from environment variables or .env file."""
     model_config = SettingsConfigDict(
@@ -183,12 +185,48 @@ class AgentSettings(BaseSettings):
     secops_impersonate_service_account: Optional[str] = Field(default=None, alias="SECOPS_IMPERSONATE_SERVICE_ACCOUNT")
 
     def __init__(self, **values):
+        kw_zero_secret = self.parse_bool_env(
+            values.get("ax_zero_secret_sandbox", values.get("AX_ZERO_SECRET_SANDBOX"))
+        )
+        env_zero_secret = is_ax_zero_secret_sandbox()
+        if kw_zero_secret or env_zero_secret:
+            # Verify sandbox environment BEFORE loading .env files or querying AX_METADATA_URL,
+            # and disable untrusted .env file ingestion inside zero-secret sandboxes.
+            if env_zero_secret:
+                verify_zero_secret_sandbox()
+            values["_env_file"] = None
         super().__init__(**values)
         self.bootstrap_environment()
 
     @model_validator(mode="after")
     def resolve_tool_enablement(self) -> "AgentSettings":
-        """Auto-detects AX Workspace MCP endpoints and tool enablement."""
+        """Auto-detects AX Workspace MCP endpoints and enforces zero-secret field invariants."""
+        if self.ax_zero_secret_sandbox:
+            leaked_fields = [
+                field_label
+                for field_label, field_val in (
+                    ("VT_APIKEY", self.vt_apikey),
+                    ("SOAR_APP_KEY", self.soar_app_key),
+                    ("SECOPS_SA_PATH", self.secops_sa_path),
+                    ("GOOGLE_API_KEY", self.google_api_key),
+                    ("GOOGLE_APPLICATION_CREDENTIALS", self.google_application_credentials),
+                )
+                if _is_configured(field_val)
+            ]
+            if leaked_fields:
+                joined = ", ".join(f"settings:{name}" for name in leaked_fields)
+                raise ValueError(
+                    "Zero-secret sandbox violation (AX_ZERO_SECRET_SANDBOX=true): "
+                    f"secret fields must not be populated ({joined})."
+                )
+            if _is_configured(self.mcp_gateway_auth_header) and (
+                self.mcp_gateway_auth_header.strip() != DEFAULT_GATEWAY_AUTH_PLACEHOLDER
+            ):
+                raise ValueError(
+                    "Zero-secret sandbox violation (AX_ZERO_SECRET_SANDBOX=true): "
+                    "MCP_GATEWAY_AUTH_HEADER must equal the non-secret egress placeholder."
+                )
+
         ax_endpoints = discover_ax_workspace_mcp_endpoints()
         if not _is_configured(self.secops_mcp_url) and "secops" in ax_endpoints:
             self.secops_mcp_url = ax_endpoints["secops"]
@@ -222,9 +260,19 @@ class AgentSettings(BaseSettings):
 
     def bootstrap_environment(self) -> None:
         """Configures environment variables for Google Cloud authentication and Cloudtop compatibility."""
-        import os
         if self.ax_zero_secret_sandbox:
             verify_zero_secret_sandbox()
+            if "GOOGLE_API_USE_CLIENT_CERTIFICATE" not in os.environ:
+                os.environ["GOOGLE_API_USE_CLIENT_CERTIFICATE"] = "false"
+            if "GOOGLE_API_USE_MTLS_ENDPOINT" not in os.environ:
+                os.environ["GOOGLE_API_USE_MTLS_ENDPOINT"] = "never"
+            if "CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE" not in os.environ:
+                os.environ["CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE"] = "false"
+            target_project = self.google_cloud_project or os.environ.get("GCP_PROJECT_ID")
+            if target_project and not os.environ.get("GOOGLE_CLOUD_PROJECT"):
+                os.environ["GOOGLE_CLOUD_PROJECT"] = target_project
+            os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "TRUE"
+            return
 
         if self.google_application_credentials and not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.google_application_credentials

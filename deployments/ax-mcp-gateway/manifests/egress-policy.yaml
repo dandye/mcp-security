@@ -15,10 +15,11 @@
 # Single-document ateapi.v1.EgressPolicy protojson manifest applied via kubectl-ate:
 #   kubectl ate create egress-policy secops-triage-agent --atespace secops -f egress-policy.yaml
 #
-# Because the MCP calls travel over cluster-internal HTTP to the out-of-sandbox
-# gateways in secops-gateways, atenet-egress injects per-service actorJwt bearer
-# tokens on the wire without requiring any MITM CA trust bundle inside the AX
-# task container.
+# Because both MCP calls and Vertex AI Gemini calls travel over cluster-internal
+# HTTP to the out-of-sandbox gateways in secops-gateways, atenet-egress replaces
+# the sandbox's placeholder Authorization header on the wire with per-service
+# actorJwt bearer tokens without requiring any MITM CA trust bundle inside the
+# AX task container.
 metadata:
   atespace: secops
   name: default
@@ -78,4 +79,18 @@ rules:
             actorJwt:
               audiences:
                 - "http://scc-mcp.secops-gateways.svc.cluster.local:8080"
+              expirationSeconds: 900
+  - http:
+      hostnames:
+        - "llm-gateway.secops-gateways.svc.cluster.local"
+      ports:
+        numbers:
+          - 8080
+      effects:
+        replaceHeaders:
+          - header: "Authorization"
+            prefix: "Bearer "
+            actorJwt:
+              audiences:
+                - "http://llm-gateway.secops-gateways.svc.cluster.local:8080"
               expirationSeconds: 900

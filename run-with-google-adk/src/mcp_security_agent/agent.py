@@ -16,6 +16,7 @@
 import logging
 import threading
 from typing import Optional, Any
+from mcp_security_agent.ax_workspace import is_valid_http_endpoint
 from mcp_security_agent.config import AgentSettings
 from mcp_security_agent.toolsets import build_mcp_toolsets
 from mcp_security_agent.callbacks import bmc_trim_llm_request
@@ -36,6 +37,19 @@ def _build_zero_secret_llm(settings: AgentSettings) -> Any:
     """Builds an ADK Gemini model using placeholder credentials for egress header replacement."""
     from google.adk.models.google_llm import Gemini
     from google.auth.credentials import Credentials as BaseGoogleCredentials
+
+    llm_url = (settings.llm_gateway_url or "").strip()
+    if settings.ax_zero_secret_sandbox:
+        if not llm_url or not is_valid_http_endpoint(llm_url):
+            raise ValueError(
+                "Zero-secret sandbox mode (AX_ZERO_SECRET_SANDBOX=true) requires "
+                "LLM_GATEWAY_URL to point to an out-of-sandbox HTTP(S) Vertex AI gateway."
+            )
+        if not settings.google_cloud_project or not settings.google_cloud_project.strip():
+            raise ValueError(
+                "Zero-secret sandbox mode (AX_ZERO_SECRET_SANDBOX=true) requires "
+                "GOOGLE_CLOUD_PROJECT (non-secret project identifier) for Vertex AI routing."
+            )
 
     raw_header = (settings.mcp_gateway_auth_header or "Bearer ate-egress-injected").strip()
     parts = raw_header.split(None, 1)
@@ -62,13 +76,13 @@ def _build_zero_secret_llm(settings: AgentSettings) -> Any:
         "credentials": _EgressPlaceholderCredentials(token),
     }
     if settings.google_cloud_project:
-        client_kwargs["project"] = settings.google_cloud_project
+        client_kwargs["project"] = settings.google_cloud_project.strip()
     if settings.google_cloud_location:
-        client_kwargs["location"] = settings.google_cloud_location
+        client_kwargs["location"] = settings.google_cloud_location.strip()
 
     return Gemini(
         model=settings.google_model,
-        base_url=settings.llm_gateway_url,
+        base_url=llm_url or None,
         client_kwargs=client_kwargs,
     )
 
@@ -127,4 +141,3 @@ def __getattr__(name: str) -> Any:
 
 def __dir__():
     return ["create_security_agent", "root_agent", "SOC_AGENT_SYSTEM_PROMPT"]
-

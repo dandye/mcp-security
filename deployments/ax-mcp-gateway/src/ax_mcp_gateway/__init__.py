@@ -27,6 +27,7 @@ from ax_mcp_gateway.gateway import (
     build_gateway_app,
     load_fastmcp_server,
 )
+from ax_mcp_gateway.llm_proxy import build_vertex_llm_proxy_app
 
 __all__ = [
     "ALLOWED_JWT_ALGORITHMS",
@@ -38,5 +39,6 @@ __all__ = [
     "GatewayConfig",
     "SUPPORTED_SERVERS",
     "build_gateway_app",
+    "build_vertex_llm_proxy_app",
     "load_fastmcp_server",
 ]

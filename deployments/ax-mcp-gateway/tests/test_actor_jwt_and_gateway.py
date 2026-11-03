@@ -11,16 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""End-to-end ASGI Streamable HTTP and actorJwt tests for ax_mcp_gateway."""
+"""End-to-end ASGI Streamable HTTP, Vertex LLM proxy, runner, and actorJwt tests."""
 
+import datetime
+import ipaddress
 import json
-import sys
-import time
 from pathlib import Path
+import ssl
+import sys
+import threading
+import time
 from typing import Any
 from unittest.mock import patch
 
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
+from cryptography.x509.oid import NameOID
 import httpx
 import jwt
 from jwt import algorithms as jwt_algorithms
@@ -39,10 +46,15 @@ from ax_mcp_gateway import (  # noqa: E402
     ActorJwtVerifier,
     GatewayConfig,
     build_gateway_app,
+    build_vertex_llm_proxy_app,
     load_fastmcp_server,
 )
+from ax_mcp_gateway.ax_task_runner import (  # noqa: E402
+    prepare_workspace_once,
+    run_runner,
+)
 
-ISSUER = "https://ateapi.ate-system.svc"
+ISSUER = "https://idp.ate-system.svc"
 AUDIENCE = "http://gti-mcp.secops-gateways.svc.cluster.local:8080"
 
 
@@ -140,10 +152,36 @@ class _AsgiLifespanRunner:
       await self._task
 
 
-def test_actor_jwt_verifier_es256_and_rs256_and_rejections(tmp_path: Path) -> None:
+def test_actor_jwt_verifier_es256_rs256_issuer_and_scoping_rejections(
+    tmp_path: Path,
+) -> None:
   jwks_doc, ec_priv, rsa_priv = _generate_es256_and_rs256_jwks()
   jwks_file = tmp_path / "jwks.json"
   jwks_file.write_text(json.dumps(jwks_doc), encoding="utf-8")
+
+  # Mandatory expected_issuer when require_actor_jwt=True
+  with pytest.raises(ValueError, match="expected_issuer"):
+    ActorJwtVerifier(
+        ActorJwtConfig(
+            require_actor_jwt=True,
+            expected_issuer=None,
+            expected_audience=AUDIENCE,
+            jwks_path=str(jwks_file),
+        )
+    )
+
+  # Unqualified allowed_actors rejected when multiple or zero allowed_atespaces configured
+  with pytest.raises(ValueError, match="Unqualified actor entry"):
+    ActorJwtVerifier(
+        ActorJwtConfig(
+            require_actor_jwt=True,
+            expected_issuer=ISSUER,
+            expected_audience=AUDIENCE,
+            jwks_path=str(jwks_file),
+            allowed_atespaces=frozenset({"secops", "other"}),
+            allowed_actors=frozenset({"secops-triage-agent"}),
+        )
+    )
 
   verifier = ActorJwtVerifier(
       ActorJwtConfig(
@@ -152,6 +190,7 @@ def test_actor_jwt_verifier_es256_and_rs256_and_rejections(tmp_path: Path) -> No
           expected_audience=AUDIENCE,
           jwks_path=str(jwks_file),
           allowed_atespaces=frozenset({"secops"}),
+          allowed_actors=frozenset({"secops/secops-triage-agent"}),
       )
   )
   assert verifier.is_ready() is True
@@ -168,18 +207,24 @@ def test_actor_jwt_verifier_es256_and_rs256_and_rejections(tmp_path: Path) -> No
   ident_rs = verifier.verify_authorization_header(f"Bearer {rs_token}")
   assert ident_rs.subject == "actor/secops/secops-triage-agent"
 
-  # 3. Missing header -> 401
+  # 3. Different actor in same atespace rejected by qualified allowed_actors -> 403
+  other_actor = _mint_actor_jwt(ec_priv, actor_name="other-agent")
+  with pytest.raises(ActorJwtAuthError) as exc_info:
+    verifier.verify_token(other_actor)
+  assert exc_info.value.status_code == 403
+
+  # 4. Missing header -> 401
   with pytest.raises(ActorJwtAuthError) as exc_info:
     verifier.verify_authorization_header(None)
   assert exc_info.value.status_code == 401
 
-  # 4. Expired token -> 401
+  # 5. Expired token -> 401
   expired = _mint_actor_jwt(ec_priv, exp_offset_sec=-120)
   with pytest.raises(ActorJwtAuthError) as exc_info:
     verifier.verify_token(expired)
   assert exc_info.value.status_code == 401
 
-  # 5. Wrong audience -> 403
+  # 6. Wrong audience -> 403
   bad_aud = _mint_actor_jwt(
       ec_priv, audiences=["http://scc-mcp.secops-gateways.svc.cluster.local:8080"]
   )
@@ -187,13 +232,13 @@ def test_actor_jwt_verifier_es256_and_rs256_and_rejections(tmp_path: Path) -> No
     verifier.verify_token(bad_aud)
   assert exc_info.value.status_code == 403
 
-  # 6. Wrong issuer -> 403
+  # 7. Wrong issuer -> 403
   bad_iss = _mint_actor_jwt(ec_priv, issuer="https://untrusted.issuer")
   with pytest.raises(ActorJwtAuthError) as exc_info:
     verifier.verify_token(bad_iss)
   assert exc_info.value.status_code == 403
 
-  # 7. KindWorkerForActor token rejected -> 403
+  # 8. KindWorkerForActor token rejected -> 403
   worker_tok = _mint_actor_jwt(
       ec_priv,
       claim_key="worker-for-actor.ate.dev",
@@ -203,7 +248,7 @@ def test_actor_jwt_verifier_es256_and_rs256_and_rejections(tmp_path: Path) -> No
     verifier.verify_token(worker_tok)
   assert exc_info.value.status_code == 403
 
-  # 8. KindActor carrying non-empty node rejected -> 403
+  # 9. KindActor carrying non-empty node rejected -> 403
   node_tok = _mint_actor_jwt(
       ec_priv, extra_substrate_fields={"node": "gke-worker-01"}
   )
@@ -211,15 +256,14 @@ def test_actor_jwt_verifier_es256_and_rs256_and_rejections(tmp_path: Path) -> No
     verifier.verify_token(node_tok)
   assert exc_info.value.status_code == 403
 
-  # 9. Unauthorized atespace rejected -> 403
-  other_ns = _mint_actor_jwt(ec_priv, atespace="untrusted-team")
-  with pytest.raises(ActorJwtAuthError) as exc_info:
-    verifier.verify_token(other_ns)
-  assert exc_info.value.status_code == 403
-
   # 10. Symmetric HS256 downgrade rejected -> 401
   hs_tok = jwt.encode(
-      {"sub": "actor/secops/secops-triage-agent", "aud": [AUDIENCE], "exp": int(time.time()) + 600},
+      {
+          "iss": ISSUER,
+          "sub": "actor/secops/secops-triage-agent",
+          "aud": [AUDIENCE],
+          "exp": int(time.time()) + 600,
+      },
       "shared-secret-key-at-least-32-bytes-long",
       algorithm="HS256",
       headers={"kid": "ec-key-1"},
@@ -227,6 +271,147 @@ def test_actor_jwt_verifier_es256_and_rs256_and_rejections(tmp_path: Path) -> No
   with pytest.raises(ActorJwtAuthError) as exc_info:
     verifier.verify_token(hs_tok)
   assert exc_info.value.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_async_jwks_cooldown_ca_bundle_and_corrupt_503_handling(
+    tmp_path: Path,
+) -> None:
+  """Verifies async JWKS refresh cooldown on unknown kid, corrupt JWKS -> 503, and custom TLS CA."""
+  jwks_doc, ec_priv, _ = _generate_es256_and_rs256_jwks()
+
+  # 1. Corrupt JWKS file returns 503 (never unhandled 500) on ASGI middleware.
+  corrupt_file = tmp_path / "corrupt_jwks.json"
+  corrupt_file.write_text("{truncated-json", encoding="utf-8")
+  corrupt_cfg = GatewayConfig.from_env(
+      server_name="gti",
+      environ={
+          "GATEWAY_SERVICE_NAME": "gti-mcp",
+          "GATEWAY_NAMESPACE": "secops-gateways",
+          "GATEWAY_PORT": "8080",
+          "GATEWAY_REQUIRE_ACTOR_JWT": "true",
+          "GATEWAY_EXPECTED_ISSUER": ISSUER,
+          "GATEWAY_EXPECTED_AUDIENCE": AUDIENCE,
+          "GATEWAY_JWKS_PATH": str(corrupt_file),
+          "GATEWAY_ALLOWED_ATESPACES": "secops",
+      },
+  )
+  demo_mcp = FastMCP("corrupt-jwks-test")
+  corrupt_app = build_gateway_app(corrupt_cfg, mcp_server=demo_mcp)
+  tok = _mint_actor_jwt(ec_priv)
+  async with _AsgiLifespanRunner(corrupt_app):
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=corrupt_app),
+        base_url=AUDIENCE,
+    ) as client:
+      ready_resp = await client.get("/readyz")
+      assert ready_resp.status_code == 503
+      mcp_resp = await client.post(
+          "/mcp",
+          headers={"Authorization": f"Bearer {tok}"},
+          json={"jsonrpc": "2.0", "id": 1, "method": "initialize"},
+      )
+      assert mcp_resp.status_code == 503
+
+  # 2. Unknown kid storm triggers at most one JWKS reload inside cooldown window,
+  #    and a transient upstream failure preserves unexpired cached keys.
+  from http.server import BaseHTTPRequestHandler, HTTPServer
+
+  ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+  subject = issuer = x509.Name(
+      [x509.NameAttribute(NameOID.COMMON_NAME, "127.0.0.1")]
+  )
+  now_dt = datetime.datetime.now(datetime.timezone.utc)
+  cert = (
+      x509.CertificateBuilder()
+      .subject_name(subject)
+      .issuer_name(issuer)
+      .public_key(ca_key.public_key())
+      .serial_number(x509.random_serial_number())
+      .not_valid_before(now_dt - datetime.timedelta(minutes=5))
+      .not_valid_after(now_dt + datetime.timedelta(hours=1))
+      .add_extension(
+          x509.SubjectAlternativeName(
+              [x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]
+          ),
+          critical=False,
+      )
+      .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+      .sign(ca_key, hashes.SHA256())
+  )
+  cert_pem = tmp_path / "servicedns-ca.pem"
+  key_pem = tmp_path / "servicedns-key.pem"
+  cert_pem.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+  key_pem.write_bytes(
+      ca_key.private_bytes(
+          serialization.Encoding.PEM,
+          serialization.PrivateFormat.TraditionalOpenSSL,
+          serialization.NoEncryption(),
+      )
+  )
+
+  fetch_count = 0
+  fail_upstream = False
+
+  class _TlsJwksHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:  # noqa: N802
+      nonlocal fetch_count
+      fetch_count += 1
+      if fail_upstream:
+        self.send_response(500)
+        self.end_headers()
+        return
+      body = json.dumps(jwks_doc).encode("utf-8")
+      self.send_response(200)
+      self.send_header("Content-Type", "application/json")
+      self.send_header("Content-Length", str(len(body)))
+      self.end_headers()
+      self.wfile.write(body)
+
+    def log_message(self, fmt: str, *args: object) -> None:
+      return
+
+  httpd = HTTPServer(("127.0.0.1", 0), _TlsJwksHandler)
+  srv_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+  srv_ctx.load_cert_chain(certfile=str(cert_pem), keyfile=str(key_pem))
+  httpd.socket = srv_ctx.wrap_socket(httpd.socket, server_side=True)
+  port = httpd.server_address[1]
+  srv_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+  srv_thread.start()
+  try:
+    url_verifier = ActorJwtVerifier(
+        ActorJwtConfig(
+            require_actor_jwt=True,
+            expected_issuer=ISSUER,
+            expected_audience=AUDIENCE,
+            jwks_url=f"https://127.0.0.1:{port}/openid/v1/jwks",
+            jwks_ca_file=str(cert_pem),
+            jwks_cache_ttl_seconds=120.0,
+            jwks_refresh_cooldown_seconds=30.0,
+        )
+    )
+    assert await url_verifier.is_ready_async() is True
+    assert fetch_count == 1
+
+    # 10 unknown-kid requests within the 30s cooldown must NOT trigger extra fetches!
+    unknown_kid_tok = _mint_actor_jwt(ec_priv, kid="unknown-kid-999")
+    for _ in range(10):
+      with pytest.raises(ActorJwtAuthError) as exc_info:
+        await url_verifier.verify_token_async(unknown_kid_tok)
+      assert exc_info.value.status_code == 401
+    assert fetch_count == 1
+
+    # Even if upstream returns 500 during a forced refresh after cooldown, unexpired cached keys still verify valid tokens.
+    fail_upstream = True
+    url_verifier._last_refresh_attempt_at = 0.0
+    with pytest.raises(ActorJwtAuthError):
+      await url_verifier.verify_token_async(unknown_kid_tok)
+    assert fetch_count == 2
+    valid_ident = await url_verifier.verify_token_async(tok)
+    assert valid_ident.actor_name == "secops-triage-agent"
+  finally:
+    httpd.shutdown()
+    httpd.server_close()
 
 
 @pytest.mark.asyncio
@@ -247,6 +432,7 @@ async def test_streamable_http_gateway_e2e_mcp_session_and_probes(
   cfg = GatewayConfig.from_env(
       server_name="gti",
       environ={
+          "GATEWAY_HOST": "0.0.0.0",
           "GATEWAY_SERVICE_NAME": "gti-mcp",
           "GATEWAY_NAMESPACE": "secops-gateways",
           "GATEWAY_PORT": "8080",
@@ -257,11 +443,12 @@ async def test_streamable_http_gateway_e2e_mcp_session_and_probes(
           "GATEWAY_ALLOWED_ATESPACES": "secops",
       },
   )
+  # Non-loopback bind omits localhost:* from allowed_hosts
+  assert "localhost:*" not in cfg.allowed_hosts
   app = build_gateway_app(cfg, mcp_server=demo_mcp)
 
   async with _AsgiLifespanRunner(app):
     transport = httpx.ASGITransport(app=app)
-    # 1. Kubelet probes on arbitrary Pod IP Host header succeed without JWT.
     async with httpx.AsyncClient(
         transport=transport, base_url="http://10.24.3.17:8080"
     ) as probe_client:
@@ -273,11 +460,9 @@ async def test_streamable_http_gateway_e2e_mcp_session_and_probes(
       assert ready.status_code == 200
       assert ready.json()["status"] == "ready"
 
-      # Unauthenticated /mcp call is rejected with 401 before touching FastMCP.
       unauth = await probe_client.post("/mcp", json={"jsonrpc": "2.0"})
       assert unauth.status_code == 401
 
-      # Raw placeholder token (simulating a direct pod bypass around atenet-egress) is rejected!
       bypass = await probe_client.post(
           "/mcp",
           headers={"Authorization": "Bearer ate-egress-injected"},
@@ -285,7 +470,6 @@ async def test_streamable_http_gateway_e2e_mcp_session_and_probes(
       )
       assert bypass.status_code == 401
 
-    # 2. Valid actorJwt with unlisted Host header is rejected by FastMCP DNS rebinding protection.
     valid_jwt = _mint_actor_jwt(ec_priv)
     async with httpx.AsyncClient(
         transport=transport, base_url="http://evil.attacker.internal:8080"
@@ -297,7 +481,6 @@ async def test_streamable_http_gateway_e2e_mcp_session_and_probes(
       )
       assert rebinding_resp.status_code == 421
 
-    # 3. Full MCP ClientSession over cluster-internal Service DNS Host + valid actorJwt!
     def _asgi_http_client_factory(
         headers: dict[str, str] | None = None,
         timeout: httpx.Timeout | None = None,
@@ -331,21 +514,166 @@ async def test_streamable_http_gateway_e2e_mcp_session_and_probes(
 
 
 @pytest.mark.asyncio
+async def test_vertex_llm_gateway_enforces_actor_jwt_host_and_path_allowlist(
+    tmp_path: Path,
+) -> None:
+  jwks_doc, ec_priv, _ = _generate_es256_and_rs256_jwks()
+  jwks_file = tmp_path / "jwks.json"
+  jwks_file.write_text(json.dumps(jwks_doc), encoding="utf-8")
+  llm_aud = "http://llm-gateway.secops-gateways.svc.cluster.local:8080"
+
+  seen_upstream: list[tuple[str, dict[str, str]]] = []
+
+  def _mock_upstream_handler(request: httpx.Request) -> httpx.Response:
+    seen_upstream.append((str(request.url), dict(request.headers)))
+    return httpx.Response(
+        200,
+        json={"candidates": [{"content": {"parts": [{"text": "clean"}]}}]},
+    )
+
+  mock_client = httpx.AsyncClient(
+      transport=httpx.MockTransport(_mock_upstream_handler)
+  )
+  try:
+    inner_llm_app, llm_lifespan = build_vertex_llm_proxy_app(
+        ("llm-gateway.secops-gateways.svc.cluster.local:8080",),
+        upstream_base_url="https://aiplatform.googleapis.com",
+        token_provider=lambda: "out-of-sandbox-gcp-token",
+        http_client=mock_client,
+    )
+    cfg = GatewayConfig.from_env(
+        server_name="vertex-llm",
+        environ={
+            "GATEWAY_HOST": "0.0.0.0",
+            "GATEWAY_SERVICE_NAME": "llm-gateway",
+            "GATEWAY_NAMESPACE": "secops-gateways",
+            "GATEWAY_PORT": "8080",
+            "GATEWAY_REQUIRE_ACTOR_JWT": "true",
+            "GATEWAY_EXPECTED_ISSUER": ISSUER,
+            "GATEWAY_EXPECTED_AUDIENCE": llm_aud,
+            "GATEWAY_JWKS_PATH": str(jwks_file),
+            "GATEWAY_ALLOWED_ATESPACES": "secops",
+        },
+    )
+    app = build_gateway_app(
+        cfg, inner_app=inner_llm_app, extra_lifespan=llm_lifespan
+    )
+    valid_jwt = _mint_actor_jwt(ec_priv, audiences=[llm_aud])
+
+    async with _AsgiLifespanRunner(app):
+      async with httpx.AsyncClient(
+          transport=httpx.ASGITransport(app=app), base_url=llm_aud
+      ) as client:
+        # Unauthenticated rejected 401
+        r_401 = await client.post(
+            "/vertex/v1beta1/projects/p/locations/global/publishers/google/models/gemini-3.8-flash:generateContent",
+            json={},
+        )
+        assert r_401.status_code == 401
+
+        # Path outside /v1/ or /v1beta1/ rejected 403
+        r_403 = await client.get(
+            "/vertex/computeMetadata/v1/instance/service-accounts/default/token",
+            headers={"Authorization": f"Bearer {valid_jwt}"},
+        )
+        assert r_403.status_code == 403
+
+        # Valid Vertex generateContent forwarded with out-of-sandbox token
+        r_ok = await client.post(
+            "/vertex/v1beta1/projects/p/locations/global/publishers/google/models/gemini-3.8-flash:generateContent",
+            headers={"Authorization": f"Bearer {valid_jwt}"},
+            json={"contents": []},
+        )
+        assert r_ok.status_code == 200
+        assert r_ok.json()["candidates"][0]["content"]["parts"][0]["text"] == "clean"
+        assert len(seen_upstream) == 1
+        assert seen_upstream[0][1]["authorization"] == "Bearer out-of-sandbox-gcp-token"
+  finally:
+    await mock_client.aclose()
+
+
+def test_ax_task_runner_contract_probes_metadata_and_idempotent_workspace(
+    tmp_path: Path,
+) -> None:
+  ws_dir = tmp_path / "workspace"
+  ws_doc = {
+      "apiVersion": "ax.io/v1alpha1",
+      "kind": "Workspace",
+      "spec": {
+          "files": [{"path": "AGENTS.md", "content": "initial-workspace\n"}]
+      },
+  }
+  assert prepare_workspace_once(ws_dir, ws_doc) is True
+  assert (ws_dir / "AGENTS.md").read_text(encoding="utf-8") == "initial-workspace\n"
+
+  # Simulate agent modifying AGENTS.md before gVisor suspend/resume
+  (ws_dir / "AGENTS.md").write_text("agent-mutated\n", encoding="utf-8")
+  assert prepare_workspace_once(ws_dir, ws_doc) is False
+  assert (ws_dir / "AGENTS.md").read_text(encoding="utf-8") == "agent-mutated\n"
+
+  # Path traversal in Workspace.spec.files is rejected
+  bad_ws_dir = tmp_path / "bad_ws"
+  with pytest.raises(ValueError, match="escapes"):
+    prepare_workspace_once(
+        bad_ws_dir,
+        {"spec": {"files": [{"path": "../escaped.txt", "content": "bad"}]}},
+    )
+
+  # Full run_runner execution verifies AX_METADATA_URL and command supervision
+  run_ws_dir = tmp_path / "runner_ws"
+  out_file = tmp_path / "child_meta.txt"
+  task_yaml = json.dumps(
+      {
+          "apiVersion": "ax.io/v1alpha1",
+          "kind": "Task",
+          "metadata": {"name": "test-task", "atespace": "secops"},
+          "spec": {
+              "command": [
+                  sys.executable,
+                  "-P",
+                  "-c",
+                  (
+                      "import os, urllib.request, pathlib; "
+                      "u = os.environ['AX_METADATA_URL'] + '/metadata/v1alpha1/ax/workspace'; "
+                      "data = urllib.request.urlopen(u).read().decode('utf-8'); "
+                      f"pathlib.Path({str(out_file)!r}).write_text(data, encoding='utf-8')"
+                  ),
+              ],
+              "workspace": {"name": "ws", "path": str(run_ws_dir)},
+          },
+      }
+  )
+  ws_yaml = json.dumps(ws_doc)
+  code, _, _ = run_runner(
+      raw_task_yaml=task_yaml,
+      raw_workspace_yaml=ws_yaml,
+      probe_host="127.0.0.1",
+      probe_port=0,
+      metadata_port=0,
+      workspace_override=run_ws_dir,
+      exit_after_command=True,
+  )
+  assert code == 0
+  assert "initial-workspace" in out_file.read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("server_name", "expected_tool_subset"),
+    ("server_name", "soar_integrations", "expected_tool_subset"),
     [
-        ("gti", {"get_file_report", "get_domain_report"}),
-        ("secops", {"search_security_events", "get_security_alerts"}),
-        ("secops-soar", {"list_cases"}),
-        ("scc", {"search_findings", "top_vulnerability_findings"}),
+        ("gti", "", {"get_file_report", "get_domain_report"}),
+        ("secops", "", {"search_security_events", "get_security_alerts"}),
+        ("secops-soar", "CSV", {"list_cases", "csv_ping"}),
+        ("scc", "", {"search_findings", "top_vulnerability_findings"}),
     ],
 )
 async def test_load_all_four_real_mcp_security_servers_over_streamable_http(
     tmp_path: Path,
     server_name: str,
+    soar_integrations: str,
     expected_tool_subset: set[str],
 ) -> None:
-  """Verifies all four google/mcp-security servers mount and list tools over /mcp."""
+  """Verifies all four google/mcp-security servers mount and list tools (including SOAR marketplace integrations)."""
   jwks_doc, ec_priv, _ = _generate_es256_and_rs256_jwks()
   jwks_file = tmp_path / "jwks.json"
   jwks_file.write_text(json.dumps(jwks_doc), encoding="utf-8")
@@ -353,10 +681,11 @@ async def test_load_all_four_real_mcp_security_servers_over_streamable_http(
   repo_root = Path(__file__).resolve().parents[3]
   audience = f"http://{server_name}-mcp.secops-gateways.svc.cluster.local:8080"
 
-  # Avoid live GCP ADC metadata probes when importing scc_mcp in hermetic CI.
+  # Ensure secops-soar dynamic marketplace import succeeds even without `server/secops-soar/secops_soar_mcp` pre-seeded on sys.path.
   with patch("google.auth.default", side_effect=RuntimeError("hermetic-test")):
     mcp_srv, extra_lifespan = load_fastmcp_server(
         server_name,
+        soar_integrations=soar_integrations,
         skip_soar_bind_on_startup=True,
         repo_root=repo_root,
     )
@@ -406,3 +735,17 @@ async def test_load_all_four_real_mcp_security_servers_over_streamable_http(
             f"Missing expected tools for {server_name}: "
             f"{expected_tool_subset - names}"
         )
+
+
+def test_secops_soar_register_tools_idempotent_installed_package_import() -> None:
+  """Verifies secops_soar_mcp.server.register_tools loads marketplace modules via package prefix and is idempotent."""
+  import importlib
+
+  soar_srv = importlib.import_module("secops_soar_mcp.server")
+  soar_srv.register_tools("CSV")
+  count_once = len(soar_srv.mcp._tool_manager.list_tools())
+  soar_srv.register_tools("CSV")
+  count_twice = len(soar_srv.mcp._tool_manager.list_tools())
+  assert count_once == count_twice
+  tool_names = {t.name for t in soar_srv.mcp._tool_manager.list_tools()}
+  assert "csv_ping" in tool_names

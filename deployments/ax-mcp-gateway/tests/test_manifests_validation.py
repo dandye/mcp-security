@@ -26,11 +26,13 @@ _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 def test_ax_manifest_conforms_to_ax_v1alpha1_strict_protojson() -> None:
   raw = (MANIFESTS_DIR / "ax-secops-gateway-task.yaml").read_text(encoding="utf-8")
-  rendered = raw.replace("${PROJECT_ID}", "my-secops-project")
+  rendered = raw.replace("${PROJECT_ID}", "my-secops-project").replace(
+      "${GOOGLE_CLOUD_LOCATION}", "global"
+  )
   assert len(rendered.encode("utf-8")) <= 31 * 1024
 
   docs = list(yaml.safe_load_all(rendered))
-  assert [d["kind"] for d in docs] == ["Model", "Workspace", "Task"]
+  assert [d["kind"] for d in docs] == ["Workspace", "Task"]
 
   for doc in docs:
     assert doc["apiVersion"] == "ax.io/v1alpha1"
@@ -39,14 +41,7 @@ def test_ax_manifest_conforms_to_ax_v1alpha1_strict_protojson() -> None:
     assert _RFC1123_LABEL_RE.match(meta["name"])
     assert _RFC1123_LABEL_RE.match(meta["atespace"])
 
-  model_doc, ws_doc, task_doc = docs
-  assert set(model_doc["spec"].keys()) <= {
-      "provider",
-      "model",
-      "secretKey",
-      "parameters",
-  }
-
+  ws_doc, task_doc = docs
   assert set(ws_doc["spec"].keys()) <= {"git", "files", "mcp", "skills"}
   mcp_servers = ws_doc["spec"]["mcp"]["servers"]
   assert len(mcp_servers) == 4
@@ -76,10 +71,17 @@ def test_ax_manifest_conforms_to_ax_v1alpha1_strict_protojson() -> None:
   assert "requests" not in task_spec["resources"]
   assert set(task_spec["resources"]["limits"].keys()) == {"cpu", "memory"}
   assert len(json.dumps(task_spec["config"]).encode("utf-8")) <= 16 * 1024
+  assert "modelRef" not in task_spec["config"]
 
   env_map = {item["name"]: item["value"] for item in task_spec["env"]}
   assert env_map["AX_ZERO_SECRET_SANDBOX"] == "true"
   assert env_map["MCP_GATEWAY_AUTH_HEADER"] == "Bearer ate-egress-injected"
+  assert (
+      env_map["LLM_GATEWAY_URL"]
+      == "http://llm-gateway.secops-gateways.svc.cluster.local:8080/vertex"
+  )
+  assert env_map["GOOGLE_CLOUD_PROJECT"] == "my-secops-project"
+  assert env_map["GOOGLE_CLOUD_LOCATION"] == "global"
 
 
 def test_egress_policy_conforms_to_ateapi_v1_single_doc_protojson() -> None:
@@ -94,7 +96,7 @@ def test_egress_policy_conforms_to_ateapi_v1_single_doc_protojson() -> None:
   assert policy["metadata"] == {"atespace": "secops", "name": "default"}
 
   rules = policy["rules"]
-  assert len(rules) == 4
+  assert len(rules) == 5
   seen_audiences: set[str] = set()
   for rule in rules:
     assert set(rule.keys()) == {"http"}
@@ -117,36 +119,42 @@ def test_egress_policy_conforms_to_ateapi_v1_single_doc_protojson() -> None:
       "http://gti-mcp.secops-gateways.svc.cluster.local:8080",
       "http://secops-soar-mcp.secops-gateways.svc.cluster.local:8080",
       "http://scc-mcp.secops-gateways.svc.cluster.local:8080",
+      "http://llm-gateway.secops-gateways.svc.cluster.local:8080",
   }
 
 
 def test_substrate_crds_conform_to_ate_dev_v1_strict_schema() -> None:
   raw = (MANIFESTS_DIR / "sandbox-and-workerpool.yaml").read_text(encoding="utf-8")
-  docs = list(yaml.safe_load_all(raw))
-  assert [d["kind"] for d in docs] == ["SandboxConfig", "WorkerPool"]
+  rendered = raw.replace(
+      "${ATEWORKER_GVISOR_IMAGE}",
+      "us-docker.pkg.dev/my-secops-project/ate-system/ateworker-gvisor@sha256:"
+      + ("7" * 64),
+  )
+  docs = list(yaml.safe_load_all(rendered))
+  assert [d["kind"] for d in docs] == ["WorkerPool"]
 
-  sb_cfg, wp = docs
-  assert sb_cfg["apiVersion"] == "ate.dev/v1"
-  assert "namespace" not in sb_cfg["metadata"]
-  assert set(sb_cfg["spec"].keys()) == {"sandboxClass", "defaultVersion", "versions"}
-  assert sb_cfg["spec"]["sandboxClass"] == "gvisor"
-
+  wp = docs[0]
   assert wp["apiVersion"] == "ate.dev/v1"
   assert wp["metadata"]["namespace"] == "ate-workloads"
   assert "@sha256:" in wp["spec"]["workerImage"]
+  assert wp["spec"]["sandboxClasses"] == [
+      {"name": "gvisor", "configRef": {"name": "gvisor-default"}}
+  ]
   for k in wp["spec"]["template"].get("labels", {}):
     assert not k.startswith("ate.dev/") and ".ate.dev/" not in k
 
 
-def test_kubernetes_gateways_enforce_network_policy_and_audiences() -> None:
+def test_kubernetes_gateways_enforce_network_policy_live_jwks_and_audiences() -> None:
   raw = (MANIFESTS_DIR / "mcp-gateways-k8s.yaml").read_text(encoding="utf-8")
   rendered = (
       raw.replace("${PROJECT_ID}", "my-secops-project")
+      .replace("${GOOGLE_CLOUD_LOCATION}", "global")
       .replace("${CHRONICLE_PROJECT_ID}", "my-secops-project")
       .replace("${CHRONICLE_CUSTOMER_ID}", "00000000-0000-0000-0000-000000000000")
       .replace("${CHRONICLE_REGION}", "us")
       .replace("${SOAR_URL}", "https://example.siemplify-soar.com")
-      .replace("${ACTOR_JWT_ISSUER}", "https://ateapi.ate-system.svc")
+      .replace("${SOAR_INTEGRATIONS}", "Siemplify")
+      .replace("${ACTOR_JWT_ISSUER}", "https://idp.ate-system.svc")
   )
   docs = list(yaml.safe_load_all(rendered))
 
@@ -159,12 +167,17 @@ def test_kubernetes_gateways_enforce_network_policy_and_audiences() -> None:
   assert ingress_from["podSelector"]["matchLabels"] == {"app": "atenet-egress"}
 
   deployments = {d["metadata"]["name"]: d for d in docs if d["kind"] == "Deployment"}
-  assert set(deployments.keys()) == {
+  services = {d["metadata"]["name"]: d for d in docs if d["kind"] == "Service"}
+  expected_gateways = {
       "secops-mcp",
       "gti-mcp",
       "secops-soar-mcp",
       "scc-mcp",
+      "llm-gateway",
   }
+  assert set(deployments.keys()) == expected_gateways
+  assert set(services.keys()) == expected_gateways
+
   for name, dep in deployments.items():
     pod_spec = dep["spec"]["template"]["spec"]
     assert pod_spec["securityContext"]["runAsNonRoot"] is True
@@ -172,9 +185,36 @@ def test_kubernetes_gateways_enforce_network_policy_and_audiences() -> None:
     assert "@sha256:" in container["image"]
     assert container["securityContext"]["readOnlyRootFilesystem"] is True
     assert container["securityContext"]["allowPrivilegeEscalation"] is False
+    assert container["livenessProbe"]["timeoutSeconds"] == 5
+    assert container["readinessProbe"]["timeoutSeconds"] == 5
+
     env_map = {e["name"]: e.get("value") for e in container["env"]}
     assert env_map["GATEWAY_REQUIRE_ACTOR_JWT"] == "true"
+    assert env_map["GATEWAY_EXPECTED_ISSUER"] == "https://idp.ate-system.svc"
+    assert (
+        env_map["GATEWAY_JWKS_URL"]
+        == "https://idp.ate-system.svc/openid/v1/jwks"
+    )
+    assert (
+        env_map["GATEWAY_JWKS_CA_FILE"]
+        == "/run/servicedns-ca/trust-bundle.pem"
+    )
+    assert env_map["GATEWAY_ALLOWED_ATESPACES"] == "secops"
+    assert env_map["GATEWAY_ALLOWED_ACTORS"] == "secops/secops-triage-agent"
     assert (
         env_map["GATEWAY_EXPECTED_AUDIENCE"]
         == f"http://{name}.secops-gateways.svc.cluster.local:8080"
     )
+
+    vol_map = {v["name"]: v for v in pod_spec["volumes"]}
+    assert "servicedns-ca" in vol_map
+    ctb = vol_map["servicedns-ca"]["projected"]["sources"][0]["clusterTrustBundle"]
+    assert ctb["signerName"] == "servicedns.podcert.ate.dev/identity"
+
+  soar_env = {
+      e["name"]: e.get("value")
+      for e in deployments["secops-soar-mcp"]["spec"]["template"]["spec"][
+          "containers"
+      ][0]["env"]
+  }
+  assert soar_env["SOAR_INTEGRATIONS"] == "Siemplify"

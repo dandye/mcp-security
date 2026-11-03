@@ -16,8 +16,11 @@
 from collections.abc import Mapping
 import logging
 import os
+from pathlib import Path
 import re
 from typing import Any, Optional
+import urllib.error
+import urllib.parse
 import urllib.request
 
 import yaml
@@ -55,6 +58,8 @@ FORBIDDEN_SECRET_VALUE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("github_pat", re.compile(r"^gh[pousr]_[0-9A-Za-z]{20,}")),
 )
 
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
 # Maps canonical Workspace.spec.mcp.servers[].name aliases to AgentSettings fields.
 _WORKSPACE_SERVER_ALIASES: dict[str, str] = {
     "secops": "secops",
@@ -74,6 +79,40 @@ _WORKSPACE_SERVER_ALIASES: dict[str, str] = {
     "scc-mcp": "scc",
     "scc_mcp": "scc",
 }
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+  """Blocks HTTP 30x redirects when querying loopback AX metadata."""
+
+  def redirect_request(
+      self,
+      req: urllib.request.Request,
+      fp: Any,
+      code: int,
+      msg: str,
+      headers: Any,
+      newurl: str,
+  ) -> None:
+    raise urllib.error.HTTPError(
+        req.full_url,
+        code,
+        f"Redirects are not permitted on AX_METADATA_URL ({msg})",
+        headers,
+        fp,
+    )
+
+
+def is_valid_http_endpoint(url: str) -> bool:
+  """Returns True when `url` is a well-formed `http://` or `https://` endpoint."""
+  parsed = urllib.parse.urlparse(url.strip())
+  return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def _is_valid_loopback_metadata_url(url: str) -> bool:
+  parsed = urllib.parse.urlparse(url.strip())
+  if parsed.scheme != "http" or not parsed.hostname:
+    return False
+  return parsed.hostname.lower() in _LOOPBACK_HOSTS
 
 
 def is_ax_zero_secret_sandbox(
@@ -118,10 +157,11 @@ def _scan_secret_violations(mapping: Mapping[str, str]) -> list[str]:
     stripped = (raw_value or "").strip()
     if not stripped:
       continue
-    # Allow explicit non-secret placeholder headers for atenet-egress replaceHeaders.
     if key.upper() == "MCP_GATEWAY_AUTH_HEADER":
       if any(p.search(stripped) for _, p in FORBIDDEN_SECRET_VALUE_PATTERNS):
         findings.add(f"{key} (secret_pattern)")
+      elif stripped != DEFAULT_GATEWAY_AUTH_PLACEHOLDER:
+        findings.add(f"{key} (non_placeholder_auth_header)")
       continue
     if key.upper() in _FORBIDDEN_SANDBOX_KEYS_UPPER:
       findings.add(key)
@@ -133,9 +173,47 @@ def _scan_secret_violations(mapping: Mapping[str, str]) -> list[str]:
   return sorted(findings)
 
 
+def _scan_mounted_credential_files(
+    env: Mapping[str, str],
+    *,
+    k8s_sa_token_path: str = "/var/run/secrets/kubernetes.io/serviceaccount/token",
+) -> list[str]:
+  """Checks for mounted credential files inside the sandbox without echoing contents."""
+  violations: list[str] = []
+  if k8s_sa_token_path and Path(k8s_sa_token_path).is_file():
+    violations.append(f"file:{k8s_sa_token_path}")
+
+  cwd_adc = Path.cwd() / ".gcloud" / "application_default_credentials.json"
+  if cwd_adc.is_file():
+    violations.append("file:.gcloud/application_default_credentials.json")
+
+  cloudsdk_cfg = (env.get("CLOUDSDK_CONFIG") or "").strip()
+  if cloudsdk_cfg:
+    cfg_adc = Path(cloudsdk_cfg) / "application_default_credentials.json"
+    if cfg_adc.is_file():
+      violations.append("file:CLOUDSDK_CONFIG/application_default_credentials.json")
+
+  explicit_home = (env.get("HOME") or "").strip()
+  if explicit_home:
+    home_adc = (
+        Path(explicit_home)
+        / ".config"
+        / "gcloud"
+        / "application_default_credentials.json"
+    )
+    if home_adc.is_file():
+      violations.append(
+          "file:$HOME/.config/gcloud/application_default_credentials.json"
+      )
+  return violations
+
+
 def verify_zero_secret_sandbox(
     environ: Optional[Mapping[str, str]] = None,
     proc_environ_path: Optional[str] = "/proc/self/environ",
+    *,
+    check_files: bool = True,
+    k8s_sa_token_path: str = "/var/run/secrets/kubernetes.io/serviceaccount/token",
 ) -> dict[str, Any]:
   """Verifies fail-closed that no cloud or API secrets leaked into the AX sandbox."""
   if not is_ax_zero_secret_sandbox(environ):
@@ -167,6 +245,13 @@ def verify_zero_secret_sandbox(
             for item in _scan_secret_violations(candidate_map)
         )
 
+  if check_files:
+    violations.extend(
+        _scan_mounted_credential_files(
+            os_env, k8s_sa_token_path=k8s_sa_token_path
+        )
+    )
+
   if violations:
     joined = ", ".join(violations)
     logger.error(
@@ -187,7 +272,7 @@ def verify_zero_secret_sandbox(
 def _extract_endpoints_from_workspace_doc(
     doc: Mapping[str, Any]
 ) -> dict[str, str]:
-  """Extracts canonical `{server_key: endpoint_url}` entries from an AX Workspace."""
+  """Extracts validated `{server_key: endpoint_url}` entries from an AX Workspace."""
   spec = doc.get("spec")
   if not isinstance(spec, Mapping):
     return {}
@@ -214,6 +299,13 @@ def _extract_endpoints_from_workspace_doc(
     endpoint = (srv.get("endpoint") or "").strip()
     if not raw_name or not endpoint:
       continue
+    if not is_valid_http_endpoint(endpoint):
+      logger.warning(
+          "Ignoring AX Workspace MCP server %s with non-HTTP(S) endpoint %r",
+          raw_name,
+          endpoint,
+      )
+      continue
     canonical = _WORKSPACE_SERVER_ALIASES.get(raw_name)
     if canonical and canonical not in discovered:
       discovered[canonical] = endpoint
@@ -224,7 +316,7 @@ def discover_ax_workspace_mcp_endpoints(
     environ: Optional[Mapping[str, str]] = None,
     metadata_timeout_seconds: float = 1.5,
 ) -> dict[str, str]:
-  """Discovers Streamable HTTP MCP endpoints from AX_WORKSPACE_YAML or AX_METADATA_URL."""
+  """Discovers Streamable HTTP MCP endpoints from AX_WORKSPACE_YAML or loopback AX_METADATA_URL."""
   env = os.environ if environ is None else environ
   raw_ws_yaml = (env.get("AX_WORKSPACE_YAML") or "").strip()
   if raw_ws_yaml:
@@ -237,12 +329,17 @@ def discover_ax_workspace_mcp_endpoints(
 
   metadata_base = (env.get("AX_METADATA_URL") or "").strip().rstrip("/")
   if metadata_base:
+    if not _is_valid_loopback_metadata_url(metadata_base):
+      raise ValueError(
+          f"AX_METADATA_URL must target a loopback http:// endpoint; got {metadata_base!r}."
+      )
     ws_url = f"{metadata_base}/metadata/v1alpha1/ax/workspace"
     try:
+      opener = urllib.request.build_opener(_NoRedirectHandler())
       req = urllib.request.Request(
           ws_url, headers={"Accept": "application/yaml"}
       )
-      with urllib.request.urlopen(req, timeout=metadata_timeout_seconds) as resp:
+      with opener.open(req, timeout=metadata_timeout_seconds) as resp:
         if resp.status == 200:
           body = resp.read().decode("utf-8", errors="replace")
           doc = yaml.safe_load(body)

@@ -15,7 +15,8 @@
 
 import logging
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Optional
+from mcp_security_agent.ax_workspace import is_valid_http_endpoint
 from mcp_security_agent.config import AgentSettings
 
 logger = logging.getLogger(__name__)
@@ -49,34 +50,41 @@ def build_mcp_toolsets(settings: AgentSettings) -> List[Any]:
         return toolsets
 
     def _build_remote_http_toolset(url: str) -> Any:
+        cleaned_url = url.strip()
+        if not is_valid_http_endpoint(cleaned_url):
+            raise ValueError(
+                f"Invalid MCP gateway URL {cleaned_url!r}; expected an http:// or https:// URL."
+            )
         headers: dict[str, str] = {}
         if settings.mcp_gateway_auth_header and settings.mcp_gateway_auth_header.strip():
             headers["Authorization"] = settings.mcp_gateway_auth_header.strip()
         conn = StreamableHTTPConnectionParams(
-            url=url.strip(),
+            url=cleaned_url,
             headers=headers or None,
             timeout=settings.http_timeout_seconds,
         )
         return McpToolset(connection_params=conn)
 
-    def _build_stdio_env() -> dict[str, str]:
-        """Constructs environment dictionary for Stdio subprocesses with credential and project isolation."""
+    stdio_env_cache: Optional[dict[str, str]] = None
+
+    def _get_stdio_env() -> dict[str, str]:
+        """Constructs environment dictionary lazily for Stdio subprocesses."""
+        nonlocal stdio_env_cache
+        if stdio_env_cache is not None:
+            return stdio_env_cache
         import os
         env = dict(os.environ)
 
-        # Propagate local ADC and CloudSDK config
         if settings.google_application_credentials:
             env["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials
             if "CLOUDSDK_CONFIG" not in env:
                 env["CLOUDSDK_CONFIG"] = str(Path(settings.google_application_credentials).parent)
 
-        # Propagate credentials & impersonation
         if settings.secops_sa_path:
             env["SECOPS_SA_PATH"] = settings.secops_sa_path
         if settings.secops_impersonate_service_account:
             env["SECOPS_IMPERSONATE_SERVICE_ACCOUNT"] = settings.secops_impersonate_service_account
 
-        # Propagate GCP Project (for SCC, Vertex AI, and general Cloud SDK)
         gcp_project = (
             settings.google_cloud_project
             or os.environ.get("GOOGLE_CLOUD_PROJECT")
@@ -86,7 +94,6 @@ def build_mcp_toolsets(settings: AgentSettings) -> List[Any]:
         if gcp_project:
             env["GOOGLE_CLOUD_PROJECT"] = gcp_project
 
-        # Propagate Chronicle SIEM Project (independent from SCC/GCP project)
         chronicle_project = (
             settings.chronicle_project_id
             or gcp_project
@@ -99,7 +106,6 @@ def build_mcp_toolsets(settings: AgentSettings) -> List[Any]:
         if settings.chronicle_region:
             env["CHRONICLE_REGION"] = settings.chronicle_region
 
-        # Propagate GTI / SOAR params if set
         if settings.vt_apikey:
             env["VT_APIKEY"] = settings.vt_apikey
         if settings.soar_url:
@@ -107,21 +113,26 @@ def build_mcp_toolsets(settings: AgentSettings) -> List[Any]:
         if settings.soar_app_key:
             env["SOAR_APP_KEY"] = settings.soar_app_key
 
-        # Cloudtop mTLS bypass
         env.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
         env.setdefault("GOOGLE_API_USE_MTLS_ENDPOINT", "never")
         env.setdefault("CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE", "false")
 
+        stdio_env_cache = env
         return env
-
-    stdio_env = _build_stdio_env()
 
     def _get_stdio_cmd_args(server_path: Path, script_relpath: str) -> tuple[str, list[str], dict[str, str]]:
         import shutil
         import sys
         import os
 
-        env = dict(stdio_env)
+        if settings.ax_zero_secret_sandbox:
+            raise ValueError(
+                f"Zero-secret sandbox violation: cannot spawn local stdio MCP server "
+                f"for {server_path.name!r} when AX_ZERO_SECRET_SANDBOX=true. "
+                "Configure a Streamable HTTP out-of-sandbox gateway URL instead."
+            )
+
+        env = dict(_get_stdio_env())
         if shutil.which("uv"):
             return "uv", ["--directory", str(server_path), "run", script_relpath], env
 
@@ -135,72 +146,23 @@ def build_mcp_toolsets(settings: AgentSettings) -> List[Any]:
         script_full = str(server_path / script_relpath)
         return sys.executable, [script_full], env
 
-    # 1. Google SecOps SIEM MCP
-    if settings.load_secops_mcp:
-        if settings.secops_mcp_url:
-            logger.info("Configuring SecOps SIEM MCP via Streamable HTTP gateway: %s", settings.secops_mcp_url)
-            toolsets.append(_build_remote_http_toolset(settings.secops_mcp_url))
-        else:
-            secops_dir = server_dir / "secops"
-            logger.info("Configuring SecOps SIEM MCP via Stdio subprocess at %s", secops_dir)
-            cmd, args, env = _get_stdio_cmd_args(secops_dir, "secops_mcp/server.py")
-            conn = StdioConnectionParams(
-                server_params=StdioServerParameters(
-                    command=cmd,
-                    args=args,
-                    env=env,
-                ),
-                timeout=settings.stdio_timeout_seconds,
-            )
-            toolsets.append(McpToolset(connection_params=conn))
+    server_specs = (
+        ("SecOps SIEM", settings.load_secops_mcp, settings.secops_mcp_url, "secops", "secops_mcp/server.py"),
+        ("SCC", settings.load_scc_mcp, settings.scc_mcp_url, "scc", "scc_mcp.py"),
+        ("GTI", settings.load_gti_mcp, settings.gti_mcp_url, "gti", "gti_mcp/server.py"),
+        ("SecOps SOAR", settings.load_secops_soar_mcp, settings.secops_soar_mcp_url, "secops-soar", "secops_soar_mcp/server.py"),
+    )
 
-    # 2. Security Command Center (SCC) MCP
-    if settings.load_scc_mcp:
-        if settings.scc_mcp_url:
-            logger.info("Configuring SCC MCP via Streamable HTTP gateway: %s", settings.scc_mcp_url)
-            toolsets.append(_build_remote_http_toolset(settings.scc_mcp_url))
+    for label, enabled, remote_url, dir_name, script_rel in server_specs:
+        if not enabled:
+            continue
+        if remote_url and remote_url.strip():
+            logger.info("Configuring %s MCP via Streamable HTTP gateway: %s", label, remote_url)
+            toolsets.append(_build_remote_http_toolset(remote_url))
         else:
-            scc_dir = server_dir / "scc"
-            logger.info("Configuring SCC MCP via Stdio subprocess at %s", scc_dir)
-            cmd, args, env = _get_stdio_cmd_args(scc_dir, "scc_mcp.py")
-            conn = StdioConnectionParams(
-                server_params=StdioServerParameters(
-                    command=cmd,
-                    args=args,
-                    env=env,
-                ),
-                timeout=settings.stdio_timeout_seconds,
-            )
-            toolsets.append(McpToolset(connection_params=conn))
-
-    # 3. Google Threat Intelligence (GTI) MCP
-    if settings.load_gti_mcp:
-        if settings.gti_mcp_url:
-            logger.info("Configuring GTI MCP via Streamable HTTP gateway: %s", settings.gti_mcp_url)
-            toolsets.append(_build_remote_http_toolset(settings.gti_mcp_url))
-        else:
-            gti_dir = server_dir / "gti"
-            logger.info("Configuring GTI MCP via Stdio subprocess at %s", gti_dir)
-            cmd, args, env = _get_stdio_cmd_args(gti_dir, "gti_mcp/server.py")
-            conn = StdioConnectionParams(
-                server_params=StdioServerParameters(
-                    command=cmd,
-                    args=args,
-                    env=env,
-                ),
-                timeout=settings.stdio_timeout_seconds,
-            )
-            toolsets.append(McpToolset(connection_params=conn))
-
-    # 4. SecOps SOAR MCP
-    if settings.load_secops_soar_mcp:
-        if settings.secops_soar_mcp_url:
-            logger.info("Configuring SecOps SOAR MCP via Streamable HTTP gateway: %s", settings.secops_soar_mcp_url)
-            toolsets.append(_build_remote_http_toolset(settings.secops_soar_mcp_url))
-        else:
-            soar_dir = server_dir / "secops-soar"
-            logger.info("Configuring SecOps SOAR MCP via Stdio subprocess at %s", soar_dir)
-            cmd, args, env = _get_stdio_cmd_args(soar_dir, "secops_soar_mcp/server.py")
+            target_dir = server_dir / dir_name
+            cmd, args, env = _get_stdio_cmd_args(target_dir, script_rel)
+            logger.info("Configuring %s MCP via Stdio subprocess at %s", label, target_dir)
             conn = StdioConnectionParams(
                 server_params=StdioServerParameters(
                     command=cmd,
@@ -212,4 +174,3 @@ def build_mcp_toolsets(settings: AgentSettings) -> List[Any]:
             toolsets.append(McpToolset(connection_params=conn))
 
     return toolsets
-

@@ -18,6 +18,7 @@ Matches the Agent Substrate (ate.dev) wire contract implemented in:
 - internal/localjwtauthority/jwks.go (RFC 7517 JWKS with ES256 / RS256 / RS384 / RS512)
 """
 
+import asyncio
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 import json
@@ -25,6 +26,8 @@ import logging
 import os
 from pathlib import Path
 import re
+import ssl
+import threading
 import time
 from typing import Any, Optional
 
@@ -80,10 +83,12 @@ class ActorJwtConfig:
   jwks_path: Optional[str] = None
   jwks_url: Optional[str] = None
   jwks_json: Optional[str] = None
+  jwks_ca_file: Optional[str] = None
   allowed_atespaces: frozenset[str] = field(default_factory=frozenset)
   allowed_actors: frozenset[str] = field(default_factory=frozenset)
   leeway_seconds: float = 5.0
   jwks_cache_ttl_seconds: float = 60.0
+  jwks_refresh_cooldown_seconds: float = 10.0
 
   @classmethod
   def from_env(
@@ -105,6 +110,12 @@ class ActorJwtConfig:
     allowed_atespaces = _parse_csv_set(env.get("GATEWAY_ALLOWED_ATESPACES"))
     allowed_actors = _parse_csv_set(env.get("GATEWAY_ALLOWED_ACTORS"))
     leeway = float((env.get("GATEWAY_JWT_LEEWAY_SECONDS") or "5.0").strip())
+    cache_ttl = float(
+        (env.get("GATEWAY_JWKS_CACHE_TTL_SECONDS") or "60.0").strip()
+    )
+    refresh_cooldown = float(
+        (env.get("GATEWAY_JWKS_REFRESH_COOLDOWN_SECONDS") or "10.0").strip()
+    )
 
     return cls(
         require_actor_jwt=require_jwt,
@@ -113,9 +124,12 @@ class ActorJwtConfig:
         jwks_path=_clean_optional(env.get("GATEWAY_JWKS_PATH")),
         jwks_url=_clean_optional(env.get("GATEWAY_JWKS_URL")),
         jwks_json=_clean_optional(env.get("GATEWAY_JWKS_JSON")),
+        jwks_ca_file=_clean_optional(env.get("GATEWAY_JWKS_CA_FILE")),
         allowed_atespaces=allowed_atespaces,
         allowed_actors=allowed_actors,
         leeway_seconds=leeway,
+        jwks_cache_ttl_seconds=cache_ttl,
+        jwks_refresh_cooldown_seconds=refresh_cooldown,
     )
 
 
@@ -143,6 +157,9 @@ class ActorJwtVerifier:
     self.config = config
     self._cached_keys: dict[str, tuple[str, Any]] = {}
     self._cache_expires_at: float = 0.0
+    self._last_refresh_attempt_at: float = 0.0
+    self._sync_lock = threading.Lock()
+    self._async_lock: Optional[asyncio.Lock] = None
 
     if self.config.require_actor_jwt:
       has_jwks = any(
@@ -158,13 +175,57 @@ class ActorJwtVerifier:
             "ActorJwtVerifier requires expected_audience when "
             "require_actor_jwt=True."
         )
+      if not self.config.expected_issuer:
+        raise ValueError(
+            "ActorJwtVerifier requires expected_issuer when "
+            "require_actor_jwt=True."
+        )
+      for actor_entry in self.config.allowed_actors:
+        if "/" not in actor_entry and len(self.config.allowed_atespaces) != 1:
+          raise ValueError(
+              f"Unqualified actor entry {actor_entry!r} in allowed_actors "
+              "requires exactly one allowed_atespaces entry; use "
+              "'<atespace>/<actorName>' instead."
+          )
+
+  def _get_async_lock(self) -> asyncio.Lock:
+    if self._async_lock is None:
+      self._async_lock = asyncio.Lock()
+    return self._async_lock
+
+  def _build_ssl_verify(self) -> ssl.SSLContext | bool:
+    if not self.config.jwks_ca_file:
+      return True
+    ca_path = Path(self.config.jwks_ca_file)
+    if not ca_path.is_file():
+      raise ActorJwtAuthError(
+          f"Configured JWKS CA bundle file not found: {self.config.jwks_ca_file}",
+          503,
+      )
+    try:
+      return ssl.create_default_context(cafile=str(ca_path))
+    except (OSError, ssl.SSLError) as exc:
+      raise ActorJwtAuthError(
+          "Failed to load configured JWKS CA bundle.", 503
+      ) from exc
 
   def is_ready(self) -> bool:
-    """Returns True if JWKS keys can be loaded (or auth is explicitly disabled)."""
+    """Returns True if JWKS keys can be loaded synchronously."""
     if not self.config.require_actor_jwt:
       return True
     try:
       keys = self._load_keys()
+      return bool(keys)
+    except Exception as exc:
+      logger.error("JWKS readiness check failed: %s", exc)
+      return False
+
+  async def is_ready_async(self) -> bool:
+    """Returns True if JWKS keys can be loaded asynchronously without blocking the event loop."""
+    if not self.config.require_actor_jwt:
+      return True
+    try:
+      keys = await self._load_keys_async()
       return bool(keys)
     except Exception as exc:
       logger.error("JWKS readiness check failed: %s", exc)
@@ -191,14 +252,18 @@ class ActorJwtVerifier:
             "Skipping JWK kid=%s with unsupported algorithm %s", kid, alg
         )
         continue
-      if kty == "EC" and alg == "ES256" and entry.get("crv") == "P-256":
-        pub_key = jwt_algorithms.ECAlgorithm.from_jwk(json.dumps(dict(entry)))
-      elif kty == "RSA" and alg in {"RS256", "RS384", "RS512"}:
-        pub_key = jwt_algorithms.RSAAlgorithm.from_jwk(json.dumps(dict(entry)))
-      else:
-        logger.warning(
-            "Skipping JWK kid=%s with mismatched kty=%s alg=%s", kid, kty, alg
-        )
+      try:
+        if kty == "EC" and alg == "ES256" and entry.get("crv") == "P-256":
+          pub_key = jwt_algorithms.ECAlgorithm.from_jwk(json.dumps(dict(entry)))
+        elif kty == "RSA" and alg in {"RS256", "RS384", "RS512"}:
+          pub_key = jwt_algorithms.RSAAlgorithm.from_jwk(json.dumps(dict(entry)))
+        else:
+          logger.warning(
+              "Skipping JWK kid=%s with mismatched kty=%s alg=%s", kid, kty, alg
+          )
+          continue
+      except (ValueError, TypeError, jwt.PyJWTError) as exc:
+        logger.warning("Skipping malformed JWK kid=%s: %s", kid, exc)
         continue
       parsed[kid] = (alg, pub_key)
 
@@ -208,56 +273,130 @@ class ActorJwtVerifier:
       )
     return parsed
 
-  def _load_keys(self, force_refresh: bool = False) -> dict[str, tuple[str, Any]]:
-    now = time.monotonic()
+  def _should_use_cache(self, now: float, force_refresh: bool) -> bool:
+    if not self._cached_keys:
+      return False
+    if not force_refresh and now < self._cache_expires_at:
+      return True
     if (
-        not force_refresh
-        and self._cached_keys
-        and now < self._cache_expires_at
+        force_refresh
+        and self._last_refresh_attempt_at > 0.0
+        and (now - self._last_refresh_attempt_at)
+        < self.config.jwks_refresh_cooldown_seconds
     ):
-      return self._cached_keys
+      return True
+    return False
 
-    if self.config.jwks_json:
-      doc = json.loads(self.config.jwks_json)
-    elif self.config.jwks_path:
-      jwks_file = Path(self.config.jwks_path)
-      if not jwks_file.is_file():
-        raise ActorJwtAuthError(
-            f"Configured JWKS file not found: {self.config.jwks_path}", 503
-        )
-      doc = json.loads(jwks_file.read_text(encoding="utf-8"))
-    elif self.config.jwks_url:
-      try:
-        resp = httpx.get(self.config.jwks_url, timeout=5.0)
-        resp.raise_for_status()
-        doc = resp.json()
-      except Exception as exc:
-        raise ActorJwtAuthError("Failed to fetch JWKS from upstream.", 503) from exc
-    else:
-      raise ActorJwtAuthError("No JWKS source configured.", 503)
-
+  def _update_cache_from_doc(
+      self, doc: Any, now: float
+  ) -> dict[str, tuple[str, Any]]:
     if not isinstance(doc, Mapping):
       raise ActorJwtAuthError("JWKS root must be a JSON object.", 503)
-
     self._cached_keys = self._parse_jwks_payload(doc)
     self._cache_expires_at = now + self.config.jwks_cache_ttl_seconds
     return self._cached_keys
 
-  def verify_authorization_header(
-      self, auth_header: Optional[str]
-  ) -> ActorIdentity:
-    """Verifies an HTTP Authorization: Bearer <jwt> header and returns ActorIdentity."""
+  def _load_keys(self, force_refresh: bool = False) -> dict[str, tuple[str, Any]]:
+    with self._sync_lock:
+      now = time.monotonic()
+      if self._should_use_cache(now, force_refresh):
+        return self._cached_keys
+
+      self._last_refresh_attempt_at = now
+      try:
+        if self.config.jwks_json:
+          doc = json.loads(self.config.jwks_json)
+        elif self.config.jwks_path:
+          jwks_file = Path(self.config.jwks_path)
+          if not jwks_file.is_file():
+            raise ActorJwtAuthError(
+                f"Configured JWKS file not found: {self.config.jwks_path}", 503
+            )
+          doc = json.loads(jwks_file.read_text(encoding="utf-8"))
+        elif self.config.jwks_url:
+          ssl_verify = self._build_ssl_verify()
+          resp = httpx.get(
+              self.config.jwks_url, timeout=5.0, verify=ssl_verify
+          )
+          resp.raise_for_status()
+          doc = resp.json()
+        else:
+          raise ActorJwtAuthError("No JWKS source configured.", 503)
+        return self._update_cache_from_doc(doc, now)
+      except ActorJwtAuthError:
+        if self._cached_keys and now < self._cache_expires_at:
+          logger.warning(
+              "JWKS refresh failed; continuing with unexpired cached keys."
+          )
+          return self._cached_keys
+        raise
+      except (OSError, ValueError, httpx.HTTPError) as exc:
+        if self._cached_keys and now < self._cache_expires_at:
+          logger.warning(
+              "JWKS refresh failed (%s); continuing with unexpired cached keys.",
+              exc,
+          )
+          return self._cached_keys
+        raise ActorJwtAuthError("Failed to load JWKS keys.", 503) from exc
+
+  async def _load_keys_async(
+      self, force_refresh: bool = False
+  ) -> dict[str, tuple[str, Any]]:
+    now = time.monotonic()
+    if self._should_use_cache(now, force_refresh):
+      return self._cached_keys
+
+    async with self._get_async_lock():
+      now = time.monotonic()
+      if self._should_use_cache(now, force_refresh):
+        return self._cached_keys
+
+      self._last_refresh_attempt_at = now
+      try:
+        if self.config.jwks_json:
+          doc = json.loads(self.config.jwks_json)
+        elif self.config.jwks_path:
+          jwks_file = Path(self.config.jwks_path)
+          raw_text = await asyncio.to_thread(
+              _read_jwks_file_sync, jwks_file, self.config.jwks_path
+          )
+          doc = json.loads(raw_text)
+        elif self.config.jwks_url:
+          ssl_verify = await asyncio.to_thread(self._build_ssl_verify)
+          async with httpx.AsyncClient(
+              timeout=5.0, verify=ssl_verify
+          ) as client:
+            resp = await client.get(self.config.jwks_url)
+            resp.raise_for_status()
+            doc = resp.json()
+        else:
+          raise ActorJwtAuthError("No JWKS source configured.", 503)
+        return self._update_cache_from_doc(doc, now)
+      except ActorJwtAuthError:
+        if self._cached_keys and now < self._cache_expires_at:
+          logger.warning(
+              "JWKS async refresh failed; continuing with unexpired cached keys."
+          )
+          return self._cached_keys
+        raise
+      except (OSError, ValueError, httpx.HTTPError) as exc:
+        if self._cached_keys and now < self._cache_expires_at:
+          logger.warning(
+              "JWKS async refresh failed (%s); continuing with unexpired cached keys.",
+              exc,
+          )
+          return self._cached_keys
+        raise ActorJwtAuthError("Failed to load JWKS keys.", 503) from exc
+
+  def _parse_bearer_token(self, auth_header: Optional[str]) -> str:
     if not auth_header or not auth_header.strip():
       raise ActorJwtAuthError("Missing Authorization header.", 401)
-
     parts = auth_header.strip().split(None, 1)
     if len(parts) != 2 or parts[0].lower() != "bearer" or not parts[1].strip():
       raise ActorJwtAuthError("Authorization header must use Bearer scheme.", 401)
+    return parts[1].strip()
 
-    return self.verify_token(parts[1].strip())
-
-  def verify_token(self, token: str) -> ActorIdentity:
-    """Verifies a raw JWT string against Agent Substrate KindActor invariants."""
+  def _extract_unverified_alg_and_kid(self, token: str) -> tuple[str, str]:
     try:
       unverified_header = jwt.get_unverified_header(token)
     except jwt.PyJWTError as exc:
@@ -271,10 +410,15 @@ class ActorJwtVerifier:
       )
     if not isinstance(kid, str) or not kid:
       raise ActorJwtAuthError("JWT header is missing required 'kid'.", 401)
+    return alg, kid
 
-    keys = self._load_keys()
-    if kid not in keys:
-      keys = self._load_keys(force_refresh=True)
+  def _verify_token_with_keys(
+      self,
+      token: str,
+      alg: str,
+      kid: str,
+      keys: Mapping[str, tuple[str, Any]],
+  ) -> ActorIdentity:
     if kid not in keys:
       raise ActorJwtAuthError("Unknown signing key ID ('kid').", 401)
 
@@ -284,13 +428,18 @@ class ActorJwtVerifier:
           "JWT header algorithm does not match JWK algorithm.", 401
       )
 
+    if not self.config.expected_issuer or not self.config.expected_audience:
+      raise ActorJwtAuthError(
+          "Gateway verifier missing expected_issuer or expected_audience.", 503
+      )
+
     decode_options = {
-        "require": ["exp", "sub", "aud"],
+        "require": ["exp", "sub", "aud", "iss"],
         "verify_signature": True,
         "verify_exp": True,
         "verify_nbf": True,
-        "verify_aud": bool(self.config.expected_audience),
-        "verify_iss": bool(self.config.expected_issuer),
+        "verify_aud": True,
+        "verify_iss": True,
     }
 
     try:
@@ -363,14 +512,16 @@ class ActorJwtVerifier:
       )
 
     qualified_actor = f"{atespace}/{actor_name}"
-    if self.config.allowed_actors and (
-        actor_name not in self.config.allowed_actors
-        and qualified_actor not in self.config.allowed_actors
-    ):
-      raise ActorJwtAuthError(
-          f"Actor {qualified_actor!r} is not authorized for this MCP gateway.",
-          403,
+    if self.config.allowed_actors:
+      bare_allowed = (
+          len(self.config.allowed_atespaces) == 1
+          and actor_name in self.config.allowed_actors
       )
+      if qualified_actor not in self.config.allowed_actors and not bare_allowed:
+        raise ActorJwtAuthError(
+            f"Actor {qualified_actor!r} is not authorized for this MCP gateway.",
+            403,
+        )
 
     raw_aud = claims.get("aud")
     if isinstance(raw_aud, str):
@@ -389,6 +540,42 @@ class ActorJwtVerifier:
         audiences=audiences,
         jti=str(claims.get("jti") or ""),
     )
+
+  def verify_authorization_header(
+      self, auth_header: Optional[str]
+  ) -> ActorIdentity:
+    """Verifies an HTTP Authorization: Bearer <jwt> header synchronously."""
+    return self.verify_token(self._parse_bearer_token(auth_header))
+
+  async def verify_authorization_header_async(
+      self, auth_header: Optional[str]
+  ) -> ActorIdentity:
+    """Verifies an HTTP Authorization: Bearer <jwt> header asynchronously."""
+    return await self.verify_token_async(self._parse_bearer_token(auth_header))
+
+  def verify_token(self, token: str) -> ActorIdentity:
+    """Verifies a raw JWT string synchronously against KindActor invariants."""
+    alg, kid = self._extract_unverified_alg_and_kid(token)
+    keys = self._load_keys()
+    if kid not in keys:
+      keys = self._load_keys(force_refresh=True)
+    return self._verify_token_with_keys(token, alg, kid, keys)
+
+  async def verify_token_async(self, token: str) -> ActorIdentity:
+    """Verifies a raw JWT string asynchronously without blocking the event loop."""
+    alg, kid = self._extract_unverified_alg_and_kid(token)
+    keys = await self._load_keys_async()
+    if kid not in keys:
+      keys = await self._load_keys_async(force_refresh=True)
+    return self._verify_token_with_keys(token, alg, kid, keys)
+
+
+def _read_jwks_file_sync(jwks_file: Path, display_path: str) -> str:
+  if not jwks_file.is_file():
+    raise ActorJwtAuthError(
+        f"Configured JWKS file not found: {display_path}", 503
+    )
+  return jwks_file.read_text(encoding="utf-8")
 
 
 class ActorJwtMiddleware:
@@ -421,7 +608,9 @@ class ActorJwtMiddleware:
         break
 
     try:
-      identity = self.verifier.verify_authorization_header(auth_header)
+      identity = await self.verifier.verify_authorization_header_async(
+          auth_header
+      )
     except ActorJwtAuthError as exc:
       logger.warning(
           "Rejected MCP gateway request on %s (status=%s): %s",

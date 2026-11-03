@@ -14,22 +14,8 @@
 #
 # AX (github.com/google/ax, commit b82f57ee) declarative orchestration manifest
 # binding an untrusted security investigation Task to all four out-of-sandbox
-# google/mcp-security Streamable HTTP MCP gateways with zero credentials inside
-# the sandbox.
-apiVersion: ax.io/v1alpha1
-kind: Model
-metadata:
-  name: gemini-secops-model
-  atespace: secops
-spec:
-  provider: google
-  model: gemini-3.8-flash
-  secretKey:
-    name: gemini-api-secret
-    key: GEMINI_API_KEY
-  parameters:
-    maxOutputTokens: 16384
----
+# google/mcp-security Streamable HTTP MCP gateways plus the out-of-sandbox
+# Vertex AI Gemini proxy (llm-gateway) with zero credentials inside the sandbox.
 apiVersion: ax.io/v1alpha1
 kind: Workspace
 metadata:
@@ -40,9 +26,9 @@ spec:
     - path: "AGENTS.md"
       content: |
         # Zero-Secret SecOps Triage Workspace
-        - All MCP servers (secops, gti, secops-soar, scc) execute out-of-sandbox in the secops-gateways namespace.
+        - All MCP servers (secops, gti, secops-soar, scc) and Vertex AI Gemini inference (llm-gateway) execute out-of-sandbox in the secops-gateways namespace.
         - Never place raw cloud credentials, OAuth tokens, or API keys in environment variables, files, or prompts.
-        - Outbound requests carry Authorization: Bearer ate-egress-injected, which Agent Substrate atenet-egress replaces on the wire with a short-lived actorJwt verified by each MCP gateway.
+        - Outbound requests carry Authorization: Bearer ate-egress-injected, which Agent Substrate atenet-egress replaces on the wire with a short-lived actorJwt verified by each gateway.
   mcp:
     servers:
       - name: secops
@@ -73,6 +59,14 @@ spec:
       value: "true"
     - name: MCP_GATEWAY_AUTH_HEADER
       value: "Bearer ate-egress-injected"
+    - name: LLM_GATEWAY_URL
+      value: "http://llm-gateway.secops-gateways.svc.cluster.local:8080/vertex"
+    - name: GOOGLE_CLOUD_PROJECT
+      value: "${PROJECT_ID}"
+    - name: GOOGLE_CLOUD_LOCATION
+      value: "${GOOGLE_CLOUD_LOCATION}"
+    - name: GOOGLE_GENAI_USE_VERTEXAI
+      value: "TRUE"
     - name: GOOGLE_MODEL
       value: "gemini-3.8-flash"
     - name: MINIMAL_LOGGING
@@ -87,8 +81,8 @@ spec:
   debug: false
   config:
     mode: "out-of-sandbox-mcp-gateway"
-    modelRef: "gemini-secops-model"
     egressGateway: "atenet-egress"
+    llmGateway: "http://llm-gateway.secops-gateways.svc.cluster.local:8080/vertex"
     mcpGateways:
       - "http://secops-mcp.secops-gateways.svc.cluster.local:8080/mcp"
       - "http://gti-mcp.secops-gateways.svc.cluster.local:8080/mcp"

@@ -12,24 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Agent Substrate (ate.dev, commit 57fab750) Kubernetes CRDs (SandboxConfig and
-# WorkerPool) for running untrusted AX security investigation tasks in gVisor.
-apiVersion: ate.dev/v1
-kind: SandboxConfig
-metadata:
-  name: gvisor-secops-ax
-spec:
-  sandboxClass: gvisor
-  defaultVersion: "runsc-20261001"
-  versions:
-    - name: "runsc-20261001"
-      state: Enabled
-      assets:
-        amd64:
-          gvisor:
-            url: "gs://gvisor/releases/release/20261001.0/x86_64/gvisor.tar.zstd"
-            sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
----
+# Agent Substrate (ate.dev, commit 57fab750) WorkerPool CRD referencing the
+# cluster-installed gvisor-default SandboxConfig (sandboxconfig-gvisor.yaml)
+# for running untrusted AX security investigation tasks in gVisor.
 apiVersion: ate.dev/v1
 kind: WorkerPool
 metadata:
@@ -37,11 +22,15 @@ metadata:
   namespace: ate-workloads
 spec:
   replicas: 4
-  workerImage: "ghcr.io/agent-substrate/ateworker-gvisor@sha256:8f4e2a1b9c3d5e7f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f"
+  workerImage: "${ATEWORKER_GVISOR_IMAGE}"
   template:
     labels:
       workload: secops-ax-gvisor
+    resources:
+      limits:
+        cpu: "4000m"
+        memory: "8Gi"
   sandboxClasses:
     - name: gvisor
       configRef:
-        name: gvisor-secops-ax
+        name: gvisor-default
