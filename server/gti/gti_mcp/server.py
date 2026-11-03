@@ -22,6 +22,8 @@ import os
 import vt
 
 from mcp.server.fastmcp import FastMCP, Context
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from gti_mcp.egress import (
     FORBIDDEN_SANDBOX_SECRET_ENV_VARS,
@@ -83,11 +85,47 @@ async def vt_client(ctx: Context) -> AsyncIterator[vt.Client]:
   finally:
     await client.close_async()
 
+_VALID_MCP_TRANSPORTS = frozenset({"stdio", "sse", "streamable-http"})
+_mcp_host = os.getenv("GTI_MCP_HOST", "127.0.0.1")
+_mcp_port = int(os.getenv("GTI_MCP_PORT", os.getenv("PORT", "8000")))
+
 # Create a named server and specify dependencies for deployment and development
 server = FastMCP(
     "Google Threat Intelligence MCP server",
     dependencies=["vt-py"],
+    host=_mcp_host,
+    port=_mcp_port,
     stateless_http=stateless)
+
+
+@server.custom_route("/readyz", methods=["GET"])
+@server.custom_route("/healthz", methods=["GET"])
+async def _health_probe(unused_request: Request) -> JSONResponse:
+  """Readiness and wakeup probe endpoint for Agent Substrate actors."""
+  status = verify_zero_secret_sandbox_env()
+  return JSONResponse({
+      "status": "ok",
+      "zero_secret_egress": status["zero_secret_egress"],
+      "verified": status["verified"],
+  })
+
+
+def resolve_mcp_transport(raw_transport: Optional[str] = None) -> str:
+  """Resolves and validates GTI_MCP_TRANSPORT ('stdio', 'sse', 'streamable-http')."""
+  candidate = (
+      raw_transport
+      if raw_transport is not None
+      else os.getenv("GTI_MCP_TRANSPORT", "stdio")
+  ).strip().lower()
+  if not candidate:
+    candidate = "stdio"
+  if candidate not in _VALID_MCP_TRANSPORTS:
+    raise ValueError(
+        f"Invalid GTI_MCP_TRANSPORT {candidate!r}; "
+        f"expected one of {sorted(_VALID_MCP_TRANSPORTS)}"
+    )
+  return candidate
+
 
 # Load tools.
 from gti_mcp.tools import *
@@ -95,7 +133,8 @@ from gti_mcp.tools import *
 # Run the server
 def main():
   verify_zero_secret_sandbox_env()
-  server.run(transport='stdio')
+  transport = resolve_mcp_transport()
+  server.run(transport=transport)
 
 
 if __name__ == '__main__':

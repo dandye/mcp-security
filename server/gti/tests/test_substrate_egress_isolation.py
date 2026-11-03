@@ -981,6 +981,13 @@ def test_agent_substrate_and_ax_deployment_manifests_match_specs() -> None:
   readme_text = readme_path.read_text(encoding="utf-8")
   assert 'export PROJECT_ID="' in readme_text
   assert "$PROJECT_ID" in readme_text
+  assert "gsm-credential-provider.ate-system.svc:50051" in readme_text
+
+  dockerfile_path = Path(__file__).resolve().parents[1] / "Dockerfile"
+  assert dockerfile_path.is_file()
+  dockerfile_text = dockerfile_path.read_text(encoding="utf-8")
+  assert not _EMOJI_PATTERN.search(dockerfile_text)
+  assert 'CMD ["gti_mcp"]' in dockerfile_text
 
   # 1. Validate Agent Substrate K8s CRDs (SandboxConfig + WorkerPool) in sandbox-and-egress.yaml
   substrate_docs = list(
@@ -991,12 +998,14 @@ def test_agent_substrate_and_ax_deployment_manifests_match_specs() -> None:
 
   sandbox_cfg = by_kind["SandboxConfig"]
   assert sandbox_cfg["spec"]["sandboxClass"] == "gvisor"
-  assert sandbox_cfg["spec"]["defaultVersion"] == "runsc-20261001"
+  assert sandbox_cfg["spec"]["defaultVersion"] == "runsc-20261026"
   assert len(sandbox_cfg["spec"]["versions"]) == 1
   assert "gvisor" in sandbox_cfg["spec"]["versions"][0]["assets"]["amd64"]
 
   worker_pool = by_kind["WorkerPool"]
-  assert "ateworker-gvisor@sha256:" in worker_pool["spec"]["workerImage"]
+  assert "ateworker-gvisor" in worker_pool["spec"]["workerImage"]
+  assert "@sha256:" in worker_pool["spec"]["workerImage"]
+  assert worker_pool["metadata"]["labels"] == {"workload": "gti-rlm-gvisor"}
   assert worker_pool["spec"]["template"]["labels"] == {
       "workload": "gti-rlm-gvisor"
   }
@@ -1025,7 +1034,8 @@ def test_agent_substrate_and_ax_deployment_manifests_match_specs() -> None:
       item["name"]: item["value"] for item in actor_tpl["containers"][0]["env"]
   }
   assert container_env.get("GTI_ZERO_SECRET_EGRESS") == "true"
-  assert "SSL_CERT_FILE" in container_env
+  assert container_env.get("SSL_CERT_FILE") == "/run/ate/egress-ca/ca-bundle.crt"
+  assert not container_env["SSL_CERT_FILE"].startswith("/var/run/")
   assert "VT_APIKEY" not in container_env
 
   egress_docs = [
@@ -1088,3 +1098,22 @@ def test_agent_substrate_and_ax_deployment_manifests_match_specs() -> None:
   )
   assert config_json_bytes <= 16 * 1024
   assert task_yaml_bytes <= 31 * 1024
+
+
+def test_resolve_mcp_transport_supports_networked_actor_modes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  """Verifies GTI_MCP_TRANSPORT supports stdio, sse, and streamable-http and rejects unknown values."""
+  from gti_mcp.server import resolve_mcp_transport
+
+  monkeypatch.delenv("GTI_MCP_TRANSPORT", raising=False)
+  assert resolve_mcp_transport() == "stdio"
+
+  monkeypatch.setenv("GTI_MCP_TRANSPORT", "streamable-http")
+  assert resolve_mcp_transport() == "streamable-http"
+
+  monkeypatch.setenv("GTI_MCP_TRANSPORT", "SSE")
+  assert resolve_mcp_transport() == "sse"
+
+  with pytest.raises(ValueError, match="Invalid GTI_MCP_TRANSPORT"):
+    resolve_mcp_transport("websocket")

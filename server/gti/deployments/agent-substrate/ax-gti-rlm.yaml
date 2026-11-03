@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# AX (github.com/google/ax, commit b82f57ee) declarative orchestration manifest
-# for zero-secret gti-mcp DSPy RLM tasks on Agent Substrate.
+# AX (github.com/google/ax, commit 1dd2e92) declarative orchestration manifest
+# for zero-secret gti-mcp DSPy RLM tasks on Agent Substrate v1.0+.
 apiVersion: ax.io/v1alpha1
 kind: Model
 metadata:
@@ -65,7 +65,9 @@ spec:
     - name: GTI_ZERO_SECRET_EGRESS
       value: "true"
     - name: SSL_CERT_FILE
-      value: "/var/run/ate/egress-ca/ca-bundle.crt"
+      value: "/run/ate/egress-ca/ca-bundle.crt"
+    - name: REQUESTS_CA_BUNDLE
+      value: "/run/ate/egress-ca/ca-bundle.crt"
     - name: GTI_RLM_MODEL
       value: "gemini/gemini-3.8-flash"
     - name: GTI_RLM_SUB_MODEL

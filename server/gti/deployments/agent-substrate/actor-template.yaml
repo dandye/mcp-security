@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 # Single-document ateapi.v1.ActorTemplate protojson manifest for kubectl-ate:
-#   envsubst '${PROJECT_ID}' < actor-template.yaml | kubectl ate create actor-template --atespace secops -f -
+#   envsubst '${PROJECT_ID}' < actor-template.yaml | kubectl ate create actor-template -f -
 metadata:
   atespace: secops
   name: gti-mcp-rlm
@@ -45,8 +45,26 @@ containers:
     env:
       - name: GTI_ZERO_SECRET_EGRESS
         value: "true"
+      - name: GTI_MCP_TRANSPORT
+        value: "streamable-http"
+      - name: GTI_MCP_HOST
+        value: "0.0.0.0"
+      - name: GTI_MCP_PORT
+        value: "8080"
+      - name: STATELESS
+        value: "1"
+      - name: GTI_RLM_MODEL
+        value: "gemini/gemini-3.8-flash"
+      - name: GTI_RLM_SUB_MODEL
+        value: "gemini/gemini-3.5-flash-lite"
       - name: SSL_CERT_FILE
-        value: "/var/run/ate/egress-ca/ca-bundle.crt"
+        value: "/run/ate/egress-ca/ca-bundle.crt"
+      - name: REQUESTS_CA_BUNDLE
+        value: "/run/ate/egress-ca/ca-bundle.crt"
+    wakeupProbe:
+      httpGet:
+        path: "/readyz"
+        port: 8080
     volumeMounts:
       - name: egress-ca-trust-bundle
-        mountPath: "/var/run/ate/egress-ca"
+        mountPath: "/run/ate/egress-ca"
