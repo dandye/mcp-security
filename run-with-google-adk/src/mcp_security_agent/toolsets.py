@@ -31,7 +31,7 @@ def build_mcp_toolsets(settings: AgentSettings) -> List[Any]:
         List of initialized MCP toolset objects for the ADK agent.
     """
     toolsets = []
-    
+
     # Locate repo server directory relative to this package
     pkg_dir = Path(__file__).resolve().parents[2]  # run-with-google-adk
     repo_root = pkg_dir.parent
@@ -42,10 +42,22 @@ def build_mcp_toolsets(settings: AgentSettings) -> List[Any]:
             McpToolset,
             StdioConnectionParams,
             StdioServerParameters,
+            StreamableHTTPConnectionParams,
         )
     except ImportError:
         logger.warning("google.adk.tools.mcp_tool not available; using mock/fallback toolset representation.")
         return toolsets
+
+    def _build_remote_http_toolset(url: str) -> Any:
+        headers: dict[str, str] = {}
+        if settings.mcp_gateway_auth_header and settings.mcp_gateway_auth_header.strip():
+            headers["Authorization"] = settings.mcp_gateway_auth_header.strip()
+        conn = StreamableHTTPConnectionParams(
+            url=url.strip(),
+            headers=headers or None,
+            timeout=settings.http_timeout_seconds,
+        )
+        return McpToolset(connection_params=conn)
 
     def _build_stdio_env() -> dict[str, str]:
         """Constructs environment dictionary for Stdio subprocesses with credential and project isolation."""
@@ -126,7 +138,8 @@ def build_mcp_toolsets(settings: AgentSettings) -> List[Any]:
     # 1. Google SecOps SIEM MCP
     if settings.load_secops_mcp:
         if settings.secops_mcp_url:
-            logger.info("Configuring SecOps SIEM MCP via Remote URL: %s", settings.secops_mcp_url)
+            logger.info("Configuring SecOps SIEM MCP via Streamable HTTP gateway: %s", settings.secops_mcp_url)
+            toolsets.append(_build_remote_http_toolset(settings.secops_mcp_url))
         else:
             secops_dir = server_dir / "secops"
             logger.info("Configuring SecOps SIEM MCP via Stdio subprocess at %s", secops_dir)
@@ -144,7 +157,8 @@ def build_mcp_toolsets(settings: AgentSettings) -> List[Any]:
     # 2. Security Command Center (SCC) MCP
     if settings.load_scc_mcp:
         if settings.scc_mcp_url:
-            logger.info("Configuring SCC MCP via Remote URL: %s", settings.scc_mcp_url)
+            logger.info("Configuring SCC MCP via Streamable HTTP gateway: %s", settings.scc_mcp_url)
+            toolsets.append(_build_remote_http_toolset(settings.scc_mcp_url))
         else:
             scc_dir = server_dir / "scc"
             logger.info("Configuring SCC MCP via Stdio subprocess at %s", scc_dir)
@@ -162,7 +176,8 @@ def build_mcp_toolsets(settings: AgentSettings) -> List[Any]:
     # 3. Google Threat Intelligence (GTI) MCP
     if settings.load_gti_mcp:
         if settings.gti_mcp_url:
-            logger.info("Configuring GTI MCP via Remote URL: %s", settings.gti_mcp_url)
+            logger.info("Configuring GTI MCP via Streamable HTTP gateway: %s", settings.gti_mcp_url)
+            toolsets.append(_build_remote_http_toolset(settings.gti_mcp_url))
         else:
             gti_dir = server_dir / "gti"
             logger.info("Configuring GTI MCP via Stdio subprocess at %s", gti_dir)
@@ -180,7 +195,8 @@ def build_mcp_toolsets(settings: AgentSettings) -> List[Any]:
     # 4. SecOps SOAR MCP
     if settings.load_secops_soar_mcp:
         if settings.secops_soar_mcp_url:
-            logger.info("Configuring SecOps SOAR MCP via Remote URL: %s", settings.secops_soar_mcp_url)
+            logger.info("Configuring SecOps SOAR MCP via Streamable HTTP gateway: %s", settings.secops_soar_mcp_url)
+            toolsets.append(_build_remote_http_toolset(settings.secops_soar_mcp_url))
         else:
             soar_dir = server_dir / "secops-soar"
             logger.info("Configuring SecOps SOAR MCP via Stdio subprocess at %s", soar_dir)

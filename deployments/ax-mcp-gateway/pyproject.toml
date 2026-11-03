@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-security-ax-gateway"
+version = "0.1.0"
+description = "Out-of-sandbox Streamable HTTP MCP gateway with Agent Substrate actorJwt verification for google/mcp-security on google/ax"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Google SecOps Team", email = "chronicle@google.com" }
+]
+keywords = ["google", "security", "chronicle", "mcp", "ax", "agent-substrate"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Security",
+]
+dependencies = [
+    "httpx>=0.28.1",
+    "mcp>=1.26.0,<2.0",
+    "PyJWT[crypto]>=2.10.0",
+    "starlette>=0.40.0",
+    "uvicorn>=0.30.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "pyyaml>=6.0.1",
+]
+
+[project.scripts]
+mcp-security-gateway = "ax_mcp_gateway.gateway:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["ax_mcp_gateway*"]
