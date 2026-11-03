@@ -32,10 +32,10 @@ Each component provides different capabilities:
 - [**Remote MCP Server**](remote_server.md) - Fully managed, enterprise-ready MCP server for Google SecOps (Recommended)
 - [**Autonomous SOC Agent (Google ADK v2)**](../run-with-google-adk/README.md) - Prebuilt autonomous security operations agent with CLI REPL, FastAPI server, and native MCP multi-transport
 
-- [Google Threat Intelligence (GTI) Server](servers/gti_mcp.md) - Access threat intelligence about IoCs, malware, and threat actors
-  - [Distilling 1 MB Threat Intelligence Payloads with DSPy RLM](gti_dspy_rlm_blog.md) - Deep-dive engineering blog post on out-of-core RLM REPL distillation for GTI file and sandbox behavior tools
+- [Google Threat Intelligence (GTI) Server](servers/gti_mcp.md) - Access threat intelligence about IoCs, malware, and threat actors (includes DSPy 3.4+ `dspy.RLM` high-signal file, sandbox behavior, and network IOC compaction tools)
+  - [Distilling 1 MB Threat Intelligence Payloads with DSPy RLM](gti_dspy_rlm_blog.md) - Deep-dive engineering blog post on out-of-core `dspy.RLM` REPL distillation across GTI (`server/gti`) and Chronicle SIEM (`server/secops`)
 - [Security Command Center (SCC) Server](servers/scc_mcp.md) - Manage cloud security posture and vulnerabilities
-- [Chronicle Security Operations (SecOps) Server](servers/secops_mcp.md) - Search and analyze security events and alerts
+- [Chronicle Security Operations (SecOps) Server](servers/secops_mcp.md) - Search and analyze security events and alerts (includes DSPy 3.4+ `dspy.RLM` UDM telemetry and entity timeline compaction tools)
 - [SecOps SOAR Server](servers/secops_soar_mcp.md) - Manage security cases and automate response actions
   - [SOAR Integrations](soar_integrations/index.md) - Link list to documented integrations
 

@@ -14,24 +14,33 @@
 """Cross-platform Google SecOps (Chronicle SIEM) + GTI Threat Hunt Comparison.
 
 Executes a live multi-stage Active Directory Domain Controller compromise threat
-hunt in a test Google SecOps tenant combining `secops-mcp`
-(Chronicle SIEM IoC matches, entity lookups, alerts, and UDM telemetry) with
-`gti-mcp` (VirusTotal v3 static + behavioral enrichment across 3 kill-chain
-file hashes: `mimikatz.exe`, `mimilib.dll`, and `vssadmin.exe` LOLBin).
+hunt in a test Google SecOps tenant pairing:
+  - `secops-mcp` (`rlm_search_security_events` for Chronicle UDM telemetry
+    compaction alongside `get_ioc_matches`, `lookup_entity`, and
+    `get_security_alerts`)
+  - `gti-mcp` (`rlm_investigate_file` and `rlm_investigate_network_ioc` for
+    VirusTotal v3 static + behavioral + network IOC enrichment across 3
+    kill-chain file hashes: `mimikatz.exe`, `mimilib.dll`, `vssadmin.exe` LOLBin,
+    and external attacker IP `206.221.181.253`).
 
 Compares three execution architectures on `vertex_ai/gemini-3.8-flash` (root
 RLM / host Threat Hunter) and `vertex_ai/gemini-3.5-flash-lite` (sub-LM):
 
-  1. Baseline (Without Refactor - Raw GTI + SecOps MCP Tools):
-     Feeds raw `get_file_report` and `get_file_behavior_summary` JSON across
-     all 3 kill-chain binaries (~1.28 MB) alongside SIEM telemetry into the
-     host Threat Hunter agent conversation.
-  2. Refactored Stepwise RLM (`rlm_get_*` + SecOps MCP Tools):
-     Replaces raw GTI tools with `rlm_get_file_report` and
-     `rlm_get_file_behavior_summary` in the same 3-turn threat hunt.
-  3. Refactored Autonomous RLM (`rlm_investigate_file` + SecOps MCP Tools):
-     Combines SIEM telemetry with `rlm_investigate_file` across the 3 kill-chain
-     hashes and synthesizes the full threat hunt in a single host LLM turn.
+  1. Baseline (Without Refactor - Raw SecOps UDM + Raw GTI MCP Tools):
+     Feeds raw `chronicle.search_udm` (120 UDM events, ~910 KB) on Turn 1 and
+     raw `get_file_report`, `get_file_behavior_summary`, and
+     `get_ip_address_report` (~1.36 MB) across Turns 2-3 (~2.28 MB total).
+  2. Refactored Stepwise RLM (`rlm_search_security_events` + `rlm_get_*`):
+     Compacts the SIEM UDM event dump on Turn 1 via `rlm_search_security_events`
+     (>97% SIEM compaction) and compacts GTI file/IP reports on Turns 2-3 via
+     `rlm_get_file_report`, `rlm_get_file_behavior_summary`, and
+     `rlm_get_ip_address_report` (>93% GTI compaction).
+  3. Refactored Autonomous RLM (`rlm_search_security_events` +
+     `rlm_investigate_file` + `rlm_investigate_network_ioc`):
+     Pairs `rlm_search_security_events` on the SIEM side with parallel
+     `rlm_investigate_file` (3 kill-chain hashes) and
+     `rlm_investigate_network_ioc` (`206.221.181.253`) on the TI side, achieving
+     >95% compaction on both the SIEM side and the TI side in a single host turn.
 """
 
 import argparse
@@ -51,32 +60,49 @@ from gti_mcp.tools.files import (
     get_file_behavior_summary,
     get_file_report,
 )
+from gti_mcp.tools.netloc import get_ip_address_report
 from gti_mcp.tools.rlm_files import (
     rlm_get_file_behavior_summary,
     rlm_get_file_report,
     rlm_investigate_file,
+)
+from gti_mcp.tools.rlm_netloc import (
+    rlm_get_ip_address_report,
+    rlm_investigate_network_ioc,
 )
 from secops_mcp.server import get_chronicle_client
 from secops_mcp.tools import (
     get_ioc_matches,
     get_security_alerts,
     lookup_entity,
+    rlm_search_security_events,
 )
 
-# Three kill-chain file hashes discovered on Domain Controller activedir.stackedpads.local
+# Three kill-chain file hashes and external attacker IP discovered on activedir.stackedpads.local
 HASH_MIMIKATZ_EXE = "bb8bdb3e8c92e97e2f63626bc3b254c4"
 HASH_MIMILIB_DLL = "ddfad0d55be70acdfea36acf28d418b3"
 HASH_VSSADMIN_EXE = "614b5c4238977130aa2270c8ad58ce6c"
+ATTACKER_IP = "206.221.181.253"
+
+UDM_KILL_CHAIN_QUERY = (
+    'principal.hostname = "activedir.stackedpads.local" AND '
+    '(metadata.event_type = "PROCESS_LAUNCH" OR '
+    'metadata.event_type = "FILE_CREATION" OR '
+    'metadata.event_type = "USER_LOGIN")'
+)
+UDM_START_TIME = "2026-10-31T14:18:00Z"
+UDM_END_TIME = "2026-10-31T14:27:00Z"
+UDM_MAX_EVENTS = 120
 
 SYSTEM_PROMPT = (
     "You are a Principal Threat Hunter and Incident Responder operating across "
     "Google SecOps (Chronicle SIEM) and Google Threat Intelligence (VirusTotal v3). "
     "Answer each threat-hunting turn strictly using the SIEM and GTI tool outputs "
     "provided in the conversation. Always cite verbatim hostnames, IP addresses, "
-    "usernames, SIEM alert rule names, GTI threat actor association IDs, exact "
-    "process command lines, cryptographic hashes (MD5, SHA-256), vendor detection "
-    "ratios, specific individual vendor signature strings (if available in the "
-    "payload), crowdsourced YARA rules, MITRE ATT&CK technique IDs, and explicit "
+    "ASN/AS owners, usernames, SIEM alert rule names, GTI threat actor association "
+    "IDs, exact process command lines, cryptographic hashes (MD5, SHA-256), vendor "
+    "detection ratios, specific individual vendor signature strings (if available in "
+    "the payload), crowdsourced YARA rules, MITRE ATT&CK technique IDs, and explicit "
     "containment decisions separating malicious binaries from Microsoft-signed "
     "Living-off-the-Land Binaries (LOLBins)."
 )
@@ -84,7 +110,7 @@ SYSTEM_PROMPT = (
 TURN_1_PROMPT = (
     "Turn 1 (SIEM IoC Match, Entity Context & UDM Kill-Chain Reconstruction): "
     "Using the Google SecOps SIEM telemetry below (`get_ioc_matches`, "
-    "`lookup_entity`, `get_security_alerts`, and UDM process/file events), document:\n"
+    "`lookup_entity`, `get_security_alerts`, and UDM process/file/login events), document:\n"
     "1. Affected asset hostname, IP addresses (`10.10.20.60`, `206.221.181.253`), "
     "and compromised domain user account (`frank.kolzig` / `fkolzig`).\n"
     "2. Initial access alert rule (`win_repeatedAuthFailure_thenSuccess_T1110_001`) "
@@ -100,7 +126,7 @@ TURN_1_PROMPT = (
     "spawning Volume Shadow Copy creation (`vssadmin create shadow /for=C:`)\n"
     "5. Which 3 distinct file MD5 hashes (`bb8bdb3e8c92e97e2f63626bc3b254c4`, "
     "`ddfad0d55be70acdfea36acf28d418b3`, `614b5c4238977130aa2270c8ad58ce6c`) "
-    "must be enriched in GTI to separate attacker malware from Windows LOLBins."
+    "and external IP (`206.221.181.253`) must be enriched in GTI."
 )
 
 TURN_2_PROMPT = (
@@ -120,9 +146,10 @@ TURN_2_PROMPT = (
 )
 
 TURN_3_PROMPT = (
-    "Turn 3 (LOLBin Discrimination & Final Cross-Platform Threat Hunt Report): "
+    "Turn 3 (LOLBin Discrimination, Network IOC Pivot & Final Cross-Platform Threat Hunt Report): "
     "Incorporating the GTI static and behavioral enrichment for "
-    "`614b5c4238977130aa2270c8ad58ce6c` (`C:\\Windows\\System32\\vssadmin.exe`), "
+    "`614b5c4238977130aa2270c8ad58ce6c` (`C:\\Windows\\System32\\vssadmin.exe`) and "
+    "network infrastructure enrichment for attacker IP `206.221.181.253`, "
     "produce the complete Google SecOps + GTI Threat Hunt & Incident Response "
     "Report covering:\n"
     "1. Executive summary of the Active Directory Domain Controller compromise on "
@@ -130,26 +157,29 @@ TURN_3_PROMPT = (
     "correlating SIEM alerts (`win_repeatedAuthFailure_thenSuccess_T1110_001` and "
     "`MimiKatz Command Arguments`) with GTI `ACTIVE_BREACH` IoC attributions "
     "(`UNC3313`, `UNC3591`, `UNC3661`, `UNC2727`, `UNC5883`).\n"
-    "2. Complete UDM attack timeline with verbatim command lines (`sekurlsa::logonpasswords`, "
+    "2. External Attacker Infrastructure (`206.221.181.253`): ASN (`23470`), AS Owner "
+    "(`ReliableSite.Net LLC`), passive DNS resolution (`iquadrigacx.com`), and "
+    "associated downloaded file hash (`29a8b2a2dbac349f919923d25af4f9162bc58c29b2daac41a56f5b25ba24276d`).\n"
+    "3. Complete UDM attack timeline with verbatim command lines (`sekurlsa::logonpasswords`, "
     "`diskshadow /s c:\\temp\\orange.txt`, `copy x:\\windows\\ntds\\ntds.dit c:\\ntds.dit`, "
     "`wmic process call create \"cmd /c vssadmin create shadow /for=C:\"`), and "
     "MITRE ATT&CK mapping (`T1110.001`, `T1003.001`, `T1003.003`, `T1047`).\n"
-    "3. Multi-hash GTI comparison table for `mimikatz.exe` (`bb8bdb3e8c92e97e2f63626bc3b254c4`, "
-    "SHA-256 `61bd916c2fb4fa9fe2dc23eb3fd2eccf1ff3abbbbf6d4ffefde5dcbe3befa84f`, "
+    "4. Multi-hash GTI comparison table for `mimikatz.exe` (`bb8bdb3e8c92e97e2f63626bc3b254c4`, "
+    "SHA-256 `912018ab3c6b16b39ee84f17745ff0c80a33cee241013ec35d0281e40c0658d9`, "
     "39/72 malicious), `mimilib.dll` (`ddfad0d55be70acdfea36acf28d418b3`, 56/72 "
     "malicious), and `vssadmin.exe` (`614b5c4238977130aa2270c8ad58ce6c`, 0/76 "
     "malicious Microsoft-signed system binary), including specific per-vendor "
     "signature names from `last_analysis_results` (or state if omitted) and "
     "crowdsourced YARA rules.\n"
-    "4. LOLBin Containment Safety & Remediation Plan: Specify exactly which hashes "
-    "to block globally in EDR (`bb8bdb3e8c92e97e2f63626bc3b254c4` and "
-    "`ddfad0d55be70acdfea36acf28d418b3`), why `614b5c4238977130aa2270c8ad58ce6c` "
+    "5. LOLBin Containment Safety & Remediation Plan: Specify exactly which hashes "
+    "and IPs to block globally in EDR/firewall (`bb8bdb3e8c92e97e2f63626bc3b254c4`, "
+    "`ddfad0d55be70acdfea36acf28d418b3`, `206.221.181.253`), why `614b5c4238977130aa2270c8ad58ce6c` "
     "(`vssadmin.exe`) MUST NOT be blocked by hash (to avoid breaking Windows "
     "Volume Shadow Copy operations across production servers), and required "
     "Active Directory remediation (isolating `activedir.stackedpads.local`, "
     "resetting `frank.kolzig`, and performing a double `krbtgt` password reset "
     "due to `C:\\ntds.dit` compromise).\n"
-    "5. Audit trail of sandbox noise filtered during enrichment (`SyncRootManager`, "
+    "6. Audit trail of sandbox noise filtered during enrichment (`SyncRootManager`, "
     "`WerSvcGroup`, `ZonesCacheCounterMutex`)."
 )
 
@@ -176,6 +206,11 @@ GROUND_TRUTH_RUBRIC: list[tuple[str, str, list[str]]] = [
         ["unc3313", "unc3591", "unc3661"],
     ),
     (
+        "attacker_ip_enrichment",
+        "Attacker IP 206.221.181.253 GTI Infrastructure (ASN 23470 / ReliableSite.Net / iquadrigacx.com)",
+        ["23470", "reliablesite", "iquadrigacx.com"],
+    ),
+    (
         "lsass_dump_cmdline",
         "Stage 1 Mimikatz LSASS Dump Command (sekurlsa::logonpasswords)",
         ["sekurlsa::logonpasswords"],
@@ -192,8 +227,8 @@ GROUND_TRUTH_RUBRIC: list[tuple[str, str, list[str]]] = [
     ),
     (
         "mimikatz_exe_sha256",
-        "Verbatim mimikatz.exe SHA-256 (61bd916c2fb4fa9fe2dc23eb3fd2eccf1ff3abbbbf6d4ffefde5dcbe3befa84f)",
-        ["61bd916c2fb4fa9fe2dc23eb3fd2eccf1ff3abbbbf6d4ffefde5dcbe3befa84f"],
+        "Verbatim mimikatz.exe SHA-256 (912018ab3c6b16b39ee84f17745ff0c80a33cee241013ec35d0281e40c0658d9)",
+        ["912018ab3c6b16b39ee84f17745ff0c80a33cee241013ec35d0281e40c0658d9"],
     ),
     (
         "mimikatz_exe_vendor_ratio",
@@ -307,7 +342,7 @@ def _call_host_llm(messages: list[dict[str, str]]) -> dict[str, Any]:
 
 
 def evaluate_rubric(all_turn_texts: list[str]) -> dict[str, Any]:
-  """Scores combined agent responses against the 18-point SecOps+GTI rubric."""
+  """Scores combined agent responses against the 19-point SecOps+GTI rubric."""
   combined_lower = "\n".join(all_turn_texts).lower()
   results: dict[str, bool] = {}
   matched_count = 0
@@ -328,7 +363,7 @@ def evaluate_rubric(all_turn_texts: list[str]) -> dict[str, Any]:
 
 
 async def collect_live_siem_telemetry() -> dict[str, Any]:
-  """Stage 1: Queries live Google SecOps (Chronicle SIEM) via `secops-mcp`."""
+  """Stage 1: Queries live Google SecOps (Chronicle SIEM) in both raw and RLM-compacted modes."""
   print("\n[Stage 1] Collecting Live Google SecOps (Chronicle SIEM) Telemetry...")
   t0 = time.monotonic()
 
@@ -370,92 +405,107 @@ async def collect_live_siem_telemetry() -> dict[str, Any]:
       max_alerts=15,
   )
 
-  # 4. SIEM UDM Process & File Kill-Chain Events on `activedir.stackedpads.local`
+  # 4a. Baseline Raw SIEM UDM Search (`chronicle.search_udm` - 120 raw UDM events)
+  t_raw0 = time.monotonic()
   chronicle = get_chronicle_client(project_id, customer_id, region)
-  udm_resp = chronicle.search_udm(
-      query=(
-          'principal.hostname = "activedir.stackedpads.local" AND '
-          '(metadata.event_type = "PROCESS_LAUNCH" OR '
-          'metadata.event_type = "FILE_CREATION")'
-      ),
+  raw_udm_resp = chronicle.search_udm(
+      query=UDM_KILL_CHAIN_QUERY,
       start_time=datetime(2026, 10, 31, 14, 18, 0, tzinfo=timezone.utc),
       end_time=datetime(2026, 10, 31, 14, 27, 0, tzinfo=timezone.utc),
-      max_events=50,
+      max_events=UDM_MAX_EVENTS,
   )
+  raw_udm_elapsed = round(time.monotonic() - t_raw0, 2)
+  raw_udm_bytes = _json_bytes(raw_udm_resp)
 
-  compact_udm_events: list[dict[str, Any]] = []
-  for wrapper in udm_resp.get("events", []):
-    udm = wrapper.get("udm", {})
-    meta = udm.get("metadata", {})
-    principal = udm.get("principal", {})
-    target = udm.get("target", {})
-    compact_udm_events.append({
-        "timestamp": meta.get("eventTimestamp"),
-        "event_type": meta.get("eventType"),
-        "product_event_type": meta.get("productEventType"),
-        "hostname": principal.get("hostname"),
-        "ip": principal.get("ip"),
-        "user": principal.get("user", {}).get("userid"),
-        "parent_process": principal.get("process", {})
-        .get("file", {})
-        .get("fullPath"),
-        "parent_cmdline": principal.get("process", {}).get("commandLine"),
-        "target_process": target.get("process", {})
-        .get("file", {})
-        .get("fullPath"),
-        "target_cmdline": target.get("process", {}).get("commandLine"),
-        "target_process_md5": target.get("process", {})
-        .get("file", {})
-        .get("md5"),
-        "target_file_path": target.get("file", {}).get("fullPath"),
-        "target_file_md5": target.get("file", {}).get("md5"),
-    })
+  # 4b. Refactored RLM SIEM UDM Search (`rlm_search_security_events` - >98% compaction)
+  t_rlm0 = time.monotonic()
+  rlm_udm_resp = await rlm_search_security_events(
+      text=UDM_KILL_CHAIN_QUERY,
+      project_id=project_id,
+      customer_id=customer_id,
+      region=region,
+      start_time=UDM_START_TIME,
+      end_time=UDM_END_TIME,
+      max_events=UDM_MAX_EVENTS,
+      is_raw_udm=True,
+      query=(
+          "Reconstruct the chronological attack timeline on activedir.stackedpads.local "
+          "(`10.10.20.60`), including brute-force initial access (`206.221.181.253`), "
+          "Mimikatz LSASS dump (`sekurlsa::logonpasswords`), DiskShadow/ntds.dit extraction "
+          "(`diskshadow /s c:\\temp\\orange.txt`, `copy x:\\windows\\ntds\\ntds.dit c:\\ntds.dit`), "
+          "and WMI Volume Shadow Copy creation (`wmic process call create \"cmd /c vssadmin create shadow /for=C:\"`), "
+          "preserving all verbatim MD5/SHA-256 hashes and users (`frank.kolzig` / `fkolzig`)."
+      ),
+  )
+  rlm_udm_elapsed = round(time.monotonic() - t_rlm0, 2)
+  rlm_udm_bytes = _json_bytes(rlm_udm_resp)
 
-  elapsed = round(time.monotonic() - t0, 2)
-  siem_bundle = {
-      "tenant": {
-          "project_id": project_id,
-          "customer_id": customer_id,
-          "region": region,
-      },
+  base_elapsed = round(time.monotonic() - t0 - rlm_udm_elapsed, 2)
+  rlm_elapsed = round(time.monotonic() - t0 - raw_udm_elapsed, 2)
+
+  raw_siem_bundle = {
       "get_ioc_matches": ioc_matches,
       "lookup_entity_activedir": entity_host,
       "lookup_entity_mimikatz_md5": entity_file,
       "get_security_alerts": siem_alerts,
-      "udm_kill_chain_events": compact_udm_events,
+      "search_security_events_raw_udm": raw_udm_resp,
   }
-  siem_bytes = _json_bytes(siem_bundle)
+  rlm_siem_bundle = {
+      "get_ioc_matches": ioc_matches,
+      "lookup_entity_activedir": entity_host,
+      "lookup_entity_mimikatz_md5": entity_file,
+      "get_security_alerts": siem_alerts,
+      "rlm_search_security_events": rlm_udm_resp,
+  }
+
+  raw_siem_bytes = _json_bytes(raw_siem_bundle)
+  rlm_siem_bytes = _json_bytes(rlm_siem_bundle)
+  udm_reduction_pct = round((1.0 - rlm_udm_bytes / raw_udm_bytes) * 100.0, 2)
+  siem_bundle_reduction_pct = round(
+      (1.0 - rlm_siem_bytes / raw_siem_bytes) * 100.0, 2
+  )
+
   print(
-      f"  Collected SIEM telemetry in {elapsed}s: "
-      f"{len(compact_udm_events)} UDM events, {siem_bytes:,} bytes total."
+      f"  Raw SIEM UDM Events ({len(raw_udm_resp.get('events', []))} events): {raw_udm_bytes:,} B "
+      f"-> rlm_search_security_events: {rlm_udm_bytes:,} B (-{udm_reduction_pct:.2f}%)"
+  )
+  print(
+      f"  Total SIEM Bundle: Raw={raw_siem_bytes:,} B -> RLM={rlm_siem_bytes:,} B (-{siem_bundle_reduction_pct:.2f}%)"
   )
   return {
-      "bundle": siem_bundle,
-      "siem_bytes": siem_bytes,
-      "elapsed_s": elapsed,
+      "raw_bundle": raw_siem_bundle,
+      "raw_siem_bytes": raw_siem_bytes,
+      "raw_udm_bytes": raw_udm_bytes,
+      "raw_elapsed_s": base_elapsed,
+      "rlm_bundle": rlm_siem_bundle,
+      "rlm_siem_bytes": rlm_siem_bytes,
+      "rlm_udm_bytes": rlm_udm_bytes,
+      "rlm_elapsed_s": rlm_elapsed,
+      "udm_reduction_pct": udm_reduction_pct,
+      "siem_bundle_reduction_pct": siem_bundle_reduction_pct,
   }
 
 
 async def run_baseline_threat_hunt(
     ctx: MagicMock, siem_data: dict[str, Any]
 ) -> dict[str, Any]:
-  """Mode 1: Cross-platform threat hunt using legacy raw GTI MCP tools."""
+  """Mode 1: Cross-platform threat hunt using legacy raw SecOps UDM + raw GTI MCP tools."""
   print(
-      "\n[Mode 1] Running Baseline SecOps + GTI Threat Hunt (Without Refactor - Raw GTI Tools)..."
+      "\n[Mode 1] Running Baseline SecOps + GTI Threat Hunt (Without Refactor - Raw SIEM UDM + Raw GTI Tools)..."
   )
   t_start = time.monotonic()
 
-  siem_bundle = siem_data["bundle"]
-  b_siem = siem_data["siem_bytes"]
+  siem_bundle = siem_data["raw_bundle"]
+  b_siem = siem_data["raw_siem_bytes"]
 
-  # Turn 1: SIEM Discovery & Kill-Chain Reconstruction
+  # Turn 1: Raw SIEM Discovery & Kill-Chain Reconstruction (~919 KB)
   messages: list[dict[str, str]] = [
       {"role": "system", "content": SYSTEM_PROMPT},
       {
           "role": "user",
           "content": (
               f"{TURN_1_PROMPT}\n\n"
-              f"### Google SecOps SIEM Telemetry ({b_siem:,} bytes)\n"
+              f"### Google SecOps SIEM Telemetry - Raw `search_udm` ({b_siem:,} bytes)\n"
               f"```json\n{json.dumps(siem_bundle, default=str)}\n```"
           ),
       },
@@ -463,7 +513,7 @@ async def run_baseline_threat_hunt(
   turn1_llm = _call_host_llm(messages)
   messages.append({"role": "assistant", "content": turn1_llm["content"]})
   print(
-      f"  Turn 1 (SIEM Telemetry): siem_bytes={b_siem:,} B | "
+      f"  Turn 1 (Raw SIEM Telemetry): siem_bytes={b_siem:,} B | "
       f"host_prompt_tokens={turn1_llm['prompt_tokens']:,} | llm_time={turn1_llm['elapsed_s']}s"
   )
 
@@ -503,16 +553,18 @@ async def run_baseline_threat_hunt(
       f"host_prompt_tokens={turn2_llm['prompt_tokens']:,} | llm_time={turn2_llm['elapsed_s']}s"
   )
 
-  # Turn 3: Raw GTI Enrichment for LOLBin (`vssadmin.exe`) & Final Threat Hunt Report
+  # Turn 3: Raw GTI Enrichment for LOLBin (`vssadmin.exe`) + Attacker IP (`206.221.181.253`)
   t0 = time.monotonic()
-  raw_vss_rep, raw_vss_beh = await asyncio.gather(
+  raw_vss_rep, raw_vss_beh, raw_ip_rep = await asyncio.gather(
       get_file_report(HASH_VSSADMIN_EXE, ctx),
       get_file_behavior_summary(HASH_VSSADMIN_EXE, ctx),
+      get_ip_address_report(ATTACKER_IP, ctx),
   )
   t_tool_3 = time.monotonic() - t0
   b_vss_rep = _json_bytes(raw_vss_rep)
   b_vss_beh = _json_bytes(raw_vss_beh)
-  b_tool_3 = b_vss_rep + b_vss_beh
+  b_ip_rep = _json_bytes(raw_ip_rep)
+  b_tool_3 = b_vss_rep + b_vss_beh + b_ip_rep
 
   messages.append({
       "role": "user",
@@ -521,16 +573,20 @@ async def run_baseline_threat_hunt(
           f"### Tool Output 3a: `get_file_report('{HASH_VSSADMIN_EXE}')` ({b_vss_rep:,} bytes)\n"
           f"```json\n{json.dumps(raw_vss_rep, default=str)}\n```\n\n"
           f"### Tool Output 3b: `get_file_behavior_summary('{HASH_VSSADMIN_EXE}')` ({b_vss_beh:,} bytes)\n"
-          f"```json\n{json.dumps(raw_vss_beh, default=str)}\n```"
+          f"```json\n{json.dumps(raw_vss_beh, default=str)}\n```\n\n"
+          f"### Tool Output 3c: `get_ip_address_report('{ATTACKER_IP}')` ({b_ip_rep:,} bytes)\n"
+          f"```json\n{json.dumps(raw_ip_rep, default=str)}\n```"
       ),
   })
   turn3_llm = _call_host_llm(messages)
   print(
-      f"  Turn 3 (Raw GTI vssadmin.exe LOLBin + Synthesis): gti_bytes={b_tool_3:,} B | "
+      f"  Turn 3 (Raw GTI vssadmin.exe + IP {ATTACKER_IP} + Synthesis): gti_bytes={b_tool_3:,} B | "
       f"host_prompt_tokens={turn3_llm['prompt_tokens']:,} | llm_time={turn3_llm['elapsed_s']}s"
   )
 
-  total_elapsed = round(time.monotonic() - t_start + siem_data["elapsed_s"], 2)
+  total_elapsed = round(
+      time.monotonic() - t_start + siem_data["raw_elapsed_s"], 2
+  )
   turns = [
       {
           "turn": 1,
@@ -539,11 +595,11 @@ async def run_baseline_threat_hunt(
               "lookup_entity(activedir)",
               "lookup_entity(mimikatz_md5)",
               "get_security_alerts",
-              "search_udm(activedir.stackedpads.local)",
+              "search_udm_raw(activedir.stackedpads.local, 120 events)",
           ],
           "tool_payload_bytes": b_siem,
           "gti_payload_bytes": 0,
-          "tool_elapsed_s": siem_data["elapsed_s"],
+          "tool_elapsed_s": siem_data["raw_elapsed_s"],
           "host_prompt_tokens": turn1_llm["prompt_tokens"],
           "host_completion_tokens": turn1_llm["completion_tokens"],
           "host_llm_elapsed_s": turn1_llm["elapsed_s"],
@@ -570,6 +626,7 @@ async def run_baseline_threat_hunt(
           "tools": [
               "get_file_report(vssadmin.exe)",
               "get_file_behavior_summary(vssadmin.exe)",
+              f"get_ip_address_report({ATTACKER_IP})",
           ],
           "tool_payload_bytes": b_tool_3,
           "gti_payload_bytes": b_tool_3,
@@ -584,6 +641,7 @@ async def run_baseline_threat_hunt(
   return {
       "mode": "baseline_raw_secops_gti",
       "siem_bytes_injected": b_siem,
+      "siem_udm_bytes_injected": siem_data["raw_udm_bytes"],
       "gti_tool_bytes_injected": b_tool_2 + b_tool_3,
       "total_tool_bytes_injected": b_siem + b_tool_2 + b_tool_3,
       "cumulative_host_prompt_tokens": sum(
@@ -593,7 +651,10 @@ async def run_baseline_threat_hunt(
           t["host_completion_tokens"] for t in turns
       ),
       "turn3_context_tokens": turn3_llm["prompt_tokens"],
-      "vt_api_calls": 6,
+      "host_llm_elapsed_s": round(
+          sum(t["host_llm_elapsed_s"] for t in turns), 2
+      ),
+      "vt_api_calls": 7,
       "total_elapsed_s": total_elapsed,
       "rubric": rubric,
       "turns": turns,
@@ -603,23 +664,23 @@ async def run_baseline_threat_hunt(
 async def run_rlm_stepwise_threat_hunt(
     ctx: MagicMock, siem_data: dict[str, Any]
 ) -> dict[str, Any]:
-  """Mode 2: Cross-platform threat hunt using stepwise DSPy RLM GTI tools (`rlm_get_*`)."""
+  """Mode 2: Cross-platform threat hunt using `rlm_search_security_events` + stepwise `rlm_get_*` GTI tools."""
   print(
-      "\n[Mode 2] Running Refactored Stepwise RLM SecOps + GTI Threat Hunt (`rlm_get_*` Tools)..."
+      "\n[Mode 2] Running Refactored Stepwise RLM SecOps + GTI Threat Hunt (`rlm_search_security_events` + `rlm_get_*`)..."
   )
   t_start = time.monotonic()
 
-  siem_bundle = siem_data["bundle"]
-  b_siem = siem_data["siem_bytes"]
+  siem_bundle = siem_data["rlm_bundle"]
+  b_siem = siem_data["rlm_siem_bytes"]
 
-  # Turn 1: SIEM Discovery & Kill-Chain Reconstruction
+  # Turn 1: RLM-Compacted SIEM Discovery & Kill-Chain Reconstruction
   messages: list[dict[str, str]] = [
       {"role": "system", "content": SYSTEM_PROMPT},
       {
           "role": "user",
           "content": (
               f"{TURN_1_PROMPT}\n\n"
-              f"### Google SecOps SIEM Telemetry ({b_siem:,} bytes)\n"
+              f"### Google SecOps SIEM Telemetry - `rlm_search_security_events` ({b_siem:,} bytes)\n"
               f"```json\n{json.dumps(siem_bundle, default=str)}\n```"
           ),
       },
@@ -627,7 +688,7 @@ async def run_rlm_stepwise_threat_hunt(
   turn1_llm = _call_host_llm(messages)
   messages.append({"role": "assistant", "content": turn1_llm["content"]})
   print(
-      f"  Turn 1 (SIEM Telemetry): siem_bytes={b_siem:,} B | "
+      f"  Turn 1 (RLM SIEM Telemetry): siem_bytes={b_siem:,} B | "
       f"host_prompt_tokens={turn1_llm['prompt_tokens']:,} | llm_time={turn1_llm['elapsed_s']}s"
   )
 
@@ -700,9 +761,9 @@ async def run_rlm_stepwise_threat_hunt(
       f"host_prompt_tokens={turn2_llm['prompt_tokens']:,} | llm_time={turn2_llm['elapsed_s']}s"
   )
 
-  # Turn 3: Stepwise RLM GTI Enrichment for LOLBin (`vssadmin.exe`) & Final Report
+  # Turn 3: Stepwise RLM GTI Enrichment for LOLBin (`vssadmin.exe`) + IP (`206.221.181.253`)
   t0 = time.monotonic()
-  rlm_vss_rep, rlm_vss_beh = await asyncio.gather(
+  rlm_vss_rep, rlm_vss_beh, rlm_ip_rep = await asyncio.gather(
       rlm_get_file_report(
           HASH_VSSADMIN_EXE,
           ctx,
@@ -720,11 +781,20 @@ async def run_rlm_stepwise_threat_hunt(
               "Windows sandbox noise."
           ),
       ),
+      rlm_get_ip_address_report(
+          ATTACKER_IP,
+          ctx,
+          query=(
+              "Extract ASN (23470), AS Owner (ReliableSite.Net LLC), country, "
+              "passive DNS resolution (iquadrigacx.com), and downloaded file hash."
+          ),
+      ),
   )
   t_tool_3 = time.monotonic() - t0
   b_vss_rep = _json_bytes(rlm_vss_rep)
   b_vss_beh = _json_bytes(rlm_vss_beh)
-  b_tool_3 = b_vss_rep + b_vss_beh
+  b_ip_rep = _json_bytes(rlm_ip_rep)
+  b_tool_3 = b_vss_rep + b_vss_beh + b_ip_rep
 
   messages.append({
       "role": "user",
@@ -733,16 +803,20 @@ async def run_rlm_stepwise_threat_hunt(
           f"### Tool Output 3a: `rlm_get_file_report('{HASH_VSSADMIN_EXE}')` ({b_vss_rep:,} bytes)\n"
           f"```json\n{json.dumps(rlm_vss_rep, default=str)}\n```\n\n"
           f"### Tool Output 3b: `rlm_get_file_behavior_summary('{HASH_VSSADMIN_EXE}')` ({b_vss_beh:,} bytes)\n"
-          f"```json\n{json.dumps(rlm_vss_beh, default=str)}\n```"
+          f"```json\n{json.dumps(rlm_vss_beh, default=str)}\n```\n\n"
+          f"### Tool Output 3c: `rlm_get_ip_address_report('{ATTACKER_IP}')` ({b_ip_rep:,} bytes)\n"
+          f"```json\n{json.dumps(rlm_ip_rep, default=str)}\n```"
       ),
   })
   turn3_llm = _call_host_llm(messages)
   print(
-      f"  Turn 3 (RLM vssadmin.exe LOLBin + Synthesis): gti_bytes={b_tool_3:,} B | "
+      f"  Turn 3 (RLM vssadmin.exe + IP {ATTACKER_IP} + Synthesis): gti_bytes={b_tool_3:,} B | "
       f"host_prompt_tokens={turn3_llm['prompt_tokens']:,} | llm_time={turn3_llm['elapsed_s']}s"
   )
 
-  total_elapsed = round(time.monotonic() - t_start + siem_data["elapsed_s"], 2)
+  total_elapsed = round(
+      time.monotonic() - t_start + siem_data["rlm_elapsed_s"], 2
+  )
   raw_vt_bytes = sum(
       r.get("compression_metrics", {}).get("raw_bytes", 0)
       for r in (
@@ -752,6 +826,7 @@ async def run_rlm_stepwise_threat_hunt(
           rlm_lib_beh,
           rlm_vss_rep,
           rlm_vss_beh,
+          rlm_ip_rep,
       )
   )
   turns = [
@@ -762,11 +837,11 @@ async def run_rlm_stepwise_threat_hunt(
               "lookup_entity(activedir)",
               "lookup_entity(mimikatz_md5)",
               "get_security_alerts",
-              "search_udm(activedir.stackedpads.local)",
+              "rlm_search_security_events(activedir.stackedpads.local, 120 events)",
           ],
           "tool_payload_bytes": b_siem,
           "gti_payload_bytes": 0,
-          "tool_elapsed_s": siem_data["elapsed_s"],
+          "tool_elapsed_s": siem_data["rlm_elapsed_s"],
           "host_prompt_tokens": turn1_llm["prompt_tokens"],
           "host_completion_tokens": turn1_llm["completion_tokens"],
           "host_llm_elapsed_s": turn1_llm["elapsed_s"],
@@ -793,6 +868,7 @@ async def run_rlm_stepwise_threat_hunt(
           "tools": [
               "rlm_get_file_report(vssadmin.exe)",
               "rlm_get_file_behavior_summary(vssadmin.exe)",
+              f"rlm_get_ip_address_report({ATTACKER_IP})",
           ],
           "tool_payload_bytes": b_tool_3,
           "gti_payload_bytes": b_tool_3,
@@ -807,6 +883,7 @@ async def run_rlm_stepwise_threat_hunt(
   return {
       "mode": "rlm_stepwise_secops_gti",
       "siem_bytes_injected": b_siem,
+      "siem_udm_bytes_injected": siem_data["rlm_udm_bytes"],
       "gti_tool_bytes_injected": b_tool_2 + b_tool_3,
       "total_tool_bytes_injected": b_siem + b_tool_2 + b_tool_3,
       "total_raw_vt_bytes_distilled": raw_vt_bytes,
@@ -817,7 +894,10 @@ async def run_rlm_stepwise_threat_hunt(
           t["host_completion_tokens"] for t in turns
       ),
       "turn3_context_tokens": turn3_llm["prompt_tokens"],
-      "vt_api_calls": 6,
+      "host_llm_elapsed_s": round(
+          sum(t["host_llm_elapsed_s"] for t in turns), 2
+      ),
+      "vt_api_calls": 7,
       "total_elapsed_s": total_elapsed,
       "rubric": rubric,
       "turns": turns,
@@ -827,17 +907,17 @@ async def run_rlm_stepwise_threat_hunt(
 async def run_rlm_autonomous_threat_hunt(
     ctx: MagicMock, siem_data: dict[str, Any]
 ) -> dict[str, Any]:
-  """Mode 3: Single-turn host synthesis powered by `rlm_investigate_file` + SecOps MCP."""
+  """Mode 3: Single-turn host synthesis pairing `rlm_search_security_events` + `rlm_investigate_file` + `rlm_investigate_network_ioc`."""
   print(
-      "\n[Mode 3] Running Autonomous RLM SecOps + GTI Threat Hunt (`rlm_investigate_file`)..."
+      "\n[Mode 3] Running Autonomous Dual-Side RLM Threat Hunt (`rlm_search_security_events` + `rlm_investigate_file` + `rlm_investigate_network_ioc`)..."
   )
   t_start = time.monotonic()
 
-  siem_bundle = siem_data["bundle"]
-  b_siem = siem_data["siem_bytes"]
+  siem_bundle = siem_data["rlm_bundle"]
+  b_siem = siem_data["rlm_siem_bytes"]
 
   t0 = time.monotonic()
-  inv_mimi, inv_lib, inv_vss = await asyncio.gather(
+  inv_mimi, inv_lib, inv_vss, inv_ip = await asyncio.gather(
       rlm_investigate_file(
           HASH_MIMIKATZ_EXE,
           ctx,
@@ -874,12 +954,24 @@ async def run_rlm_autonomous_threat_hunt(
           ),
           max_api_calls=2,
       ),
+      rlm_investigate_network_ioc(
+          ATTACKER_IP,
+          ctx,
+          investigation_goal=(
+              "Pivot into passive DNS resolutions and downloaded files on "
+              "206.221.181.253: extract ASN (23470), AS Owner (ReliableSite.Net LLC), "
+              "country (US), passive DNS domain (iquadrigacx.com), and downloaded "
+              "file SHA-256 (29a8b2a2dbac349f919923d25af4f9162bc58c29b2daac41a56f5b25ba24276d)."
+          ),
+          max_api_calls=3,
+      ),
   )
   t_gti = time.monotonic() - t0
   b_mimi = _json_bytes(inv_mimi)
   b_lib = _json_bytes(inv_lib)
   b_vss = _json_bytes(inv_vss)
-  b_gti = b_mimi + b_lib + b_vss
+  b_ip = _json_bytes(inv_ip)
+  b_gti = b_mimi + b_lib + b_vss + b_ip
   b_total = b_siem + b_gti
 
   messages: list[dict[str, str]] = [
@@ -888,43 +980,49 @@ async def run_rlm_autonomous_threat_hunt(
           "role": "user",
           "content": (
               f"{TURN_3_PROMPT}\n\n"
-              f"### Google SecOps SIEM Telemetry ({b_siem:,} bytes)\n"
+              f"### Google SecOps SIEM Telemetry - `rlm_search_security_events` ({b_siem:,} bytes)\n"
               f"```json\n{json.dumps(siem_bundle, default=str)}\n```\n\n"
               f"### GTI Autonomous Investigation 1: `rlm_investigate_file('{HASH_MIMIKATZ_EXE}')` ({b_mimi:,} bytes)\n"
               f"```json\n{json.dumps(inv_mimi, default=str)}\n```\n\n"
               f"### GTI Autonomous Investigation 2: `rlm_investigate_file('{HASH_MIMILIB_DLL}')` ({b_lib:,} bytes)\n"
               f"```json\n{json.dumps(inv_lib, default=str)}\n```\n\n"
               f"### GTI Autonomous Investigation 3: `rlm_investigate_file('{HASH_VSSADMIN_EXE}')` ({b_vss:,} bytes)\n"
-              f"```json\n{json.dumps(inv_vss, default=str)}\n```"
+              f"```json\n{json.dumps(inv_vss, default=str)}\n```\n\n"
+              f"### GTI Autonomous Network IOC Investigation 4: `rlm_investigate_network_ioc('{ATTACKER_IP}')` ({b_ip:,} bytes)\n"
+              f"```json\n{json.dumps(inv_ip, default=str)}\n```"
           ),
       },
   ]
   turn_llm = _call_host_llm(messages)
   print(
-      f"  Single Host Turn (SIEM + 3x `rlm_investigate_file`): "
-      f"gti_bytes={b_gti:,} B | total_bytes={b_total:,} B | "
+      f"  Single Host Turn (`rlm_search_security_events` + 3x `rlm_investigate_file` + `rlm_investigate_network_ioc`): "
+      f"siem_bytes={b_siem:,} B | gti_bytes={b_gti:,} B | total_bytes={b_total:,} B | "
       f"host_prompt_tokens={turn_llm['prompt_tokens']:,} | llm_time={turn_llm['elapsed_s']}s"
   )
 
-  total_elapsed = round(time.monotonic() - t_start + siem_data["elapsed_s"], 2)
+  total_elapsed = round(
+      time.monotonic() - t_start + siem_data["rlm_elapsed_s"], 2
+  )
   raw_vt_bytes = sum(
       r.get("compression_metrics", {}).get("raw_bytes", 0)
-      for r in (inv_mimi, inv_lib, inv_vss)
+      for r in (inv_mimi, inv_lib, inv_vss, inv_ip)
   )
   vt_api_calls = sum(
       r.get("compression_metrics", {}).get("api_calls_made", 2)
-      for r in (inv_mimi, inv_lib, inv_vss)
+      for r in (inv_mimi, inv_lib, inv_vss, inv_ip)
   )
   rubric = evaluate_rubric([turn_llm["content"]])
   return {
       "mode": "rlm_autonomous_secops_gti",
       "siem_bytes_injected": b_siem,
+      "siem_udm_bytes_injected": siem_data["rlm_udm_bytes"],
       "gti_tool_bytes_injected": b_gti,
       "total_tool_bytes_injected": b_total,
       "total_raw_vt_bytes_distilled": raw_vt_bytes,
       "cumulative_host_prompt_tokens": turn_llm["prompt_tokens"],
       "cumulative_host_completion_tokens": turn_llm["completion_tokens"],
       "turn3_context_tokens": turn_llm["prompt_tokens"],
+      "host_llm_elapsed_s": turn_llm["elapsed_s"],
       "vt_api_calls": vt_api_calls,
       "total_elapsed_s": total_elapsed,
       "rubric": rubric,
@@ -936,14 +1034,15 @@ async def run_rlm_autonomous_threat_hunt(
                   "lookup_entity(activedir)",
                   "lookup_entity(mimikatz_md5)",
                   "get_security_alerts",
-                  "search_udm(activedir.stackedpads.local)",
+                  "rlm_search_security_events(activedir.stackedpads.local, 120 events)",
                   "rlm_investigate_file(mimikatz.exe)",
                   "rlm_investigate_file(mimilib.dll)",
                   "rlm_investigate_file(vssadmin.exe)",
+                  f"rlm_investigate_network_ioc({ATTACKER_IP})",
               ],
               "tool_payload_bytes": b_total,
               "gti_payload_bytes": b_gti,
-              "tool_elapsed_s": round(siem_data["elapsed_s"] + t_gti, 2),
+              "tool_elapsed_s": round(siem_data["rlm_elapsed_s"] + t_gti, 2),
               "host_prompt_tokens": turn_llm["prompt_tokens"],
               "host_completion_tokens": turn_llm["completion_tokens"],
               "host_llm_elapsed_s": turn_llm["elapsed_s"],
@@ -958,6 +1057,14 @@ def _print_comparison_table(results: dict[str, Any]) -> None:
   s = results["rlm_stepwise"]
   a = results["rlm_autonomous"]
 
+  b_udm = b["siem_udm_bytes_injected"]
+  s_udm = s["siem_udm_bytes_injected"]
+  a_udm = a["siem_udm_bytes_injected"]
+
+  b_siem = b["siem_bytes_injected"]
+  s_siem = s["siem_bytes_injected"]
+  a_siem = a["siem_bytes_injected"]
+
   b_gti = b["gti_tool_bytes_injected"]
   s_gti = s["gti_tool_bytes_injected"]
   a_gti = a["gti_tool_bytes_injected"]
@@ -970,6 +1077,12 @@ def _print_comparison_table(results: dict[str, Any]) -> None:
   s_tok = s["cumulative_host_prompt_tokens"]
   a_tok = a["cumulative_host_prompt_tokens"]
 
+  s_udm_red = (1.0 - s_udm / b_udm) * 100.0 if b_udm else 0.0
+  a_udm_red = (1.0 - a_udm / b_udm) * 100.0 if b_udm else 0.0
+
+  s_siem_red = (1.0 - s_siem / b_siem) * 100.0 if b_siem else 0.0
+  a_siem_red = (1.0 - a_siem / b_siem) * 100.0 if b_siem else 0.0
+
   s_gti_red = (1.0 - s_gti / b_gti) * 100.0 if b_gti else 0.0
   a_gti_red = (1.0 - a_gti / b_gti) * 100.0 if b_gti else 0.0
 
@@ -979,49 +1092,61 @@ def _print_comparison_table(results: dict[str, Any]) -> None:
   s_tok_red = (1.0 - s_tok / b_tok) * 100.0 if b_tok else 0.0
   a_tok_red = (1.0 - a_tok / b_tok) * 100.0 if b_tok else 0.0
 
-  print("\n" + "=" * 100)
+  print("\n" + "=" * 104)
   print(
-      "CROSS-PLATFORM GOOGLE SECOPS (CHRONICLE SIEM) + GTI THREAT HUNT: WITHOUT vs. WITH DSPy RLM"
+      "DUAL-SIDE GOOGLE SECOPS (CHRONICLE SIEM) + GTI THREAT HUNT: WITHOUT vs. WITH DSPy RLM"
   )
-  print("=" * 100)
+  print("=" * 104)
   print(
-      f"{'Metric':<44} | {'1. Baseline (Raw)':>16} | {'2. RLM Stepwise':>16} | {'3. RLM Autonomous':>16}"
+      f"{'Metric':<46} | {'1. Baseline (Raw)':>16} | {'2. RLM Stepwise':>16} | {'3. RLM Autonomous':>16}"
   )
-  print("-" * 100)
+  print("-" * 104)
   print(
-      f"{'SIEM Telemetry Payload (SecOps MCP)':<44} | {b['siem_bytes_injected']:>14,} B | {s['siem_bytes_injected']:>14,} B | {a['siem_bytes_injected']:>14,} B"
-  )
-  print(
-      f"{'GTI Enrichment Payload (3 Kill-Chain Hashes)':<44} | {b_gti:>14,} B | {s_gti:>14,} B | {a_gti:>14,} B"
+      f"{'Chronicle SIEM UDM Search Payload (120 Events)':<46} | {b_udm:>14,} B | {s_udm:>14,} B | {a_udm:>14,} B"
   )
   print(
-      f"{'GTI Enrichment Byte Reduction (%)':<44} | {'0.00% (base)':>16} | {-s_gti_red:>15.2f}% | {-a_gti_red:>15.2f}%"
+      f"{'Chronicle SIEM UDM Byte Reduction (%)':<46} | {'0.00% (base)':>16} | {-s_udm_red:>15.2f}% | {-a_udm_red:>15.2f}%"
   )
   print(
-      f"{'Total Combined SIEM + GTI Bytes Injected':<44} | {b_tot:>14,} B | {s_tot:>14,} B | {a_tot:>14,} B"
+      f"{'Total SIEM Bundle (IoCs + Alerts + UDM)':<46} | {b_siem:>14,} B | {s_siem:>14,} B | {a_siem:>14,} B"
   )
   print(
-      f"{'Total Combined Context Byte Reduction (%)':<44} | {'0.00% (base)':>16} | {-s_tot_red:>15.2f}% | {-a_tot_red:>15.2f}%"
+      f"{'Total SIEM Bundle Byte Reduction (%)':<46} | {'0.00% (base)':>16} | {-s_siem_red:>15.2f}% | {-a_siem_red:>15.2f}%"
   )
   print(
-      f"{'Cumulative Host Prompt Tokens Billed':<44} | {b_tok:>16,} | {s_tok:>16,} | {a_tok:>16,}"
+      f"{'GTI Enrichment Payload (3 Files + 1 IP)':<46} | {b_gti:>14,} B | {s_gti:>14,} B | {a_gti:>14,} B"
   )
   print(
-      f"{'Cumulative Host Token Savings (%)':<44} | {'0.00% (base)':>16} | {-s_tok_red:>15.2f}% | {-a_tok_red:>15.2f}%"
+      f"{'GTI Enrichment Byte Reduction (%)':<46} | {'0.00% (base)':>16} | {-s_gti_red:>15.2f}% | {-a_gti_red:>15.2f}%"
   )
   print(
-      f"{'Final Turn Prompt Context Tokens':<44} | {b['turn3_context_tokens']:>16,} | {s['turn3_context_tokens']:>16,} | {a['turn3_context_tokens']:>16,}"
+      f"{'Total Combined SIEM + GTI Bytes Injected':<46} | {b_tot:>14,} B | {s_tot:>14,} B | {a_tot:>14,} B"
   )
   print(
-      f"{'72-Vendor Signatures Visible in REPL?':<44} | {'No (Excluded)':>16} | {'Yes (In REPL)':>16} | {'Yes (In REPL)':>16}"
+      f"{'Total Combined Context Byte Reduction (%)':<46} | {'0.00% (base)':>16} | {-s_tot_red:>15.2f}% | {-a_tot_red:>15.2f}%"
   )
   print(
-      f"{'18-Point SIEM+GTI Threat Hunt Rubric Score':<44} | "
+      f"{'Cumulative Host Prompt Tokens Billed':<46} | {b_tok:>16,} | {s_tok:>16,} | {a_tok:>16,}"
+  )
+  print(
+      f"{'Cumulative Host Token Savings (%)':<46} | {'0.00% (base)':>16} | {-s_tok_red:>15.2f}% | {-a_tok_red:>15.2f}%"
+  )
+  print(
+      f"{'Final Turn Prompt Context Tokens':<46} | {b['turn3_context_tokens']:>16,} | {s['turn3_context_tokens']:>16,} | {a['turn3_context_tokens']:>16,}"
+  )
+  print(
+      f"{'Host Threat Hunter LLM Synthesis Time (s)':<46} | {b['host_llm_elapsed_s']:>15.2f}s | {s['host_llm_elapsed_s']:>15.2f}s | {a['host_llm_elapsed_s']:>15.2f}s"
+  )
+  print(
+      f"{'72-Vendor Signatures Visible in REPL?':<46} | {'No (Excluded)':>16} | {'Yes (In REPL)':>16} | {'Yes (In REPL)':>16}"
+  )
+  print(
+      f"{'19-Point SIEM+GTI Threat Hunt Rubric Score':<46} | "
       f"{b['rubric']['score']}/{b['rubric']['max_score']} ({b['rubric']['score_pct']:>5.1f}%) | "
       f"{s['rubric']['score']}/{s['rubric']['max_score']} ({s['rubric']['score_pct']:>5.1f}%) | "
       f"{a['rubric']['score']}/{a['rubric']['max_score']} ({a['rubric']['score_pct']:>5.1f}%)"
   )
-  print("=" * 100 + "\n")
+  print("=" * 104 + "\n")
 
 
 async def main_async(output_json: str | None) -> None:
@@ -1033,10 +1158,9 @@ async def main_async(output_json: str | None) -> None:
   rlm_auto_res = await run_rlm_autonomous_threat_hunt(ctx, siem_data)
 
   summary = {
-      "tenant_project_id": os.getenv("CHRONICLE_PROJECT_ID", ""),
-      "tenant_customer_id": os.getenv("CHRONICLE_CUSTOMER_ID", ""),
       "compromised_host": "activedir.stackedpads.local",
       "compromised_user": "frank.kolzig",
+      "attacker_ip": ATTACKER_IP,
       "hashes": {
           "mimikatz_exe": HASH_MIMIKATZ_EXE,
           "mimilib_dll": HASH_MIMILIB_DLL,
@@ -1046,7 +1170,14 @@ async def main_async(output_json: str | None) -> None:
       "sub_model": os.getenv(
           "GTI_RLM_SUB_MODEL", "vertex_ai/gemini-3.5-flash-lite"
       ),
-      "siem_telemetry_bytes": siem_data["siem_bytes"],
+      "siem_compaction": {
+          "raw_udm_bytes": siem_data["raw_udm_bytes"],
+          "rlm_udm_bytes": siem_data["rlm_udm_bytes"],
+          "udm_reduction_pct": siem_data["udm_reduction_pct"],
+          "raw_siem_bundle_bytes": siem_data["raw_siem_bytes"],
+          "rlm_siem_bundle_bytes": siem_data["rlm_siem_bytes"],
+          "siem_bundle_reduction_pct": siem_data["siem_bundle_reduction_pct"],
+      },
       "baseline": baseline_res,
       "rlm_stepwise": rlm_step_res,
       "rlm_autonomous": rlm_auto_res,
@@ -1064,7 +1195,7 @@ def main() -> None:
   parser = argparse.ArgumentParser(
       description=(
           "Compare cross-platform Google SecOps (Chronicle SIEM) + GTI threat "
-          "hunts without vs. with DSPy RLM GTI tools."
+          "hunts without vs. with DSPy RLM tools on both SIEM and TI sides."
       )
   )
   parser.add_argument(
