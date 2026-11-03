@@ -20,13 +20,26 @@ import inspect
 import json
 import logging
 import os
+from pathlib import Path
 import re
+import subprocess
+import sys
 import threading
+import time
 import typing
 from typing import Any, Callable, Optional
 
 import dspy
+from dspy.primitives.code_interpreter import CodeInterpreterError
 from dspy.primitives.local_interpreter import LocalInterpreter
+from dspy.utils.callback import with_callbacks
+
+from .egress import (
+    ZERO_SECRET_PLACEHOLDER_APIKEY,
+    build_sanitized_repl_env,
+    is_zero_secret_egress_enabled,
+    verify_zero_secret_sandbox_env,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -643,6 +656,49 @@ class GTISandboxedInterpreter(LocalInterpreter):
     self.min_sub_lm_prompt_chars = min_sub_lm_prompt_chars
     self._injected_large_vars: set[str] = set()
 
+  @with_callbacks
+  def start(self) -> None:
+    """Starts the isolated Python worker with a credential-scrubbed environment."""
+    if self._ended:
+      raise CodeInterpreterError("LocalInterpreter session has been shut down.")
+    if self._process is not None:
+      return
+    if is_zero_secret_egress_enabled():
+      verify_zero_secret_sandbox_env()
+    worker_script = Path(inspect.getfile(LocalInterpreter)).with_name(
+        "local_interpreter_worker.py"
+    )
+    sanitized_env = build_sanitized_repl_env()
+    try:
+      process = subprocess.Popen(
+          [sys.executable, "-I", str(worker_script)],
+          stdin=subprocess.PIPE,
+          stdout=subprocess.PIPE,
+          stderr=subprocess.DEVNULL,
+          env=sanitized_env,
+          creationflags=(
+              subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+          ),
+          start_new_session=os.name == "posix",
+          text=True,
+      )
+    except OSError as exc:
+      raise CodeInterpreterError(
+          f"Unable to start Python worker: {exc}"
+      ) from exc
+    self._process = process
+    threading.Thread(
+        target=self._read_responses, args=(process,), daemon=True
+    ).start()
+    message = self._receive(
+        time.monotonic() + 10,
+        "Python worker did not start within 10 seconds.",
+    )
+    if message.get("type") != "ready":
+      self._raise_terminal_error(
+          f"Python worker returned an invalid startup message: {message!r}"
+      )
+
   def execute(
       self, code: str, variables: Optional[dict[str, Any]] = None
   ) -> Any:
@@ -695,6 +751,10 @@ class GTISandboxedInterpreter(LocalInterpreter):
       return super().invoke_tool(tool_name, [], dict(bound.arguments))
 
     return super().invoke_tool(tool_name, list(args), kwargs)
+
+
+class GuardedRLMInterpreter(GTISandboxedInterpreter):
+  """Zero-secret guarded RLM Python REPL interpreter for untrusted GTI payloads."""
 
 
 class APICallTracker:
@@ -835,6 +895,10 @@ def configure_gti_rlm_lms(
       or "global"
   )
 
+  zero_secret_mode = is_zero_secret_egress_enabled()
+  if zero_secret_mode:
+    verify_zero_secret_sandbox_env()
+
   def _build_lm_kwargs(model_name: str, token_cap: int) -> dict[str, Any]:
     kwargs: dict[str, Any] = {"max_tokens": token_cap}
     is_gemini_3_plus = "gemini-3" in model_name or "gemini-4" in model_name
@@ -846,6 +910,8 @@ def configure_gti_rlm_lms(
       kwargs["reasoning_effort"] = reasoning_effort
     if model_name.startswith("vertex_ai/"):
       kwargs["vertex_location"] = vertex_location
+    elif zero_secret_mode:
+      kwargs["api_key"] = ZERO_SECRET_PLACEHOLDER_APIKEY
     return kwargs
 
   resolved_lm = dspy.LM(root_model, **_build_lm_kwargs(root_model, max_tokens))
@@ -1116,6 +1182,9 @@ def distill_gti_payload(
     max_llm_calls: Optional[int] = None,
 ) -> dict[str, Any]:
   """Runs dspy.RLM over a GTI payload in a sandboxed REPL, with deterministic fallback."""
+  if is_zero_secret_egress_enabled():
+    verify_zero_secret_sandbox_env()
+
   effective_query = (query or "").strip() or default_objective
   initial_bytes = len(json.dumps(raw_data, default=str).encode("utf-8"))
   if tracker is None:
@@ -1146,10 +1215,10 @@ def distill_gti_payload(
   llm_calls_cap = max_llm_calls or int(os.getenv("GTI_RLM_MAX_LLM_CALLS", "10"))
   output_chars_cap = int(os.getenv("GTI_RLM_MAX_OUTPUT_CHARS", "12000"))
 
-  created_interpreters: list[GTISandboxedInterpreter] = []
+  created_interpreters: list[GuardedRLMInterpreter] = []
 
-  def _make_interpreter() -> GTISandboxedInterpreter:
-    interp = GTISandboxedInterpreter()
+  def _make_interpreter() -> GuardedRLMInterpreter:
+    interp = GuardedRLMInterpreter()
     created_interpreters.append(interp)
     return interp
 

@@ -15,14 +15,28 @@
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from typing import Optional
 
 import logging
 import os
 import vt
 
 from mcp.server.fastmcp import FastMCP, Context
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+
+from gti_mcp.egress import (
+    FORBIDDEN_SANDBOX_SECRET_ENV_VARS,
+    ZERO_SECRET_EGRESS_ENV,
+    ZERO_SECRET_PLACEHOLDER_APIKEY,
+    build_sanitized_repl_env,
+    build_vt_ssl_context,
+    is_zero_secret_egress_enabled,
+    verify_zero_secret_sandbox_env,
+)
 
 logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger(__name__)
 
 # If True, creates a completely fresh transport for each request
 # with no session tracking or state persistence between requests.
@@ -31,11 +45,32 @@ if os.getenv("STATELESS") == "1":
   stateless = True
 
 
-def _vt_client_factory(unused_ctx) -> vt.Client:
-  api_key = os.getenv("VT_APIKEY")
-  if not api_key:
-    raise ValueError("VT_APIKEY environment variable is required")
-  return vt.Client(api_key, trust_env=True)
+def _vt_client_factory(
+    unused_ctx: Optional[Context] = None,
+    *,
+    host: Optional[str] = None,
+    timeout: int = 300,
+) -> vt.Client:
+  if is_zero_secret_egress_enabled():
+    verify_zero_secret_sandbox_env()
+    api_key = ZERO_SECRET_PLACEHOLDER_APIKEY
+    logger.debug(
+        "Creating zero-secret vt.Client with placeholder header (%s)",
+        ZERO_SECRET_PLACEHOLDER_APIKEY,
+    )
+  else:
+    api_key = os.getenv("VT_APIKEY")
+    if not api_key:
+      raise ValueError("VT_APIKEY environment variable is required")
+
+  verify_ssl = build_vt_ssl_context()
+  return vt.Client(
+      api_key,
+      host=host,
+      trust_env=True,
+      timeout=timeout,
+      verify_ssl=verify_ssl,
+  )
 
 vt_client_factory = _vt_client_factory
 
@@ -50,18 +85,56 @@ async def vt_client(ctx: Context) -> AsyncIterator[vt.Client]:
   finally:
     await client.close_async()
 
+_VALID_MCP_TRANSPORTS = frozenset({"stdio", "sse", "streamable-http"})
+_mcp_host = os.getenv("GTI_MCP_HOST", "127.0.0.1")
+_mcp_port = int(os.getenv("GTI_MCP_PORT", os.getenv("PORT", "8000")))
+
 # Create a named server and specify dependencies for deployment and development
 server = FastMCP(
     "Google Threat Intelligence MCP server",
     dependencies=["vt-py"],
+    host=_mcp_host,
+    port=_mcp_port,
     stateless_http=stateless)
+
+
+@server.custom_route("/readyz", methods=["GET"])
+@server.custom_route("/healthz", methods=["GET"])
+async def _health_probe(unused_request: Request) -> JSONResponse:
+  """Readiness and wakeup probe endpoint for Agent Substrate actors."""
+  status = verify_zero_secret_sandbox_env()
+  return JSONResponse({
+      "status": "ok",
+      "zero_secret_egress": status["zero_secret_egress"],
+      "verified": status["verified"],
+  })
+
+
+def resolve_mcp_transport(raw_transport: Optional[str] = None) -> str:
+  """Resolves and validates GTI_MCP_TRANSPORT ('stdio', 'sse', 'streamable-http')."""
+  candidate = (
+      raw_transport
+      if raw_transport is not None
+      else os.getenv("GTI_MCP_TRANSPORT", "stdio")
+  ).strip().lower()
+  if not candidate:
+    candidate = "stdio"
+  if candidate not in _VALID_MCP_TRANSPORTS:
+    raise ValueError(
+        f"Invalid GTI_MCP_TRANSPORT {candidate!r}; "
+        f"expected one of {sorted(_VALID_MCP_TRANSPORTS)}"
+    )
+  return candidate
+
 
 # Load tools.
 from gti_mcp.tools import *
 
 # Run the server
 def main():
-  server.run(transport='stdio')
+  verify_zero_secret_sandbox_env()
+  transport = resolve_mcp_transport()
+  server.run(transport=transport)
 
 
 if __name__ == '__main__':

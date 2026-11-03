@@ -3,6 +3,7 @@
 *   [Development Guide](development_guide.md)
 *   [Usage Guide](usage_guide.md)
 *   [Distilling 1 MB GTI Payloads with DSPy RLM](gti_dspy_rlm_blog.md)
+*   [Zero-Secret Sandboxing with Agent Substrate and AX](gti_substrate_zero_secret_sandbox.md)
 *   [Servers](servers/index.md)
     *   [Remote MCP Server](remote_server.md)
     *   [Google Threat Intelligence](servers/gti_mcp.md)
