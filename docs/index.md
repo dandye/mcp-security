@@ -34,6 +34,7 @@ Each component provides different capabilities:
 
 - [Google Threat Intelligence (GTI) Server](servers/gti_mcp.md) - Access threat intelligence about IoCs, malware, and threat actors
   - [Distilling 1 MB Threat Intelligence Payloads with DSPy RLM](gti_dspy_rlm_blog.md) - Deep-dive engineering blog post on out-of-core RLM REPL distillation for GTI file and sandbox behavior tools
+  - [Zero-Secret Sandboxing with Agent Substrate and AX](gti_substrate_zero_secret_sandbox.md) - How the GTI RLM tools run in gVisor with no API keys in the sandbox, with credentials injected on the wire by the egress gateway
 - [Security Command Center (SCC) Server](servers/scc_mcp.md) - Manage cloud security posture and vulnerabilities
 - [Chronicle Security Operations (SecOps) Server](servers/secops_mcp.md) - Search and analyze security events and alerts
 - [SecOps SOAR Server](servers/secops_soar_mcp.md) - Manage security cases and automate response actions
