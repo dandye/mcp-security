@@ -1,0 +1,22 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      - name: Out-of-sandbox MCP gateway and ax-task-runner tests
+        run: uv run --directory deployments/ax-mcp-gateway --extra test pytest tests
+      - name: ADK agent tests
+        run: uv run --directory run-with-google-adk --extra test pytest tests

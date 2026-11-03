@@ -16,6 +16,7 @@
 import logging
 import threading
 from typing import Optional, Any
+from mcp_security_agent.ax_workspace import is_valid_http_endpoint
 from mcp_security_agent.config import AgentSettings
 from mcp_security_agent.toolsets import build_mcp_toolsets
 from mcp_security_agent.callbacks import bmc_trim_llm_request
@@ -30,6 +31,86 @@ Guidelines:
 2. Formulate clear UDM queries, correlate suspicious IP/domain/hash artifacts, and provide actionable remediation steps.
 3. Structure your analysis with clear headings: Executive Summary, Investigation Findings, Artifact Analysis, and Recommended Remediation.
 """
+
+
+def _build_zero_secret_llm(settings: AgentSettings) -> Any:
+    """Builds an ADK Gemini model for AX zero-secret sandboxes.
+
+    Only used when `AX_ZERO_SECRET_SANDBOX=true`. Requests go to the out-of-sandbox
+    `LLM_GATEWAY_URL` carrying placeholder credentials that Agent Substrate
+    `atenet-egress` replaces on the wire with a short-lived actorJwt.
+    """
+    from google.adk.models.google_llm import Gemini
+    from google.auth.credentials import Credentials as BaseGoogleCredentials
+
+    llm_url = (settings.llm_gateway_url or "").strip()
+    if not llm_url or not is_valid_http_endpoint(llm_url):
+        raise ValueError(
+            "Zero-secret sandbox mode (AX_ZERO_SECRET_SANDBOX=true) requires "
+            "LLM_GATEWAY_URL to point to an out-of-sandbox HTTP(S) Vertex AI gateway."
+        )
+    if not settings.google_cloud_project or not settings.google_cloud_project.strip():
+        raise ValueError(
+            "Zero-secret sandbox mode (AX_ZERO_SECRET_SANDBOX=true) requires "
+            "GOOGLE_CLOUD_PROJECT (non-secret project identifier) for Vertex AI routing."
+        )
+
+    raw_header = (settings.mcp_gateway_auth_header or "Bearer ate-egress-injected").strip()
+    parts = raw_header.split(None, 1)
+    token = parts[1].strip() if len(parts) == 2 and parts[0].lower() == "bearer" else raw_header
+
+    class _EgressPlaceholderCredentials(BaseGoogleCredentials):
+        def __init__(self, placeholder_token: str) -> None:
+            super().__init__()
+            self.token = placeholder_token
+
+        @property
+        def valid(self) -> bool:
+            return True
+
+        @property
+        def expired(self) -> bool:
+            return False
+
+        def refresh(self, request: Any) -> None:
+            return None
+
+    client_kwargs: dict[str, Any] = {
+        "vertexai": True,
+        "credentials": _EgressPlaceholderCredentials(token),
+    }
+    if settings.google_cloud_project:
+        client_kwargs["project"] = settings.google_cloud_project.strip()
+    if settings.google_cloud_location:
+        client_kwargs["location"] = settings.google_cloud_location.strip()
+
+    return Gemini(
+        model=settings.google_model,
+        base_url=llm_url,
+        client_kwargs=client_kwargs,
+    )
+
+
+def _build_base_url_llm(settings: AgentSettings) -> Any:
+    """Builds an ADK Gemini model that targets a custom `LLM_GATEWAY_URL` with normal ADC.
+
+    Used outside zero-secret mode (for example, an authenticating corporate proxy in
+    front of Vertex AI). Credentials are resolved by google-genai as usual.
+    """
+    from google.adk.models.google_llm import Gemini
+
+    llm_url = (settings.llm_gateway_url or "").strip()
+    if not is_valid_http_endpoint(llm_url):
+        raise ValueError("LLM_GATEWAY_URL must be an http:// or https:// URL.")
+    return Gemini(model=settings.google_model, base_url=llm_url)
+
+
+def _resolve_model(settings: AgentSettings) -> Any:
+    if settings.ax_zero_secret_sandbox:
+        return _build_zero_secret_llm(settings)
+    if settings.llm_gateway_url and settings.llm_gateway_url.strip():
+        return _build_base_url_llm(settings)
+    return settings.google_model
 
 
 def create_security_agent(settings: Optional[AgentSettings] = None) -> Any:
@@ -52,9 +133,11 @@ def create_security_agent(settings: Optional[AgentSettings] = None) -> Any:
         logger.warning("google.adk.agents.llm_agent not available; returning dummy agent.")
         return None
 
+    resolved_model: Any = _resolve_model(settings)
+
     agent = LlmAgent(
         name="SecurityOperationsAgent",
-        model=settings.google_model,
+        model=resolved_model,
         instruction=settings.default_prompt or SOC_AGENT_SYSTEM_PROMPT,
         tools=toolsets,
         before_model_callback=bmc_trim_llm_request,
@@ -80,4 +163,3 @@ def __getattr__(name: str) -> Any:
 
 def __dir__():
     return ["create_security_agent", "root_agent", "SOC_AGENT_SYSTEM_PROMPT"]
-

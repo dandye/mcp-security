@@ -1,0 +1,81 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# AX (github.com/google/ax, commit b82f57ee) declarative orchestration manifest
+# binding an untrusted security investigation Task to all four out-of-sandbox
+# google/mcp-security Streamable HTTP MCP gateways plus the out-of-sandbox
+# Vertex AI Gemini proxy (llm-gateway) with zero credentials inside the sandbox.
+apiVersion: ax.io/v1alpha1
+kind: Workspace
+metadata:
+  name: secops-gateway-ws
+  atespace: secops
+spec:
+  files:
+    - path: "AGENTS.md"
+      content: |
+        # Zero-Secret SecOps Triage Workspace
+        - All MCP servers (secops, gti, secops-soar, scc) and Vertex AI Gemini inference (llm-gateway) execute out-of-sandbox in the secops-gateways namespace.
+        - Never place raw cloud credentials, OAuth tokens, or API keys in environment variables, files, or prompts.
+        - Outbound requests carry Authorization: Bearer ate-egress-injected, which Agent Substrate atenet-egress replaces on the wire with a short-lived actorJwt verified by each gateway.
+  mcp:
+    servers:
+      - name: secops
+        endpoint: "http://secops-mcp.secops-gateways.svc.cluster.local:8080/mcp"
+      - name: gti
+        endpoint: "http://gti-mcp.secops-gateways.svc.cluster.local:8080/mcp"
+      - name: secops-soar
+        endpoint: "http://secops-soar-mcp.secops-gateways.svc.cluster.local:8080/mcp"
+      - name: scc
+        endpoint: "http://scc-mcp.secops-gateways.svc.cluster.local:8080/mcp"
+---
+apiVersion: ax.io/v1alpha1
+kind: Task
+metadata:
+  name: secops-triage-agent
+  atespace: secops
+spec:
+  image: "us-docker.pkg.dev/${PROJECT_ID}/secops-mcp/mcp-security-agent@sha256:5555555555555555555555555555555555555555555555555555555555555555"
+  command:
+    - "mcp-security-agent"
+    - "serve"
+    - "--host"
+    - "0.0.0.0"
+    - "--port"
+    - "8080"
+  env:
+    - name: AX_ZERO_SECRET_SANDBOX
+      value: "true"
+    - name: MCP_GATEWAY_AUTH_HEADER
+      value: "Bearer ate-egress-injected"
+    - name: LLM_GATEWAY_URL
+      value: "http://llm-gateway.secops-gateways.svc.cluster.local:8080/vertex"
+    - name: GOOGLE_CLOUD_PROJECT
+      value: "${PROJECT_ID}"
+    - name: GOOGLE_CLOUD_LOCATION
+      value: "${GOOGLE_CLOUD_LOCATION}"
+    - name: GOOGLE_GENAI_USE_VERTEXAI
+      value: "TRUE"
+    - name: GOOGLE_MODEL
+      value: "gemini-3.8-flash"
+    - name: MINIMAL_LOGGING
+      value: "Y"
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+  workspace:
+    name: secops-gateway-ws
+    path: "/workspace"
+  debug: false

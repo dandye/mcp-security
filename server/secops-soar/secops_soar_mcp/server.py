@@ -27,6 +27,7 @@ import argparse
 
 logger = get_logger(__name__)
 mcp = FastMCP("SecOps SOAR")
+_registered_integrations: set[str] = set()
 
 register_tools_case_management(mcp)
 
@@ -99,13 +100,27 @@ def register_tools(integrations_arg: str):
                 )  # The filename without .py (e.g., "csv")
                 if module_stem not in enabled_integrations_set:
                     continue
-                module_import_path = f"marketplace.{module_stem}"  # The import path (e.g., "marketplace.csv")
+                if module_stem in _registered_integrations:
+                    logger.debug(
+                        "  Integration %s already registered; skipping duplicate.",
+                        module_stem,
+                    )
+                    continue
+                pkg_prefix = f"{__package__}." if __package__ else ""
+                module_import_path = f"{pkg_prefix}marketplace.{module_stem}"
 
                 try:
                     logger.debug(
                         "  Attempting to import module: %s", module_import_path
                     )
-                    module = importlib.import_module(module_import_path)
+                    try:
+                        module = importlib.import_module(module_import_path)
+                    except ModuleNotFoundError:
+                        if not pkg_prefix:
+                            raise
+                        module = importlib.import_module(
+                            f"marketplace.{module_stem}"
+                        )
 
                     if hasattr(module, "register_tools") and callable(
                         getattr(module, "register_tools")
@@ -116,6 +131,7 @@ def register_tools(integrations_arg: str):
                         )
                         register_function = getattr(module, "register_tools")
                         register_function(mcp)
+                        _registered_integrations.add(module_stem)
                         logger.debug(
                             "    Successfully called register_tools for %s.",
                             module_stem,

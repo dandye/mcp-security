@@ -1,0 +1,96 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Single-document ateapi.v1.EgressPolicy protojson manifest applied via kubectl-ate:
+#   kubectl ate create egress-policy secops-triage-agent --atespace secops -f egress-policy.yaml
+#
+# Because both MCP calls and Vertex AI Gemini calls travel over cluster-internal
+# HTTP to the out-of-sandbox gateways in secops-gateways, atenet-egress replaces
+# the sandbox's placeholder Authorization header on the wire with per-service
+# actorJwt bearer tokens without requiring any MITM CA trust bundle inside the
+# AX task container.
+metadata:
+  atespace: secops
+  name: default
+rules:
+  - http:
+      hostnames:
+        - "secops-mcp.secops-gateways.svc.cluster.local"
+      ports:
+        numbers:
+          - 8080
+      effects:
+        replaceHeaders:
+          - header: "Authorization"
+            prefix: "Bearer "
+            actorJwt:
+              audiences:
+                - "http://secops-mcp.secops-gateways.svc.cluster.local:8080"
+              expirationSeconds: 900
+  - http:
+      hostnames:
+        - "gti-mcp.secops-gateways.svc.cluster.local"
+      ports:
+        numbers:
+          - 8080
+      effects:
+        replaceHeaders:
+          - header: "Authorization"
+            prefix: "Bearer "
+            actorJwt:
+              audiences:
+                - "http://gti-mcp.secops-gateways.svc.cluster.local:8080"
+              expirationSeconds: 900
+  - http:
+      hostnames:
+        - "secops-soar-mcp.secops-gateways.svc.cluster.local"
+      ports:
+        numbers:
+          - 8080
+      effects:
+        replaceHeaders:
+          - header: "Authorization"
+            prefix: "Bearer "
+            actorJwt:
+              audiences:
+                - "http://secops-soar-mcp.secops-gateways.svc.cluster.local:8080"
+              expirationSeconds: 900
+  - http:
+      hostnames:
+        - "scc-mcp.secops-gateways.svc.cluster.local"
+      ports:
+        numbers:
+          - 8080
+      effects:
+        replaceHeaders:
+          - header: "Authorization"
+            prefix: "Bearer "
+            actorJwt:
+              audiences:
+                - "http://scc-mcp.secops-gateways.svc.cluster.local:8080"
+              expirationSeconds: 900
+  - http:
+      hostnames:
+        - "llm-gateway.secops-gateways.svc.cluster.local"
+      ports:
+        numbers:
+          - 8080
+      effects:
+        replaceHeaders:
+          - header: "Authorization"
+            prefix: "Bearer "
+            actorJwt:
+              audiences:
+                - "http://llm-gateway.secops-gateways.svc.cluster.local:8080"
+              expirationSeconds: 900

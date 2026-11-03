@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-security-ax-gateway"
+version = "0.1.0"
+description = "Out-of-sandbox Streamable HTTP MCP gateway with Agent Substrate actorJwt verification for google/mcp-security on google/ax"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Google SecOps Team", email = "chronicle@google.com" }
+]
+keywords = ["google", "security", "chronicle", "mcp", "ax", "agent-substrate"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Security",
+]
+dependencies = [
+    "google-auth[requests]>=2.28.0",
+    "httpx>=0.28.1",
+    # 1.26 is the floor for mcp.server.transport_security and the
+    # streamablehttp_client httpx_client_factory hook used by the tests.
+    "mcp>=1.26.0,<2.0",
+    "PyJWT[crypto]>=2.10.0",
+    "starlette>=0.40.0",
+    "uvicorn>=0.30.0",
+]
+
+[project.optional-dependencies]
+# `uv run --directory deployments/ax-mcp-gateway --extra test pytest tests`
+# installs the four google/mcp-security server packages from this checkout
+# (see [tool.uv.sources]) plus the sibling ax-task-runner package.
+test = [
+    "ax-task-runner-py",
+    "cryptography>=42.0.0",
+    "google-secops-mcp",
+    "gti-mcp",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "pyyaml>=6.0.1",
+    "scc-mcp",
+    "secops-soar-mcp",
+]
+
+[project.scripts]
+mcp-security-gateway = "ax_mcp_gateway.gateway:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["ax_mcp_gateway*"]
+
+[tool.uv.sources]
+ax-task-runner-py = { path = "../ax-task-runner", editable = true }
+google-secops-mcp = { path = "../../server/secops", editable = true }
+gti-mcp = { path = "../../server/gti", editable = true }
+scc-mcp = { path = "../../server/scc", editable = true }
+secops-soar-mcp = { path = "../../server/secops-soar", editable = true }
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
