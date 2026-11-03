@@ -152,7 +152,53 @@ def extract_verbatim_anchors(raw_data: Any) -> dict[str, Any]:
     if snippets:
       code_insights = "\n".join(snippets)
 
-  return {
+  cert = (
+      attrs.get("last_https_certificate")
+      if isinstance(attrs.get("last_https_certificate"), dict)
+      else {}
+  )
+  cert_subj = (
+      cert.get("subject") if isinstance(cert.get("subject"), dict) else {}
+  )
+  cert_issuer = (
+      cert.get("issuer") if isinstance(cert.get("issuer"), dict) else {}
+  )
+  network_infra: dict[str, Any] = {}
+  for net_key in (
+      "asn",
+      "as_owner",
+      "country",
+      "continent",
+      "network",
+      "regional_internet_registry",
+      "jarm",
+      "registrar",
+      "reputation",
+      "url",
+      "final_url",
+      "last_http_response_code",
+      "last_http_response_content_sha256",
+  ):
+    if attrs.get(net_key) is not None:
+      network_infra[net_key] = attrs.get(net_key)
+  if isinstance(attrs.get("categories"), dict) and attrs.get("categories"):
+    network_infra["categories"] = attrs["categories"]
+  if isinstance(attrs.get("threat_severity"), dict) and attrs.get(
+      "threat_severity"
+  ):
+    network_infra["threat_severity"] = attrs["threat_severity"]
+  if cert:
+    network_infra["tls_certificate"] = {
+        "thumbprint_sha256": (
+            cert.get("thumbprint_sha256") or cert.get("thumbprint")
+        ),
+        "serial_number": cert.get("serial_number"),
+        "subject_cn": cert_subj.get("CN"),
+        "issuer_cn": cert_issuer.get("CN") or cert_issuer.get("O"),
+        "validity": cert.get("validity"),
+    }
+
+  result_anchors: dict[str, Any] = {
       "sha256": attrs.get("sha256"),
       "sha1": attrs.get("sha1"),
       "md5": attrs.get("md5"),
@@ -160,7 +206,9 @@ def extract_verbatim_anchors(raw_data: Any) -> dict[str, Any]:
       "ssdeep": attrs.get("ssdeep"),
       "tlsh": attrs.get("tlsh"),
       "meaningful_name": attrs.get("meaningful_name") or attrs.get("name"),
-      "type_description": attrs.get("type_description") or attrs.get("collection_type"),
+      "type_description": (
+          attrs.get("type_description") or attrs.get("collection_type")
+      ),
       "size": attrs.get("size"),
       "last_analysis_stats": (
           attrs.get("last_analysis_stats")
@@ -179,6 +227,9 @@ def extract_verbatim_anchors(raw_data: Any) -> dict[str, Any]:
       ),
       "code_insights": code_insights,
   }
+  if network_infra:
+    result_anchors["network_infrastructure"] = network_infra
+  return result_anchors
 
 
 def build_payload_index(raw_data: Any) -> dict[str, Any]:
@@ -297,13 +348,75 @@ def deterministic_distill_payload(
       "itw_domains",
       "itw_ips",
       "itw_urls",
+      "urls",
+      "subdomains",
+      "siblings",
+      "redirecting_urls",
+      "redirects_to",
+      "parent_resource_urls",
+      "last_serving_ip_address",
+      "network_location",
   ):
     items = rels.get(rel_key) or attrs.get(rel_key)
     if isinstance(items, list):
+      seen_url_bases: dict[str, int] = {}
       for item in items[:25]:
-        ioc_val = item.get("id") or item.get("url") if isinstance(item, dict) else str(item)
-        if ioc_val and ioc_val not in network_iocs:
-          network_iocs.append(str(ioc_val))
+        if isinstance(item, dict):
+          ctx_url = (
+              (item.get("context_attributes") or {}).get("url")
+              if isinstance(item.get("context_attributes"), dict)
+              else None
+          )
+          attr_url = (
+              (item.get("attributes") or {}).get("url")
+              if isinstance(item.get("attributes"), dict)
+              else None
+          )
+          ioc_val = ctx_url or attr_url or item.get("url") or item.get("id")
+        else:
+          ioc_val = str(item)
+        if not ioc_val:
+          continue
+        ioc_str = str(ioc_val).strip()
+        if "?" in ioc_str:
+          base_url = ioc_str.split("?", 1)[0]
+          seen_url_bases[base_url] = seen_url_bases.get(base_url, 0) + 1
+          if seen_url_bases[base_url] > 2:
+            filtered_noise_total += 1
+            continue
+        if len(ioc_str) > 200:
+          ioc_str = f"{ioc_str[:180]}...[+{len(ioc_str) - 180} chars]"
+        if ioc_str not in network_iocs:
+          network_iocs.append(ioc_str)
+
+  # Extract passive DNS resolutions (from IP or Domain relationships)
+  resolutions_list = rels.get("resolutions")
+  if isinstance(resolutions_list, list):
+    for res_item in resolutions_list[:25]:
+      if isinstance(res_item, dict):
+        r_attrs = (
+            res_item.get("attributes")
+            if isinstance(res_item.get("attributes"), dict)
+            else {}
+        )
+        host_name = r_attrs.get("host_name")
+        ip_addr = r_attrs.get("ip_address")
+        if host_name and ip_addr:
+          entry = f"{host_name} ({ip_addr})"
+        else:
+          entry = str(host_name or ip_addr or res_item.get("id") or "")
+        if entry and entry not in network_iocs:
+          network_iocs.append(entry)
+
+  # Extract DNS records on domain reports
+  dns_records = attrs.get("last_dns_records")
+  if isinstance(dns_records, list):
+    for rec in dns_records[:20]:
+      if isinstance(rec, dict) and rec.get("value"):
+        rtype = rec.get("type", "DNS")
+        rval = f"{rtype}:{rec['value']}"
+        if rval not in network_iocs:
+          network_iocs.append(rval)
 
   for traffic in attrs.get("ip_traffic", []) if isinstance(attrs.get("ip_traffic"), list) else []:
     if isinstance(traffic, dict) and traffic.get("destination_ip"):
@@ -334,16 +447,40 @@ def deterministic_distill_payload(
       if url_val not in network_iocs:
         network_iocs.append(url_val)
 
-  # 2. Extract dropped/modified files
-  for drop_source in (rels.get("dropped_files"), attrs.get("files_dropped"), attrs.get("files_written")):
+  # 2. Extract dropped/modified/communicating/downloaded files
+  for drop_source in (
+      rels.get("dropped_files"),
+      rels.get("communicating_files"),
+      rels.get("downloaded_files"),
+      rels.get("referrer_files"),
+      rels.get("embedded_js_files"),
+      rels.get("http_response_contents"),
+      attrs.get("files_dropped"),
+      attrs.get("files_written"),
+  ):
     if isinstance(drop_source, list):
       for item in drop_source:
         if is_benign_sandbox_noise(item):
           filtered_noise_total += 1
           continue
         if isinstance(item, dict):
-          path = item.get("path") or ""
-          sha = item.get("sha256") or item.get("id") or ""
+          item_attrs = (
+              item.get("attributes")
+              if isinstance(item.get("attributes"), dict)
+              else {}
+          )
+          path = (
+              item.get("path")
+              or item_attrs.get("meaningful_name")
+              or item_attrs.get("type_description")
+              or ""
+          )
+          sha = (
+              item.get("sha256")
+              or item_attrs.get("sha256")
+              or item.get("id")
+              or ""
+          )
           desc = f"{path} (sha256={sha})" if path and sha else (path or sha)
         else:
           desc = str(item)
@@ -446,6 +583,24 @@ def deterministic_distill_payload(
       if entry not in yara_sigma_matches:
         yara_sigma_matches.append(entry)
 
+  # Also extract malicious/suspicious vendor verdicts from last_analysis_results
+  vendor_results = attrs.get("last_analysis_results")
+  if isinstance(vendor_results, dict):
+    vendor_hits = 0
+    for eng_name, eng_data in vendor_results.items():
+      if isinstance(eng_data, dict):
+        cat = str(eng_data.get("category") or "").lower()
+        res_str = eng_data.get("result")
+        if cat in ("malicious", "suspicious") and res_str:
+          entry = f"Vendor:{eng_name}:{res_str}"
+          if entry not in yara_sigma_matches:
+            yara_sigma_matches.append(entry)
+            vendor_hits += 1
+            if vendor_hits >= 10:
+              break
+        elif cat in ("undetected", "harmless"):
+          filtered_noise_total += 1
+
   # 6. Extract attributions / associations (and classify list-root entity payloads)
   _ATTRIBUTION_TYPES = {
       "collection",
@@ -484,16 +639,44 @@ def deterministic_distill_payload(
         ).lower()
         item_id = str(item.get("id") or "")
         if item_type in ("domain", "ip_address", "ip-address", "url"):
-          url_or_id = (
+          ctx_url = (
+              (item.get("context_attributes") or {}).get("url")
+              if isinstance(item.get("context_attributes"), dict)
+              else None
+          )
+          attr_url = (
               (item.get("attributes") or {}).get("url")
               if isinstance(item.get("attributes"), dict)
               else None
-          ) or item_id
+          )
+          url_or_id = ctx_url or attr_url or item_id
           if url_or_id and str(url_or_id) not in network_iocs:
             network_iocs.append(str(url_or_id))
+        elif item_type == "resolution":
+          r_attrs = (
+              item.get("attributes")
+              if isinstance(item.get("attributes"), dict)
+              else {}
+          )
+          host_name = r_attrs.get("host_name")
+          ip_addr = r_attrs.get("ip_address")
+          res_str = (
+              f"{host_name} ({ip_addr})"
+              if host_name and ip_addr
+              else str(host_name or ip_addr or item_id)
+          )
+          if res_str and res_str not in network_iocs:
+            network_iocs.append(res_str)
         elif item_type == "file":
-          if item_id and item_id not in files_dropped:
-            files_dropped.append(item_id)
+          f_attrs = (
+              item.get("attributes")
+              if isinstance(item.get("attributes"), dict)
+              else {}
+          )
+          f_name = f_attrs.get("meaningful_name") or f_attrs.get("type_description") or ""
+          f_desc = f"{f_name} (sha256={item_id})" if f_name and item_id else item_id
+          if f_desc and f_desc not in files_dropped:
+            files_dropped.append(f_desc)
         else:
           assoc_items.append(item)
 
@@ -560,12 +743,31 @@ def deterministic_distill_payload(
         + (f"; label={threat_label}" if threat_label else "")
         + (f"; gti_verdict={gti_verdict}" if gti_verdict else "")
     )
+  net_infra = anchors.get("network_infrastructure")
+  if isinstance(net_infra, dict) and net_infra:
+    infra_parts: list[str] = []
+    if net_infra.get("asn") is not None or net_infra.get("as_owner"):
+      infra_parts.append(
+          f"ASN={net_infra.get('asn')} ({net_infra.get('as_owner', 'unknown')})"
+      )
+    if net_infra.get("country"):
+      infra_parts.append(f"country={net_infra['country']}")
+    if net_infra.get("network"):
+      infra_parts.append(f"network={net_infra['network']}")
+    if net_infra.get("jarm"):
+      infra_parts.append(f"jarm={net_infra['jarm']}")
+    if net_infra.get("reputation") is not None:
+      infra_parts.append(f"reputation={net_infra['reputation']}")
+    if infra_parts:
+      key_findings.append("Network Infrastructure: " + ", ".join(infra_parts))
   if anchors.get("code_insights"):
     key_findings.append(f"Code Insights: {anchors['code_insights']}")
   if yara_sigma_matches:
     key_findings.append(f"Rule Matches ({len(yara_sigma_matches)}): " + "; ".join(yara_sigma_matches[:5]))
   if network_iocs:
     key_findings.append(f"Network IOCs ({len(network_iocs)}): " + ", ".join(network_iocs[:8]))
+  if files_dropped:
+    key_findings.append(f"Associated Files ({len(files_dropped)}): " + ", ".join(files_dropped[:5]))
   if process_cmds:
     key_findings.append(f"Execution Activity ({len(process_cmds)}): " + "; ".join(process_cmds[:5]))
   if attributions:
@@ -759,12 +961,15 @@ class GTIPayloadDistillSignature(dspy.Signature):
   Instructions for the Python REPL:
   1. `payload_index` already contains `verbatim_anchors`, `collection_counts`, `relationship_counts`, and `benign_noise_counts`. Do NOT waste a turn just printing `payload_index`—write a single Python script on Turn 0 that slices the high-signal fields from `raw_data` (and calls bound `fetch_*` tools if needed).
   2. When `tool_name == "rlm_investigate_file"`, call `fetch_behavior_summary()` (and `fetch_collection_summary(...)` or `fetch_related_entities(...)` if relevant) on Turn 0, inspect a concise summary of the returned dict, and call `SUBMIT(...)` on Turn 1.
-  3. Filter out benign OS/sandbox clutter (SyncRootManager, MSIExecute, Fonts/Adobe/NLS reads, and `undetected` vendor rows) in Python.
-  4. Keep all output lists concise (at most 10-15 top high-signal items per list; never dump full raw lists or repeat items). Never fabricate or alter cryptographic hashes (`sha256`, `sha1`, `md5`, `imphash`).
-  5. Call `SUBMIT(verdict_and_summary=..., answer=..., key_findings=..., high_signal_iocs=..., attributions=..., mitre_techniques=..., filtered_noise_summary=...)` by Turn 1 or Turn 2 at the latest.
+  3. When `tool_name == "rlm_investigate_network_ioc"`, inspect `raw_data` (ASN, JARM, TLS certificate, vendor verdicts, embedded relationships) and call `fetch_downloaded_files()`, `fetch_communicating_files()`, `fetch_resolutions()`, or `fetch_related_urls()` on Turn 0 to pivot into malware hashes and passive DNS history, then call `SUBMIT(...)` on Turn 1.
+  4. Filter out benign OS/sandbox clutter (SyncRootManager, MSIExecute, Fonts/Adobe/NLS reads, and `undetected` vendor rows) in Python.
+  5. Keep all output lists concise (at most 10-15 top high-signal items per list; never dump full raw lists or repeat items). Never fabricate or alter cryptographic hashes (`sha256`, `sha1`, `md5`, `imphash`) or network indicators.
+  6. Call `SUBMIT(verdict_and_summary=..., answer=..., key_findings=..., high_signal_iocs=..., attributions=..., mitre_techniques=..., filtered_noise_summary=...)` by Turn 1 or Turn 2 at the latest.
   """
 
-  entity_id: str = dspy.InputField(desc="Target file hash or behaviour ID.")
+  entity_id: str = dspy.InputField(
+      desc="Target file hash, behaviour ID, IP address, domain, or URL."
+  )
   tool_name: str = dspy.InputField(desc="MCP tool name being executed.")
   query: str = dspy.InputField(
       desc="Specific analyst question or triage objective."
@@ -928,8 +1133,11 @@ def normalize_rlm_prediction(
     merged: list[str] = []
 
     def _add(val_str: str) -> None:
-      if val_str and val_str not in merged and len(merged) < 30:
-        merged.append(val_str)
+      s = val_str.strip()
+      if len(s) > 220:
+        s = f"{s[:180]}...[+{len(s) - 180} chars]"
+      if s and s not in merged and len(merged) < 25:
+        merged.append(s)
 
     for k in keys:
       val = raw_iocs.get(k)
