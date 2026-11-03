@@ -17,7 +17,7 @@ Spawns five out-of-sandbox `mcp-security-gateway` Uvicorn processes (`secops`,
 `gti`, `secops-soar` with `SOAR_INTEGRATIONS=Siemplify`, `scc`, and `vertex-llm`)
 backed by live credentials, starts a local `atenet-egress` HTTP mediation proxy
 that replaces present `Authorization` headers with per-service ES256 `KindActor`
-JWTs, and runs `/usr/local/bin/ax-task-runner` (`ax_mcp_gateway.ax_task_runner`)
+JWTs, and runs `/usr/local/bin/ax-task-runner` (`ax_task_runner`, deployments/ax-task-runner)
 supervising a sanitized `AX_ZERO_SECRET_SANDBOX=true` child process with zero
 credentials in `os.environ`, `/proc/self/environ`, or `/workspace` to verify:
 1. AX `ax-task-runner` `/readyz` probe, `/workspace` file materialization, and
@@ -672,7 +672,7 @@ async def _run_orchestrator() -> None:
               sys.executable,
               "-P",
               "-m",
-              "ax_mcp_gateway.ax_task_runner",
+              "ax_task_runner",
               "--port",
               str(runner_probe_port),
               "--metadata-port",

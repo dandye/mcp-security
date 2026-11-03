@@ -10,7 +10,9 @@
 .gcloud/
 **/.gcloud/
 *.key
+**/*.key
 *.pem
+**/*.pem
 object-viewer-sa.json
 credentials/
 secrets/

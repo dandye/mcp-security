@@ -163,7 +163,7 @@ MINIMAL_LOGGING=N
 | `GOOGLE_GENAI_USE_VERTEXAI`| `False` | Set `True` to route LLM requests through Vertex AI (uses ADC). Set `False` to use Gemini API (requires `GOOGLE_API_KEY`). |
 | `GOOGLE_API_KEY` | None | Gemini API Key (required when `GOOGLE_GENAI_USE_VERTEXAI=False`). |
 | `GOOGLE_MODEL` | `gemini-2.5-flash` | Gemini model name (e.g. `gemini-2.5-flash`, `gemini-2.5-pro`). |
-| `LOAD_SCC_MCP` | `False` | Enables Security Command Center MCP (`server/scc`). Uses ADC. |
+| `LOAD_SCC_MCP` | Auto | Enables Security Command Center MCP (`server/scc`). Uses ADC. Auto-enables if `SCC_MCP_URL` is set; otherwise defaults to disabled. |
 | `LOAD_SECOPS_MCP` | Auto | Enables Chronicle SIEM MCP. Auto-enables if `CHRONICLE_PROJECT_ID` and `CUSTOMER_ID` are set. |
 | `LOAD_GTI_MCP` | Auto | Enables Google Threat Intelligence MCP. Auto-enables if `VT_APIKEY` is set. |
 | `LOAD_SECOPS_SOAR_MCP` | Auto | Enables SecOps SOAR MCP. Auto-enables if `SOAR_URL` and `SOAR_APP_KEY` are set. |
@@ -176,6 +176,19 @@ MINIMAL_LOGGING=N
 | `GOOGLE_APPLICATION_CREDENTIALS` | Auto-detected | Path to service account key file or local `.gcloud/application_default_credentials.json`. |
 | `STDIO_PARAM_TIMEOUT` | `60.0` | Timeout in seconds for MCP subprocess initialization and tool execution. |
 | `MINIMAL_LOGGING` | `False` | Reduces logging verbosity to suppress sensitive query content in production. |
+| `SECOPS_MCP_URL`, `SCC_MCP_URL`, `GTI_MCP_URL`, `SECOPS_SOAR_MCP_URL` | None | Streamable HTTP MCP endpoint for the given server. When set, the agent connects over HTTP instead of spawning the local stdio server and auto-enables that toolset. |
+| `MCP_GATEWAY_AUTH_HEADER` | None | Full `Authorization` header value sent to the remote MCP endpoints above (e.g. `Bearer <token>`). |
+| `HTTP_MCP_TIMEOUT` | `30.0` | Per-request timeout in seconds for Streamable HTTP MCP endpoints. |
+| `LLM_GATEWAY_URL` | None | Custom `base_url` for Gemini requests (e.g. an authenticating proxy in front of Vertex AI). Normal ADC credentials are still used unless `AX_ZERO_SECRET_SANDBOX=true`. |
+| `AX_ZERO_SECRET_SANDBOX` | `false` | Zero-secret mode for [AX](https://github.com/google/ax) sandboxes: fails closed if any credential is present, ignores `.env` files, forbids stdio MCP servers, discovers MCP endpoints from `AX_WORKSPACE_YAML` / loopback `AX_METADATA_URL`, and sends placeholder credentials to `LLM_GATEWAY_URL` for egress header replacement. See [`deployments/ax-mcp-gateway`](../deployments/ax-mcp-gateway/README.md). |
+| `AX_WORKSPACE_YAML`, `AX_METADATA_URL` | None | Set by the AX task runner. Used only to discover `Workspace.spec.mcp.servers[].endpoint` URLs. |
+
+#### Behavior changes in 0.2.0
+
+* `SECOPS_MCP_URL` / `SCC_MCP_URL` / `GTI_MCP_URL` / `SECOPS_SOAR_MCP_URL` now create Streamable HTTP toolsets and auto-enable the corresponding server. Previously they were logged but added no toolset.
+* `LOAD_SCC_MCP` now auto-enables when `SCC_MCP_URL` is set; the default without it is unchanged (disabled).
+* `AX_ZERO_SECRET_SANDBOX` must be a boolean string (`true`/`false`, `1`/`0`, `yes`/`no`); other values raise at startup.
+* The repository root now has a `.dockerignore` that excludes `.env*`, `.venv/`, `.gcloud/`, `*.pem`, `*.key`, and `.git` from `docker build` / `gcloud run deploy --source .` contexts. Pass configuration via `--set-env-vars` or Secret Manager rather than baking `.env` into the image.
 
 ---
 
@@ -295,7 +308,7 @@ Run the hermetic test suite:
 uv run --extra test pytest tests/
 ```
 
-All 37 unit tests run hermetically using mocked MCP connection parameters and simulated LLM responses.
+The unit tests run hermetically using mocked MCP connection parameters and simulated LLM responses. Requires `google-adk>=2.4.0`.
 
 
 

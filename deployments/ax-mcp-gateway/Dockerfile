@@ -24,7 +24,6 @@ FROM python:3.11-slim AS gateway-base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    GATEWAY_APP_ROOT=/app \
     GATEWAY_HOST=0.0.0.0 \
     GATEWAY_PORT=8080
 
@@ -35,7 +34,10 @@ COPY --from=ghcr.io/astral-sh/uv:0.6.10 /uv /usr/local/bin/uv
 RUN groupadd --gid 65532 nonroot && \
     useradd --uid 65532 --gid 65532 --create-home --shell /usr/sbin/nologin nonroot
 
-COPY deployments/ax-mcp-gateway /app/deployments/ax-mcp-gateway
+# Only the installable package sources are copied; tests, manifests, and
+# scripts stay out of the image.
+COPY deployments/ax-mcp-gateway/pyproject.toml deployments/ax-mcp-gateway/README.md /app/deployments/ax-mcp-gateway/
+COPY deployments/ax-mcp-gateway/src /app/deployments/ax-mcp-gateway/src
 RUN uv pip install --system "/app/deployments/ax-mcp-gateway"
 
 FROM gateway-base AS target-secops
@@ -62,8 +64,6 @@ FROM gateway-base AS target-vertex-llm
 ENV GATEWAY_SERVER=vertex-llm
 
 FROM target-${SERVER_TARGET} AS runtime
-
-RUN chown -R 65532:65532 /app
 
 USER 65532:65532
 EXPOSE 8080

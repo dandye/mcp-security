@@ -42,16 +42,18 @@ flowchart LR
 2. **No MITM Trust Bundle Required Inside the Sandbox**: Because the agent invokes all four MCP gateways (`Workspace.spec.mcp.servers[].endpoint`) and the out-of-sandbox Vertex AI proxy (`LLM_GATEWAY_URL`) over cluster-internal HTTP, `atenet-egress` applies `http` `replaceHeaders` rules directly without requiring TLS interception or mounting a custom CA bundle inside AX's `BuildActorTemplate`.
 3. **Cryptographic `actorJwt` Caller Verification with Live Key Rotation**: `atenet-egress` replaces the sandbox's placeholder `Authorization` header on the wire with a short-lived `actorJwt` (`sub: actor/<atespace>/<task>`, claim `actor.ate.dev`, scoped `aud` per gateway Service). Each gateway's `ActorJwtMiddleware` fetches public signing keys asynchronously from `ate-idp-server` (`${ACTOR_JWT_ISSUER}/openid/v1/jwks`) verified against Substrate's projected `servicedns-ca` `ClusterTrustBundle`, and enforces RFC 7517 JWKS signatures (`ES256` / `RS256` / `RS384` / `RS512`), mandatory `iss`, `aud`, `exp`/`nbf`, `KindActor` invariants (rejecting `worker-for-actor.ate.dev` tokens), and `GATEWAY_ALLOWED_ATESPACES` / `GATEWAY_ALLOWED_ACTORS` allowlists.
 4. **NetworkPolicy Isolation**: `allow-only-atenet-egress` (`manifests/mcp-gateways-k8s.yaml`) drops direct pod-to-pod traffic to port `8080` in `secops-gateways`, admitting connections exclusively from `atenet-egress` pods in `ate-system`.
-5. **AX Custom Task Image & Kubelet Probe Contracts**: `Dockerfile.ax-agent` installs `/usr/local/bin/ax-task-runner` (`ax_task_runner.py`), fulfilling AX's `BuildActorTemplate` contract (`:80/healthz` and `:80/readyz` wakeup probe, loopback `AX_METADATA_URL` metadata server, idempotent `/workspace` file initialization across gVisor suspend/resume, and `Task.spec.command` supervision). On the gateways, outer `/healthz` and `/readyz` probes respond before `ActorJwtMiddleware` and `Host` validation so kubelet probes targeting `<pod-ip>:8080` succeed while `/mcp` and `/vertex` enforce Service DNS `Host` allowlists.
+5. **Confused-Deputy Containment on the LLM Gateway**: `llm-gateway` attaches its own Workload Identity token to sandbox-originated requests, so it is restricted to `POST` on Gemini inference RPCs (`generateContent`, `streamGenerateContent`, `countTokens`) for exactly one `GOOGLE_CLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION`, forwards a fixed request-header allowlist, always overwrites `x-goog-user-project` with its own project, and caps request bodies at 32 MiB. Any other Vertex AI path (other projects, `customJobs`, `batchPredictionJobs`, `tuningJobs`, `endpoints:predict`) is rejected with `403` before any upstream call. Bind `llm-gateway-gw@` to the narrowest role that permits inference (`roles/aiplatform.user` or a custom role with `aiplatform.endpoints.predict`).
+6. **AX Custom Task Image & Kubelet Probe Contracts**: `Dockerfile.ax-agent` installs `/usr/local/bin/ax-task-runner` from the pyyaml-only [`deployments/ax-task-runner`](../ax-task-runner/README.md) package (no cloud SDKs or gateway code enter the sandbox image), fulfilling AX's `BuildActorTemplate` contract (`:80/healthz` and `:80/readyz` wakeup probe, loopback `AX_METADATA_URL` metadata server, idempotent `/workspace` file initialization across gVisor suspend/resume, PID 1 zombie reaping, and `Task.spec.command` supervision with a 10s `SIGTERM` grace period). `spec.debug` guest gRPC services (`ax ssh`) and `Workspace.spec.git` cloning are intentionally not implemented; keep `spec.debug: false`. On the gateways, outer `/healthz` and `/readyz` probes respond before `ActorJwtMiddleware` and `Host` validation so kubelet probes targeting `<pod-ip>:8080` succeed while `/mcp` and `/vertex` enforce Service DNS `Host` allowlists.
+7. **JWKS Outage Tolerance**: Gateways cache `ate-idp-server` signing keys for `GATEWAY_JWKS_CACHE_TTL_SECONDS` (60s) and keep serving previously loaded keys for up to `GATEWAY_JWKS_MAX_STALE_SECONDS` (1h) if a refresh fails, so a transient IdP outage does not pull every replica out of Service rotation. A gateway that has never loaded keys stays `503` on `/readyz` and rejects all calls.
 
 ## Directory Layout
 
 - `src/ax_mcp_gateway/actor_jwt.py`: Async Agent Substrate `KindActor` JWT + RFC 7517 JWKS verifier (supporting live OIDC JWKS over `GATEWAY_JWKS_CA_FILE` and static `GATEWAY_JWKS_PATH`) and ASGI `ActorJwtMiddleware`.
 - `src/ax_mcp_gateway/gateway.py`: Multi-server Streamable HTTP and LLM gateway launcher (`mcp-security-gateway`) wrapping `secops`, `gti`, `secops-soar`, `scc`, and `vertex-llm` with `/healthz`, `/readyz`, and cluster DNS `Host` allowlists.
-- `src/ax_mcp_gateway/llm_proxy.py`: Out-of-sandbox `actorJwt`-authenticated Vertex AI Gemini HTTP reverse proxy (`/vertex/v1/...` and `/vertex/v1beta1/...`).
-- `src/ax_mcp_gateway/ax_task_runner.py`: `/usr/local/bin/ax-task-runner` implementation for custom AX `Task` container images.
+- `src/ax_mcp_gateway/llm_proxy.py`: Out-of-sandbox `actorJwt`-authenticated Vertex AI Gemini inference proxy pinned to one project/location and the three inference RPCs.
+- [`../ax-task-runner/`](../ax-task-runner/README.md): Separate pyyaml-only package providing `/usr/local/bin/ax-task-runner` for custom AX `Task` images.
 - `Dockerfile`: Multi-stage non-root (`65532:65532`) gateway container build accepting `--build-arg SERVER_TARGET=secops|gti|secops-soar|scc|vertex-llm`.
-- `Dockerfile.ax-agent`: Zero-secret AX `Task` container build packaging `mcp-security-agent` and `/usr/local/bin/ax-task-runner`.
+- `Dockerfile.ax-agent`: Zero-secret AX `Task` container build packaging `mcp-security-agent` and `ax-task-runner` (runs as root because AX hardcodes the wakeup probe on port 80, matching the upstream runner image).
 - `manifests/mcp-gateways-k8s.yaml`: Kubernetes `Namespace`, Workload Identity `ServiceAccount`s, `NetworkPolicy`, and hardened `Deployment` + `Service` resources for all four MCP gateways plus `llm-gateway`.
 - `manifests/sandbox-and-workerpool.yaml`: Agent Substrate `ate.dev/v1` `WorkerPool` referencing Substrate's cluster-installed `gvisor-default` `SandboxConfig`.
 - `manifests/egress-policy.yaml`: Single-document `ateapi.v1.EgressPolicy` protojson manifest injecting per-service `actorJwt` headers across all five gateways on port `8080`.
@@ -125,6 +127,8 @@ kubectl create namespace "$WORKLOAD_NAMESPACE" --dry-run=client -o yaml | kubect
 envsubst '${ATEWORKER_GVISOR_IMAGE}' \
   < deployments/ax-mcp-gateway/manifests/sandbox-and-workerpool.yaml | kubectl apply -f -
 
+kubectl ate create atespace "$ATESPACE"
+
 envsubst '${PROJECT_ID} ${GOOGLE_CLOUD_LOCATION}' \
   < deployments/ax-mcp-gateway/manifests/ax-secops-gateway-task.yaml \
   | ax apply -a "$ATESPACE" -f -
@@ -155,10 +159,14 @@ ax describe task "$TASK_NAME" -a "$ATESPACE"
 
 ## Running Tests Locally
 
+The gateway tests import the four real `google/mcp-security` server packages and
+the sibling `ax-task-runner` package; the `test` extra resolves them from this
+checkout via `[tool.uv.sources]`, and `tests/conftest.py` fails fast if any are
+missing. The same two commands run in `.github/workflows/tests.yml`.
+
 ```bash
-uv run --directory run-with-google-adk --extra test pytest \
-  ../deployments/ax-mcp-gateway/tests \
-  tests/
+uv run --directory deployments/ax-mcp-gateway --extra test pytest tests
+uv run --directory run-with-google-adk --extra test pytest tests
 ```
 
 ### Live Multi-Gateway & Zero-Secret ADK Agent Smoke Test

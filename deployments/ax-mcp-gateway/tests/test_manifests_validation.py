@@ -13,7 +13,6 @@
 # limitations under the License.
 """Strict schema validation tests for AX, Agent Substrate, and K8s manifests."""
 
-import json
 from pathlib import Path
 import re
 
@@ -70,8 +69,9 @@ def test_ax_manifest_conforms_to_ax_v1alpha1_strict_protojson() -> None:
   # Substrate rejects requests; only limits are permitted on Task.spec.resources.
   assert "requests" not in task_spec["resources"]
   assert set(task_spec["resources"]["limits"].keys()) == {"cpu", "memory"}
-  assert len(json.dumps(task_spec["config"]).encode("utf-8")) <= 16 * 1024
-  assert "modelRef" not in task_spec["config"]
+  # spec.config is runner-defined; this runner reads none, so the manifest omits it.
+  assert "config" not in task_spec
+  assert task_spec["debug"] is False
 
   env_map = {item["name"]: item["value"] for item in task_spec["env"]}
   assert env_map["AX_ZERO_SECRET_SANDBOX"] == "true"

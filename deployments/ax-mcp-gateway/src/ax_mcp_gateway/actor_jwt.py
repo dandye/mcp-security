@@ -89,6 +89,10 @@ class ActorJwtConfig:
   leeway_seconds: float = 5.0
   jwks_cache_ttl_seconds: float = 60.0
   jwks_refresh_cooldown_seconds: float = 10.0
+  # Keys loaded successfully within this window keep being served when a
+  # refresh fails, so a transient ate-idp-server outage does not take the
+  # gateway fleet out of Service rotation.
+  jwks_max_stale_seconds: float = 3600.0
 
   @classmethod
   def from_env(
@@ -116,6 +120,9 @@ class ActorJwtConfig:
     refresh_cooldown = float(
         (env.get("GATEWAY_JWKS_REFRESH_COOLDOWN_SECONDS") or "10.0").strip()
     )
+    max_stale = float(
+        (env.get("GATEWAY_JWKS_MAX_STALE_SECONDS") or "3600.0").strip()
+    )
 
     return cls(
         require_actor_jwt=require_jwt,
@@ -130,6 +137,7 @@ class ActorJwtConfig:
         leeway_seconds=leeway,
         jwks_cache_ttl_seconds=cache_ttl,
         jwks_refresh_cooldown_seconds=refresh_cooldown,
+        jwks_max_stale_seconds=max_stale,
     )
 
 
@@ -157,6 +165,7 @@ class ActorJwtVerifier:
     self.config = config
     self._cached_keys: dict[str, tuple[str, Any]] = {}
     self._cache_expires_at: float = 0.0
+    self._cache_loaded_at: float = 0.0
     self._last_refresh_attempt_at: float = 0.0
     self._sync_lock = threading.Lock()
     self._async_lock: Optional[asyncio.Lock] = None
@@ -209,24 +218,26 @@ class ActorJwtVerifier:
           "Failed to load configured JWKS CA bundle.", 503
       ) from exc
 
+  def has_cached_keys(self) -> bool:
+    """Returns True when any JWKS keys are cached (fresh or within the stale window)."""
+    return bool(self._cached_keys)
+
   def is_ready(self) -> bool:
-    """Returns True if JWKS keys can be loaded synchronously."""
+    """Returns True if JWKS keys are available (loading them if needed)."""
     if not self.config.require_actor_jwt:
       return True
     try:
-      keys = self._load_keys()
-      return bool(keys)
+      return bool(self._load_keys())
     except Exception as exc:
       logger.error("JWKS readiness check failed: %s", exc)
       return False
 
   async def is_ready_async(self) -> bool:
-    """Returns True if JWKS keys can be loaded asynchronously without blocking the event loop."""
+    """Readiness without blocking the event loop; stays ready on stale-but-cached keys."""
     if not self.config.require_actor_jwt:
       return True
     try:
-      keys = await self._load_keys_async()
-      return bool(keys)
+      return bool(await self._load_keys_async())
     except Exception as exc:
       logger.error("JWKS readiness check failed: %s", exc)
       return False
@@ -287,16 +298,43 @@ class ActorJwtVerifier:
       return True
     return False
 
-  def _update_cache_from_doc(
-      self, doc: Any, now: float
+  def _stale_keys_or_raise(
+      self, now: float, exc: Exception
   ) -> dict[str, tuple[str, Any]]:
-    if not isinstance(doc, Mapping):
-      raise ActorJwtAuthError("JWKS root must be a JSON object.", 503)
-    self._cached_keys = self._parse_jwks_payload(doc)
-    self._cache_expires_at = now + self.config.jwks_cache_ttl_seconds
-    return self._cached_keys
+    """Serves previously loaded keys inside the stale window; otherwise re-raises as 503."""
+    stale_deadline = self._cache_loaded_at + self.config.jwks_max_stale_seconds
+    if self._cached_keys and now < stale_deadline:
+      logger.warning(
+          "JWKS refresh failed (%s); serving keys loaded %.0fs ago (max stale %.0fs).",
+          exc,
+          now - self._cache_loaded_at,
+          self.config.jwks_max_stale_seconds,
+      )
+      return self._cached_keys
+    if isinstance(exc, ActorJwtAuthError):
+      raise exc
+    raise ActorJwtAuthError("Failed to load JWKS keys.", 503) from exc
+
+  def _fetch_jwks_document(self) -> Any:
+    if self.config.jwks_json:
+      return json.loads(self.config.jwks_json)
+    if self.config.jwks_path:
+      jwks_file = Path(self.config.jwks_path)
+      if not jwks_file.is_file():
+        raise ActorJwtAuthError(
+            f"Configured JWKS file not found: {self.config.jwks_path}", 503
+        )
+      return json.loads(jwks_file.read_text(encoding="utf-8"))
+    if self.config.jwks_url:
+      resp = httpx.get(
+          self.config.jwks_url, timeout=5.0, verify=self._build_ssl_verify()
+      )
+      resp.raise_for_status()
+      return resp.json()
+    raise ActorJwtAuthError("No JWKS source configured.", 503)
 
   def _load_keys(self, force_refresh: bool = False) -> dict[str, tuple[str, Any]]:
+    """Single blocking JWKS loader; the async path calls this via asyncio.to_thread."""
     with self._sync_lock:
       now = time.monotonic()
       if self._should_use_cache(now, force_refresh):
@@ -304,89 +342,24 @@ class ActorJwtVerifier:
 
       self._last_refresh_attempt_at = now
       try:
-        if self.config.jwks_json:
-          doc = json.loads(self.config.jwks_json)
-        elif self.config.jwks_path:
-          jwks_file = Path(self.config.jwks_path)
-          if not jwks_file.is_file():
-            raise ActorJwtAuthError(
-                f"Configured JWKS file not found: {self.config.jwks_path}", 503
-            )
-          doc = json.loads(jwks_file.read_text(encoding="utf-8"))
-        elif self.config.jwks_url:
-          ssl_verify = self._build_ssl_verify()
-          resp = httpx.get(
-              self.config.jwks_url, timeout=5.0, verify=ssl_verify
-          )
-          resp.raise_for_status()
-          doc = resp.json()
-        else:
-          raise ActorJwtAuthError("No JWKS source configured.", 503)
-        return self._update_cache_from_doc(doc, now)
-      except ActorJwtAuthError:
-        if self._cached_keys and now < self._cache_expires_at:
-          logger.warning(
-              "JWKS refresh failed; continuing with unexpired cached keys."
-          )
-          return self._cached_keys
-        raise
-      except (OSError, ValueError, httpx.HTTPError) as exc:
-        if self._cached_keys and now < self._cache_expires_at:
-          logger.warning(
-              "JWKS refresh failed (%s); continuing with unexpired cached keys.",
-              exc,
-          )
-          return self._cached_keys
-        raise ActorJwtAuthError("Failed to load JWKS keys.", 503) from exc
+        doc = self._fetch_jwks_document()
+        if not isinstance(doc, Mapping):
+          raise ActorJwtAuthError("JWKS root must be a JSON object.", 503)
+        self._cached_keys = self._parse_jwks_payload(doc)
+        self._cache_loaded_at = now
+        self._cache_expires_at = now + self.config.jwks_cache_ttl_seconds
+        return self._cached_keys
+      except (ActorJwtAuthError, OSError, ValueError, httpx.HTTPError) as exc:
+        return self._stale_keys_or_raise(now, exc)
 
   async def _load_keys_async(
       self, force_refresh: bool = False
   ) -> dict[str, tuple[str, Any]]:
-    now = time.monotonic()
-    if self._should_use_cache(now, force_refresh):
+    """Non-blocking wrapper: fast-path on the fresh cache, otherwise one threaded refresh at a time."""
+    if self._should_use_cache(time.monotonic(), force_refresh):
       return self._cached_keys
-
     async with self._get_async_lock():
-      now = time.monotonic()
-      if self._should_use_cache(now, force_refresh):
-        return self._cached_keys
-
-      self._last_refresh_attempt_at = now
-      try:
-        if self.config.jwks_json:
-          doc = json.loads(self.config.jwks_json)
-        elif self.config.jwks_path:
-          jwks_file = Path(self.config.jwks_path)
-          raw_text = await asyncio.to_thread(
-              _read_jwks_file_sync, jwks_file, self.config.jwks_path
-          )
-          doc = json.loads(raw_text)
-        elif self.config.jwks_url:
-          ssl_verify = await asyncio.to_thread(self._build_ssl_verify)
-          async with httpx.AsyncClient(
-              timeout=5.0, verify=ssl_verify
-          ) as client:
-            resp = await client.get(self.config.jwks_url)
-            resp.raise_for_status()
-            doc = resp.json()
-        else:
-          raise ActorJwtAuthError("No JWKS source configured.", 503)
-        return self._update_cache_from_doc(doc, now)
-      except ActorJwtAuthError:
-        if self._cached_keys and now < self._cache_expires_at:
-          logger.warning(
-              "JWKS async refresh failed; continuing with unexpired cached keys."
-          )
-          return self._cached_keys
-        raise
-      except (OSError, ValueError, httpx.HTTPError) as exc:
-        if self._cached_keys and now < self._cache_expires_at:
-          logger.warning(
-              "JWKS async refresh failed (%s); continuing with unexpired cached keys.",
-              exc,
-          )
-          return self._cached_keys
-        raise ActorJwtAuthError("Failed to load JWKS keys.", 503) from exc
+      return await asyncio.to_thread(self._load_keys, force_refresh)
 
   def _parse_bearer_token(self, auth_header: Optional[str]) -> str:
     if not auth_header or not auth_header.strip():
@@ -570,13 +543,6 @@ class ActorJwtVerifier:
     return self._verify_token_with_keys(token, alg, kid, keys)
 
 
-def _read_jwks_file_sync(jwks_file: Path, display_path: str) -> str:
-  if not jwks_file.is_file():
-    raise ActorJwtAuthError(
-        f"Configured JWKS file not found: {display_path}", 503
-    )
-  return jwks_file.read_text(encoding="utf-8")
-
 
 class ActorJwtMiddleware:
   """ASGI middleware enforcing Agent Substrate actorJwt authentication on MCP routes."""
@@ -592,8 +558,12 @@ class ActorJwtMiddleware:
     self.exempt_paths = frozenset(exempt_paths)
 
   async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-    if scope["type"] != "http":
+    if scope["type"] == "lifespan":
       await self.app(scope, receive, send)
+      return
+    if scope["type"] != "http":
+      # WebSocket and other scopes are not part of the gateway surface.
+      await send({"type": "websocket.close", "code": 1008})
       return
 
     path = scope.get("path", "")

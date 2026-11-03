@@ -283,3 +283,29 @@ def test_zero_secret_sandbox_agent_builds_egress_llm(tmp_path: Path) -> None:
     assert creds.valid is True
     assert creds.expired is False
     assert creds.token == "ate-egress-injected"
+
+
+def test_llm_gateway_url_outside_zero_secret_mode_does_not_inject_placeholder_credentials(
+    tmp_path: Path,
+) -> None:
+  """Regression: LLM_GATEWAY_URL alone (e.g. an authenticating corporate proxy) must keep ADC."""
+  from google.adk.models.google_llm import Gemini
+  from mcp_security_agent.agent import create_security_agent
+
+  with patch.dict(
+      os.environ,
+      {
+          "HOME": str(tmp_path),
+          "LLM_GATEWAY_URL": "https://vertex-proxy.corp.example.com",
+          "GOOGLE_CLOUD_PROJECT": "my-secops-project",
+          "GOOGLE_GENAI_USE_VERTEXAI": "TRUE",
+          "GOOGLE_MODEL": "gemini-3.8-flash",
+      },
+      clear=True,
+  ):
+    settings = AgentSettings(_env_file=None)
+    assert settings.ax_zero_secret_sandbox is False
+    agent = create_security_agent(settings)
+    assert isinstance(agent.model, Gemini)
+    assert agent.model.base_url == "https://vertex-proxy.corp.example.com"
+    assert "credentials" not in (agent.model.client_kwargs or {})

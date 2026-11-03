@@ -79,12 +79,3 @@ spec:
     name: secops-gateway-ws
     path: "/workspace"
   debug: false
-  config:
-    mode: "out-of-sandbox-mcp-gateway"
-    egressGateway: "atenet-egress"
-    llmGateway: "http://llm-gateway.secops-gateways.svc.cluster.local:8080/vertex"
-    mcpGateways:
-      - "http://secops-mcp.secops-gateways.svc.cluster.local:8080/mcp"
-      - "http://gti-mcp.secops-gateways.svc.cluster.local:8080/mcp"
-      - "http://secops-soar-mcp.secops-gateways.svc.cluster.local:8080/mcp"
-      - "http://scc-mcp.secops-gateways.svc.cluster.local:8080/mcp"

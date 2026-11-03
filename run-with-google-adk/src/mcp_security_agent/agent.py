@@ -34,22 +34,26 @@ Guidelines:
 
 
 def _build_zero_secret_llm(settings: AgentSettings) -> Any:
-    """Builds an ADK Gemini model using placeholder credentials for egress header replacement."""
+    """Builds an ADK Gemini model for AX zero-secret sandboxes.
+
+    Only used when `AX_ZERO_SECRET_SANDBOX=true`. Requests go to the out-of-sandbox
+    `LLM_GATEWAY_URL` carrying placeholder credentials that Agent Substrate
+    `atenet-egress` replaces on the wire with a short-lived actorJwt.
+    """
     from google.adk.models.google_llm import Gemini
     from google.auth.credentials import Credentials as BaseGoogleCredentials
 
     llm_url = (settings.llm_gateway_url or "").strip()
-    if settings.ax_zero_secret_sandbox:
-        if not llm_url or not is_valid_http_endpoint(llm_url):
-            raise ValueError(
-                "Zero-secret sandbox mode (AX_ZERO_SECRET_SANDBOX=true) requires "
-                "LLM_GATEWAY_URL to point to an out-of-sandbox HTTP(S) Vertex AI gateway."
-            )
-        if not settings.google_cloud_project or not settings.google_cloud_project.strip():
-            raise ValueError(
-                "Zero-secret sandbox mode (AX_ZERO_SECRET_SANDBOX=true) requires "
-                "GOOGLE_CLOUD_PROJECT (non-secret project identifier) for Vertex AI routing."
-            )
+    if not llm_url or not is_valid_http_endpoint(llm_url):
+        raise ValueError(
+            "Zero-secret sandbox mode (AX_ZERO_SECRET_SANDBOX=true) requires "
+            "LLM_GATEWAY_URL to point to an out-of-sandbox HTTP(S) Vertex AI gateway."
+        )
+    if not settings.google_cloud_project or not settings.google_cloud_project.strip():
+        raise ValueError(
+            "Zero-secret sandbox mode (AX_ZERO_SECRET_SANDBOX=true) requires "
+            "GOOGLE_CLOUD_PROJECT (non-secret project identifier) for Vertex AI routing."
+        )
 
     raw_header = (settings.mcp_gateway_auth_header or "Bearer ate-egress-injected").strip()
     parts = raw_header.split(None, 1)
@@ -82,9 +86,31 @@ def _build_zero_secret_llm(settings: AgentSettings) -> Any:
 
     return Gemini(
         model=settings.google_model,
-        base_url=llm_url or None,
+        base_url=llm_url,
         client_kwargs=client_kwargs,
     )
+
+
+def _build_base_url_llm(settings: AgentSettings) -> Any:
+    """Builds an ADK Gemini model that targets a custom `LLM_GATEWAY_URL` with normal ADC.
+
+    Used outside zero-secret mode (for example, an authenticating corporate proxy in
+    front of Vertex AI). Credentials are resolved by google-genai as usual.
+    """
+    from google.adk.models.google_llm import Gemini
+
+    llm_url = (settings.llm_gateway_url or "").strip()
+    if not is_valid_http_endpoint(llm_url):
+        raise ValueError("LLM_GATEWAY_URL must be an http:// or https:// URL.")
+    return Gemini(model=settings.google_model, base_url=llm_url)
+
+
+def _resolve_model(settings: AgentSettings) -> Any:
+    if settings.ax_zero_secret_sandbox:
+        return _build_zero_secret_llm(settings)
+    if settings.llm_gateway_url and settings.llm_gateway_url.strip():
+        return _build_base_url_llm(settings)
+    return settings.google_model
 
 
 def create_security_agent(settings: Optional[AgentSettings] = None) -> Any:
@@ -107,11 +133,7 @@ def create_security_agent(settings: Optional[AgentSettings] = None) -> Any:
         logger.warning("google.adk.agents.llm_agent not available; returning dummy agent.")
         return None
 
-    resolved_model: Any = settings.google_model
-    if settings.ax_zero_secret_sandbox or (
-        settings.llm_gateway_url and settings.llm_gateway_url.strip()
-    ):
-        resolved_model = _build_zero_secret_llm(settings)
+    resolved_model: Any = _resolve_model(settings)
 
     agent = LlmAgent(
         name="SecurityOperationsAgent",

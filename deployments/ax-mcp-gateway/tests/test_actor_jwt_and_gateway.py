@@ -49,10 +49,7 @@ from ax_mcp_gateway import (  # noqa: E402
     build_vertex_llm_proxy_app,
     load_fastmcp_server,
 )
-from ax_mcp_gateway.ax_task_runner import (  # noqa: E402
-    prepare_workspace_once,
-    run_runner,
-)
+from ax_mcp_gateway.llm_proxy import build_inference_path_matcher  # noqa: E402
 
 ISSUER = "https://idp.ate-system.svc"
 AUDIENCE = "http://gti-mcp.secops-gateways.svc.cluster.local:8080"
@@ -513,14 +510,51 @@ async def test_streamable_http_gateway_e2e_mcp_session_and_probes(
         assert "malicious" in call_res.content[0].text
 
 
+def test_inference_path_matcher_is_pinned_to_one_project_location_and_rpcs() -> None:
+  matcher = build_inference_path_matcher("my-secops-project", "global")
+  base = "projects/my-secops-project/locations/global/publishers/google/models/gemini-3.8-flash"
+  assert matcher.match(f"v1beta1/{base}:generateContent")
+  assert matcher.match(f"v1/{base}:streamGenerateContent")
+  assert matcher.match(f"v1/{base}:countTokens")
+
+  rejected = [
+      # Other projects / locations under the gateway SA
+      "v1/projects/victim-project/locations/global/publishers/google/models/gemini-3.8-flash:generateContent",
+      "v1/projects/my-secops-project/locations/us-central1/publishers/google/models/gemini-3.8-flash:generateContent",
+      # Non-inference Vertex resources
+      "v1/projects/my-secops-project/locations/global/customJobs",
+      "v1/projects/my-secops-project/locations/global/batchPredictionJobs",
+      "v1/projects/my-secops-project/locations/global/tuningJobs",
+      "v1/projects/my-secops-project/locations/global/ragCorpora:import",
+      "v1/projects/my-secops-project/locations/global/endpoints/123:predict",
+      "v1/projects/my-secops-project/locations/global/endpoints/123:undeployModel",
+      f"v1/{base}:predict",
+      f"v1/{base}",
+      # Traversal / metadata
+      "v1/../computeMetadata/v1/instance/service-accounts/default/token",
+      "computeMetadata/v1/instance/service-accounts/default/token",
+      f"v2/{base}:generateContent",
+  ]
+  for path in rejected:
+    assert matcher.match(path) is None, path
+
+  with pytest.raises(ValueError, match="GOOGLE_CLOUD_PROJECT"):
+    build_inference_path_matcher("", "global")
+  with pytest.raises(ValueError, match="GOOGLE_CLOUD_PROJECT"):
+    build_inference_path_matcher("Bad Project!", "global")
+
+
 @pytest.mark.asyncio
-async def test_vertex_llm_gateway_enforces_actor_jwt_host_and_path_allowlist(
-    tmp_path: Path,
-) -> None:
+async def test_vertex_llm_gateway_is_not_an_open_relay(tmp_path: Path) -> None:
+  """actorJwt + Host allowlist + pinned inference paths + header scrubbing + body cap."""
   jwks_doc, ec_priv, _ = _generate_es256_and_rs256_jwks()
   jwks_file = tmp_path / "jwks.json"
   jwks_file.write_text(json.dumps(jwks_doc), encoding="utf-8")
   llm_aud = "http://llm-gateway.secops-gateways.svc.cluster.local:8080"
+  model_path = (
+      "/vertex/v1beta1/projects/my-secops-project/locations/global/"
+      "publishers/google/models/gemini-3.8-flash:generateContent"
+  )
 
   seen_upstream: list[tuple[str, dict[str, str]]] = []
 
@@ -535,11 +569,23 @@ async def test_vertex_llm_gateway_enforces_actor_jwt_host_and_path_allowlist(
       transport=httpx.MockTransport(_mock_upstream_handler)
   )
   try:
+    # Refuses to start without a pinned project.
+    with pytest.raises(ValueError, match="GOOGLE_CLOUD_PROJECT"):
+      build_vertex_llm_proxy_app(
+          ("llm-gateway.secops-gateways.svc.cluster.local:8080",),
+          environ={},
+          http_client=mock_client,
+          token_provider=lambda: "t",
+      )
+
     inner_llm_app, llm_lifespan = build_vertex_llm_proxy_app(
         ("llm-gateway.secops-gateways.svc.cluster.local:8080",),
+        project_id="my-secops-project",
+        location="global",
         upstream_base_url="https://aiplatform.googleapis.com",
         token_provider=lambda: "out-of-sandbox-gcp-token",
         http_client=mock_client,
+        max_body_bytes=4096,
     )
     cfg = GatewayConfig.from_env(
         server_name="vertex-llm",
@@ -559,102 +605,73 @@ async def test_vertex_llm_gateway_enforces_actor_jwt_host_and_path_allowlist(
         cfg, inner_app=inner_llm_app, extra_lifespan=llm_lifespan
     )
     valid_jwt = _mint_actor_jwt(ec_priv, audiences=[llm_aud])
+    auth = {"Authorization": f"Bearer {valid_jwt}"}
 
     async with _AsgiLifespanRunner(app):
       async with httpx.AsyncClient(
           transport=httpx.ASGITransport(app=app), base_url=llm_aud
       ) as client:
-        # Unauthenticated rejected 401
-        r_401 = await client.post(
-            "/vertex/v1beta1/projects/p/locations/global/publishers/google/models/gemini-3.8-flash:generateContent",
-            json={},
-        )
-        assert r_401.status_code == 401
+        # 1. Unauthenticated -> 401
+        assert (await client.post(model_path, json={})).status_code == 401
 
-        # Path outside /v1/ or /v1beta1/ rejected 403
-        r_403 = await client.get(
+        # 2. Authenticated but outside the inference allowlist -> 403 (never reaches upstream)
+        for bad in (
+            "/vertex/v1/projects/victim-project/locations/global/publishers/google/models/gemini-3.8-flash:generateContent",
+            "/vertex/v1/projects/my-secops-project/locations/global/customJobs",
+            "/vertex/v1/projects/my-secops-project/locations/global/batchPredictionJobs",
+            "/vertex/v1/projects/my-secops-project/locations/global/ragCorpora:import",
             "/vertex/computeMetadata/v1/instance/service-accounts/default/token",
-            headers={"Authorization": f"Bearer {valid_jwt}"},
-        )
-        assert r_403.status_code == 403
+        ):
+          r = await client.post(bad, headers=auth, json={})
+          assert r.status_code == 403, bad
+        assert seen_upstream == []
 
-        # Valid Vertex generateContent forwarded with out-of-sandbox token
+        # 3. GET is never proxied, even on an allowed path
+        r_get = await client.get(model_path, headers=auth)
+        assert r_get.status_code == 405
+        assert seen_upstream == []
+
+        # 4. Body cap -> 413
+        r_big = await client.post(
+            model_path, headers=auth, content=b"x" * 5000
+        )
+        assert r_big.status_code == 413
+        assert seen_upstream == []
+
+        # 5. Allowed request: caller-supplied billing/auth headers are dropped or overwritten
         r_ok = await client.post(
-            "/vertex/v1beta1/projects/p/locations/global/publishers/google/models/gemini-3.8-flash:generateContent",
-            headers={"Authorization": f"Bearer {valid_jwt}"},
+            model_path + "?alt=sse&key=attacker-api-key",
+            headers={
+                **auth,
+                "x-goog-user-project": "victim-billing-project",
+                "x-goog-api-key": "attacker-api-key",
+                "x-goog-iam-authorization-token": "attacker",
+                "cookie": "session=abc",
+                "x-forwarded-for": "10.0.0.1",
+                "x-goog-api-client": "google-genai-sdk/1.0",
+            },
             json={"contents": []},
         )
         assert r_ok.status_code == 200
         assert r_ok.json()["candidates"][0]["content"]["parts"][0]["text"] == "clean"
         assert len(seen_upstream) == 1
-        assert seen_upstream[0][1]["authorization"] == "Bearer out-of-sandbox-gcp-token"
+        up_url, up_headers = seen_upstream[0]
+        assert up_url == (
+            "https://aiplatform.googleapis.com/v1beta1/projects/my-secops-project/"
+            "locations/global/publishers/google/models/gemini-3.8-flash:generateContent?alt=sse"
+        )
+        assert up_headers["authorization"] == "Bearer out-of-sandbox-gcp-token"
+        assert up_headers["x-goog-user-project"] == "my-secops-project"
+        assert up_headers["x-goog-api-client"] == "google-genai-sdk/1.0"
+        for leaked in (
+            "x-goog-api-key",
+            "x-goog-iam-authorization-token",
+            "cookie",
+            "x-forwarded-for",
+        ):
+          assert leaked not in up_headers
   finally:
     await mock_client.aclose()
-
-
-def test_ax_task_runner_contract_probes_metadata_and_idempotent_workspace(
-    tmp_path: Path,
-) -> None:
-  ws_dir = tmp_path / "workspace"
-  ws_doc = {
-      "apiVersion": "ax.io/v1alpha1",
-      "kind": "Workspace",
-      "spec": {
-          "files": [{"path": "AGENTS.md", "content": "initial-workspace\n"}]
-      },
-  }
-  assert prepare_workspace_once(ws_dir, ws_doc) is True
-  assert (ws_dir / "AGENTS.md").read_text(encoding="utf-8") == "initial-workspace\n"
-
-  # Simulate agent modifying AGENTS.md before gVisor suspend/resume
-  (ws_dir / "AGENTS.md").write_text("agent-mutated\n", encoding="utf-8")
-  assert prepare_workspace_once(ws_dir, ws_doc) is False
-  assert (ws_dir / "AGENTS.md").read_text(encoding="utf-8") == "agent-mutated\n"
-
-  # Path traversal in Workspace.spec.files is rejected
-  bad_ws_dir = tmp_path / "bad_ws"
-  with pytest.raises(ValueError, match="escapes"):
-    prepare_workspace_once(
-        bad_ws_dir,
-        {"spec": {"files": [{"path": "../escaped.txt", "content": "bad"}]}},
-    )
-
-  # Full run_runner execution verifies AX_METADATA_URL and command supervision
-  run_ws_dir = tmp_path / "runner_ws"
-  out_file = tmp_path / "child_meta.txt"
-  task_yaml = json.dumps(
-      {
-          "apiVersion": "ax.io/v1alpha1",
-          "kind": "Task",
-          "metadata": {"name": "test-task", "atespace": "secops"},
-          "spec": {
-              "command": [
-                  sys.executable,
-                  "-P",
-                  "-c",
-                  (
-                      "import os, urllib.request, pathlib; "
-                      "u = os.environ['AX_METADATA_URL'] + '/metadata/v1alpha1/ax/workspace'; "
-                      "data = urllib.request.urlopen(u).read().decode('utf-8'); "
-                      f"pathlib.Path({str(out_file)!r}).write_text(data, encoding='utf-8')"
-                  ),
-              ],
-              "workspace": {"name": "ws", "path": str(run_ws_dir)},
-          },
-      }
-  )
-  ws_yaml = json.dumps(ws_doc)
-  code, _, _ = run_runner(
-      raw_task_yaml=task_yaml,
-      raw_workspace_yaml=ws_yaml,
-      probe_host="127.0.0.1",
-      probe_port=0,
-      metadata_port=0,
-      workspace_override=run_ws_dir,
-      exit_after_command=True,
-  )
-  assert code == 0
-  assert "initial-workspace" in out_file.read_text(encoding="utf-8")
 
 
 @pytest.mark.asyncio
@@ -678,16 +695,15 @@ async def test_load_all_four_real_mcp_security_servers_over_streamable_http(
   jwks_file = tmp_path / "jwks.json"
   jwks_file.write_text(json.dumps(jwks_doc), encoding="utf-8")
 
-  repo_root = Path(__file__).resolve().parents[3]
   audience = f"http://{server_name}-mcp.secops-gateways.svc.cluster.local:8080"
 
-  # Ensure secops-soar dynamic marketplace import succeeds even without `server/secops-soar/secops_soar_mcp` pre-seeded on sys.path.
+  # Servers are imported strictly as installed packages (no sys.path mutation);
+  # the secops-soar marketplace import must resolve via secops_soar_mcp.marketplace.<stem>.
   with patch("google.auth.default", side_effect=RuntimeError("hermetic-test")):
     mcp_srv, extra_lifespan = load_fastmcp_server(
         server_name,
         soar_integrations=soar_integrations,
         skip_soar_bind_on_startup=True,
-        repo_root=repo_root,
     )
 
   cfg = GatewayConfig.from_env(
@@ -703,9 +719,7 @@ async def test_load_all_four_real_mcp_security_servers_over_streamable_http(
           "GATEWAY_ALLOWED_ATESPACES": "secops",
       },
   )
-  app = build_gateway_app(
-      cfg, mcp_server=mcp_srv, extra_lifespan=extra_lifespan, repo_root=repo_root
-  )
+  app = build_gateway_app(cfg, mcp_server=mcp_srv, extra_lifespan=extra_lifespan)
   valid_jwt = _mint_actor_jwt(ec_priv, audiences=[audience])
 
   def _asgi_client_factory(
@@ -749,3 +763,56 @@ def test_secops_soar_register_tools_idempotent_installed_package_import() -> Non
   assert count_once == count_twice
   tool_names = {t.name for t in soar_srv.mcp._tool_manager.list_tools()}
   assert "csv_ping" in tool_names
+
+
+@pytest.mark.asyncio
+async def test_jwks_outage_after_ttl_serves_stale_keys_and_keeps_readyz_green(
+    tmp_path: Path,
+) -> None:
+  """A JWKS source failure after the cache TTL must not 503 the whole gateway fleet."""
+  jwks_doc, ec_priv, _ = _generate_es256_and_rs256_jwks()
+  jwks_file = tmp_path / "jwks.json"
+  jwks_file.write_text(json.dumps(jwks_doc), encoding="utf-8")
+
+  verifier = ActorJwtVerifier(
+      ActorJwtConfig(
+          require_actor_jwt=True,
+          expected_issuer=ISSUER,
+          expected_audience=AUDIENCE,
+          jwks_path=str(jwks_file),
+          jwks_cache_ttl_seconds=0.0,  # every call is a refresh attempt
+          jwks_refresh_cooldown_seconds=0.0,
+          jwks_max_stale_seconds=3600.0,
+      )
+  )
+  tok = _mint_actor_jwt(ec_priv)
+  assert (await verifier.verify_token_async(tok)).actor_name == "secops-triage-agent"
+
+  # Simulate ate-idp-server outage: the JWKS source disappears / becomes corrupt.
+  jwks_file.write_text("{corrupt", encoding="utf-8")
+  assert (await verifier.verify_token_async(tok)).actor_name == "secops-triage-agent"
+  assert await verifier.is_ready_async() is True
+  jwks_file.unlink()
+  assert (await verifier.verify_token_async(tok)).actor_name == "secops-triage-agent"
+  assert await verifier.is_ready_async() is True
+
+  # Beyond the stale window the gateway fails closed with 503.
+  verifier._cache_loaded_at = time.monotonic() - 7200.0
+  with pytest.raises(ActorJwtAuthError) as exc_info:
+    await verifier.verify_token_async(tok)
+  assert exc_info.value.status_code == 503
+  assert await verifier.is_ready_async() is False
+
+  # A gateway with NO prior successful load is not ready and rejects with 503.
+  cold = ActorJwtVerifier(
+      ActorJwtConfig(
+          require_actor_jwt=True,
+          expected_issuer=ISSUER,
+          expected_audience=AUDIENCE,
+          jwks_path=str(tmp_path / "missing.json"),
+      )
+  )
+  assert await cold.is_ready_async() is False
+  with pytest.raises(ActorJwtAuthError) as exc_info:
+    await cold.verify_token_async(tok)
+  assert exc_info.value.status_code == 503

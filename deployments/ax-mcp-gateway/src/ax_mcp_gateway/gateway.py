@@ -20,8 +20,6 @@ from dataclasses import dataclass, field
 import importlib
 import logging
 import os
-from pathlib import Path
-import sys
 from typing import Callable, Optional
 
 from mcp.server.fastmcp import FastMCP
@@ -146,47 +144,24 @@ class GatewayConfig:
     )
 
 
-def _ensure_server_sys_path(
-    server_name: str, repo_root: Optional[Path] = None
-) -> None:
-  """Adds the target server source directory to sys.path when running from a checkout or /app."""
-  candidates: list[Path] = []
-  if repo_root is not None:
-    candidates.append(repo_root)
-  app_root_env = (os.environ.get("GATEWAY_APP_ROOT") or "").strip()
-  if app_root_env:
-    candidates.append(Path(app_root_env))
-  candidates.append(Path("/app"))
-  # deployments/ax-mcp-gateway/src/ax_mcp_gateway/gateway.py -> parents[4] is repo root
-  resolved_self = Path(__file__).resolve()
-  if len(resolved_self.parents) > 4:
-    candidates.append(resolved_self.parents[4])
-
-  for candidate_root in candidates:
-    server_dir = candidate_root / "server" / server_name
-    if server_dir.is_dir():
-      dir_str = str(server_dir)
-      if dir_str not in sys.path:
-        sys.path.insert(0, dir_str)
-      return
-
-
 def load_fastmcp_server(
     server_name: str,
     *,
     soar_integrations: str = "",
     skip_soar_bind_on_startup: bool = False,
-    repo_root: Optional[Path] = None,
 ) -> tuple[FastMCP, Optional[Callable[[], AsyncIterator[None]]]]:
-  """Imports and returns `(FastMCP, optional_extra_lifespan)` for a target MCP server."""
+  """Imports and returns `(FastMCP, optional_extra_lifespan)` for an installed MCP server package.
+
+  The target server package (`google-secops-mcp`, `gti-mcp`, `secops-soar-mcp`,
+  or `scc-mcp`) must be installed in the current environment; no `sys.path`
+  mutation is performed.
+  """
   normalized = server_name.strip().lower()
   if normalized not in SUPPORTED_SERVERS or normalized == "vertex-llm":
     raise ValueError(
         f"Unsupported FastMCP server {server_name!r}; expected one of "
         f"{tuple(s for s in SUPPORTED_SERVERS if s != 'vertex-llm')}."
     )
-
-  _ensure_server_sys_path(normalized, repo_root=repo_root)
 
   if normalized == "secops":
     module = importlib.import_module("secops_mcp.server")
@@ -204,9 +179,6 @@ def load_fastmcp_server(
   soar_module = importlib.import_module("secops_soar_mcp.server")
   bindings_module = importlib.import_module("secops_soar_mcp.bindings")
   if soar_integrations:
-    soar_pkg_dir = str(Path(soar_module.__file__).resolve().parent)
-    if soar_pkg_dir not in sys.path:
-      sys.path.insert(0, soar_pkg_dir)
     soar_module.register_tools(soar_integrations)
 
   @asynccontextmanager
@@ -244,7 +216,6 @@ def build_gateway_app(
     mcp_server: Optional[FastMCP] = None,
     inner_app: Optional[ASGIApp] = None,
     extra_lifespan: Optional[Callable[[], AsyncIterator[None]]] = None,
-    repo_root: Optional[Path] = None,
 ) -> ASGIApp:
   """Builds the complete Out-of-Sandbox MCP or Vertex LLM Gateway ASGI application.
 
@@ -266,7 +237,6 @@ def build_gateway_app(
           config.server_name,
           soar_integrations=config.soar_integrations,
           skip_soar_bind_on_startup=config.skip_soar_bind_on_startup,
-          repo_root=repo_root,
       )
     resolved_inner_app = configure_fastmcp_for_gateway(mcp_server, config)
 

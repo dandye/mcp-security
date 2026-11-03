@@ -12,7 +12,7 @@ authors = [
     { name = "Google LLC" }
 ]
 dependencies = [
-    "google-adk>=2.0.0",
+    "google-adk>=2.4.0",
     "google-genai>=1.20.0",
     "google-cloud-aiplatform>=1.97.0",
     "pydantic>=2.0.0",

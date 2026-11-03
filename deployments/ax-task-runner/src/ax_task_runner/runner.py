@@ -22,8 +22,16 @@ Implements the runner checklist documented in `google/ax/docs/runner.md`:
   `AX_METADATA_URL` to the child command.
 - Materializes `Workspace.spec.files` once per durable `/workspace` volume using a marker
   file so suspend/resume cycles preserve agent workspace state.
-- Supervises `Task.spec.command` in its own process group, stays alive after the child
-  exits, and forwards `SIGTERM`/`SIGINT` cleanly with a bounded grace period.
+- Supervises `Task.spec.command` in its own process group, reaps orphaned
+  grandchildren as PID 1, stays alive after the child exits, and forwards
+  `SIGTERM`/`SIGINT` with a bounded grace period (10s, matching the upstream runner).
+
+Intentionally NOT implemented (documented limitations versus the upstream Go runner):
+- `spec.debug: true` guest gRPC services multiplexed over h2c on port 80, so
+  `ax ssh` does not work against this image. Set `spec.debug: false`.
+- `Workspace.spec.git` cloning and `spec.mcp` config file generation; this runner
+  only materializes `spec.files` and the `spec.skills.path` directory. The
+  mcp-security-agent reads MCP endpoints from `AX_METADATA_URL` directly.
 """
 
 import argparse
@@ -45,6 +53,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_PROBE_PORT = 80
 DEFAULT_METADATA_PORT = 8099
 WORKSPACE_INIT_MARKER = ".ax-workspace-initialized"
+DEFAULT_GRACE_SECONDS = 10.0
 
 
 class RunnerState:
@@ -208,7 +217,7 @@ def run_runner(
     probe_port: int = DEFAULT_PROBE_PORT,
     metadata_port: int = DEFAULT_METADATA_PORT,
     workspace_override: Optional[Path] = None,
-    grace_seconds: float = 5.0,
+    grace_seconds: float = DEFAULT_GRACE_SECONDS,
     exit_after_command: bool = False,
 ) -> tuple[int, int, int]:
   """Starts the probe + loopback metadata servers, prepares `/workspace`, and supervises `spec.command`."""
@@ -256,15 +265,45 @@ def run_runner(
     logger.info("Received signal %s; initiating runner shutdown.", signum)
     state.stop_requested.set()
 
+  def _reap_orphans(_signum: int, _frame: Any) -> None:
+    # As PID 1, grandchildren re-parented to the runner must be waited on or
+    # they accumulate as zombies. Only reap pids other than the supervised child
+    # so Popen.poll() still observes its own exit status.
+    while True:
+      try:
+        pid, status = os.waitpid(-1, os.WNOHANG)
+      except ChildProcessError:
+        return
+      if pid == 0:
+        return
+      if child_proc is not None and pid == child_proc.pid:
+        child_proc.returncode = os.waitstatus_to_exitcode(status)
+
   prev_sigterm = signal.getsignal(signal.SIGTERM)
   prev_sigint = signal.getsignal(signal.SIGINT)
-  if threading.current_thread() is threading.main_thread():
+  prev_sigchld = signal.getsignal(signal.SIGCHLD)
+  is_main_thread = threading.current_thread() is threading.main_thread()
+  if is_main_thread:
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
+    if os.getpid() == 1:
+      signal.signal(signal.SIGCHLD, _reap_orphans)
 
   try:
-    prepare_workspace_once(workspace_dir, ws_doc if isinstance(ws_doc, Mapping) else None)
-    state.workspace_ready.set()
+    try:
+      prepare_workspace_once(
+          workspace_dir, ws_doc if isinstance(ws_doc, Mapping) else None
+      )
+      state.workspace_ready.set()
+    except Exception as exc:
+      # Match the upstream runner: log, keep serving /healthz, leave /readyz at 503
+      # so AX reports WorkspaceReady=False instead of crash-looping PID 1.
+      logger.error("Workspace preparation failed; staying not-ready: %s", exc)
+      if exit_after_command:
+        raise
+      while not state.stop_requested.is_set():
+        state.stop_requested.wait(timeout=0.25)
+      return 1, bound_probe_port, bound_metadata_port
 
     raw_cmd = spec.get("command")
     command: list[str] = (
@@ -309,9 +348,11 @@ def run_runner(
       if child_proc.returncode is not None:
         child_exit_code = child_proc.returncode
   finally:
-    if threading.current_thread() is threading.main_thread():
+    if is_main_thread:
       signal.signal(signal.SIGTERM, prev_sigterm)
       signal.signal(signal.SIGINT, prev_sigint)
+      if os.getpid() == 1:
+        signal.signal(signal.SIGCHLD, prev_sigchld)
     probe_srv.shutdown()
     probe_srv.server_close()
     metadata_srv.shutdown()
@@ -322,7 +363,7 @@ def run_runner(
 
 def _build_parser() -> argparse.ArgumentParser:
   parser = argparse.ArgumentParser(
-      description="AX task runner for mcp-security-agent sandboxes."
+      description="Python implementation of the google/ax task runner contract."
   )
   parser.add_argument(
       "--task-file",
