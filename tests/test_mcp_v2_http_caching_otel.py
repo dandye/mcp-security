@@ -19,7 +19,9 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -399,7 +401,7 @@ async def test_health_and_readiness_probes_bypass_host_rebinding_rejection(
 async def test_mcp_allowed_hosts_env_permits_configured_service_host(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verify MCP_ALLOWED_HOSTS permits custom Cloud Run / Kubernetes Service Host headers."""
+    """Verify MCP_ALLOWED_HOSTS permits matching Host and same-origin Origin while blocking evil Origin."""
     monkeypatch.setenv(
         "MCP_ALLOWED_HOSTS",
         "secops-mcp.run.app,secops-mcp.secops.svc.cluster.local:*",
@@ -409,6 +411,17 @@ async def test_mcp_allowed_hosts_env_permits_configured_service_host(
         host="0.0.0.0",
         stateless_http=True,
     )
+    tools_list_body = {
+        "jsonrpc": "2.0",
+        "id": 11,
+        "method": "tools/list",
+        "params": {
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientCapabilities": {},
+            }
+        },
+    }
     async with _asgi_http_client(app) as client:
         ok_resp = await client.post(
             "/mcp",
@@ -419,20 +432,39 @@ async def test_mcp_allowed_hosts_env_permits_configured_service_host(
                 "MCP-Protocol-Version": "2026-07-28",
                 "Mcp-Method": "tools/list",
             },
-            json={
-                "jsonrpc": "2.0",
-                "id": 11,
-                "method": "tools/list",
-                "params": {
-                    "_meta": {
-                        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
-                        "io.modelcontextprotocol/clientCapabilities": {},
-                    }
-                },
-            },
+            json=tools_list_body,
         )
         assert ok_resp.status_code == 200
         assert len(ok_resp.json()["result"]["tools"]) > 0
+
+        same_origin_resp = await client.post(
+            "/mcp",
+            headers={
+                "Host": "secops-mcp.run.app",
+                "Origin": "https://secops-mcp.run.app",
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Protocol-Version": "2026-07-28",
+                "Mcp-Method": "tools/list",
+            },
+            json=tools_list_body,
+        )
+        assert same_origin_resp.status_code == 200
+        assert len(same_origin_resp.json()["result"]["tools"]) > 0
+
+        evil_origin_resp = await client.post(
+            "/mcp",
+            headers={
+                "Host": "secops-mcp.run.app",
+                "Origin": "https://evil.example",
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Protocol-Version": "2026-07-28",
+                "Mcp-Method": "tools/list",
+            },
+            json=tools_list_body,
+        )
+        assert evil_origin_resp.status_code == 403
 
         blocked_resp = await client.post(
             "/mcp",
@@ -444,6 +476,78 @@ async def test_mcp_allowed_hosts_env_permits_configured_service_host(
             json={"jsonrpc": "2.0", "id": 12, "method": "tools/list", "params": {}},
         )
         assert blocked_resp.status_code == 421
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target", SERVER_TARGETS, ids=[t.name for t in SERVER_TARGETS])
+async def test_allowed_origins_derived_from_bind_host_loopback_and_env(
+    target: ServerTarget,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify same-origin requests on non-loopback --host, portless localhost, and MCP_ALLOWED_ORIGINS."""
+    monkeypatch.setenv("MCP_ALLOWED_ORIGINS", "https://inspector.internal.example:8443")
+    app = target.build_http_app(target.server, host="10.10.0.5", stateless_http=True)
+    tools_list_body = {
+        "jsonrpc": "2.0",
+        "id": 15,
+        "method": "tools/list",
+        "params": {
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientCapabilities": {},
+            }
+        },
+    }
+    base_headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+        "MCP-Protocol-Version": "2026-07-28",
+        "Mcp-Method": "tools/list",
+    }
+    async with _asgi_http_client(app) as client:
+        bind_origin_resp = await client.post(
+            "/mcp",
+            headers={
+                **base_headers,
+                "Host": "10.10.0.5:8000",
+                "Origin": "http://10.10.0.5:8000",
+            },
+            json=tools_list_body,
+        )
+        assert bind_origin_resp.status_code == 200
+
+        portless_loopback_resp = await client.post(
+            "/mcp",
+            headers={
+                **base_headers,
+                "Host": "localhost",
+                "Origin": "http://localhost",
+            },
+            json=tools_list_body,
+        )
+        assert portless_loopback_resp.status_code == 200
+
+        explicit_origin_resp = await client.post(
+            "/mcp",
+            headers={
+                **base_headers,
+                "Host": "10.10.0.5:8000",
+                "Origin": "https://inspector.internal.example:8443",
+            },
+            json=tools_list_body,
+        )
+        assert explicit_origin_resp.status_code == 200
+
+        bad_origin_resp = await client.post(
+            "/mcp",
+            headers={
+                **base_headers,
+                "Host": "10.10.0.5:8000",
+                "Origin": "https://evil.example",
+            },
+            json=tools_list_body,
+        )
+        assert bad_origin_resp.status_code == 403
 
 
 # ---------------------------------------------------------------------------
@@ -835,6 +939,7 @@ def test_cli_arg_parser_defaults_env_vars_and_http_alias(
     alias_args = target.module.build_arg_parser().parse_args(
         ["--transport", "http", "--host", "0.0.0.0", "--port", "9090", "--no-stateless-http"]
     )
+    assert alias_args.transport == "streamable-http"
     assert target.module._normalize_transport(alias_args.transport) == "streamable-http"
     assert alias_args.host == "0.0.0.0"
     assert alias_args.port == 9090
@@ -849,6 +954,66 @@ def test_cli_arg_parser_defaults_env_vars_and_http_alias(
     assert env_args.host == "10.10.0.5"
     assert env_args.port == 8088
     assert env_args.stateless_http is False
+
+
+@pytest.mark.parametrize("target", SERVER_TARGETS, ids=[t.name for t in SERVER_TARGETS])
+def test_cli_empty_and_invalid_env_vars_validated_cleanly(
+    target: ServerTarget,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify empty MCP_* env vars fall back to defaults and invalid MCP_PORT/MCP_TRANSPORT exit 2."""
+    monkeypatch.delenv("GTI_MCP_TRANSPORT", raising=False)
+    monkeypatch.delenv("GTI_MCP_HOST", raising=False)
+    monkeypatch.delenv("GTI_MCP_PORT", raising=False)
+
+    monkeypatch.setenv("MCP_TRANSPORT", "   ")
+    monkeypatch.setenv("MCP_HOST", "")
+    monkeypatch.setenv("MCP_PORT", "")
+    empty_env_args = target.module.build_arg_parser().parse_args([])
+    assert empty_env_args.transport == "stdio"
+    assert empty_env_args.host == "127.0.0.1"
+    assert empty_env_args.port == 8000
+
+    monkeypatch.setenv("MCP_PORT", "bad")
+    monkeypatch.setenv("MCP_TRANSPORT", "stdio")
+    parser_bad_port = target.module.build_arg_parser()
+    with pytest.raises(SystemExit) as bad_port_exc:
+        parser_bad_port.parse_args([])
+    assert bad_port_exc.value.code == 2
+
+    override_port_args = target.module.build_arg_parser().parse_args(["--port", "9091"])
+    assert override_port_args.port == 9091
+
+    monkeypatch.setenv("MCP_PORT", "8000")
+    monkeypatch.setenv("MCP_TRANSPORT", "sse")
+    parser_bad_transport = target.module.build_arg_parser()
+    with pytest.raises(SystemExit) as bad_transport_exc:
+        parser_bad_transport.parse_args([])
+    assert bad_transport_exc.value.code == 2
+
+
+def test_soar_server_import_safe_with_invalid_mcp_port_and_transport_env() -> None:
+    """Verify importing secops_soar_mcp.server never crashes when MCP_PORT or MCP_TRANSPORT is invalid."""
+    env = os.environ.copy()
+    env["MCP_PORT"] = "bad"
+    env["MCP_TRANSPORT"] = "sse"
+    soar_pkg_dir = str(REPO_ROOT / "server" / "secops-soar")
+    existing_py_path = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        f"{soar_pkg_dir}{os.pathsep}{existing_py_path}" if existing_py_path else soar_pkg_dir
+    )
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import secops_soar_mcp.server as m; assert m.mcp.name == 'secops-soar-mcp'",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
 
 
 def test_soar_cli_preserves_integrations_and_verbose_flags() -> None:

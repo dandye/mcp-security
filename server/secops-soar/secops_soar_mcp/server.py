@@ -182,18 +182,69 @@ def _normalize_transport(raw_transport: str) -> str:
     return normalized
 
 
+def _first_nonempty_env(*names: str, default: str) -> str:
+    """Return the first non-empty stripped environment variable value, or default."""
+    for name in names:
+        raw = os.getenv(name)
+        if raw is not None and raw.strip():
+            return raw.strip()
+    return default
+
+
+class _MCPArgumentParser(argparse.ArgumentParser):
+    """ArgumentParser that validates MCP_* environment defaults on parse."""
+
+    def parse_known_args(
+        self,
+        args: Optional[Sequence[str]] = None,
+        namespace: Optional[argparse.Namespace] = None,
+    ) -> tuple[argparse.Namespace, list[str]]:
+        parsed_ns, remaining = super().parse_known_args(args, namespace)
+        if getattr(parsed_ns, "transport", None) is None:
+            raw_transport = _first_nonempty_env("MCP_TRANSPORT", default="stdio")
+            normalized_transport = _normalize_transport(raw_transport)
+            if normalized_transport not in {"stdio", "streamable-http"}:
+                self.error(
+                    f"invalid MCP_TRANSPORT value {raw_transport!r} "
+                    "(choose from 'stdio', 'streamable-http', 'http')"
+                )
+            parsed_ns.transport = normalized_transport
+        else:
+            parsed_ns.transport = _normalize_transport(parsed_ns.transport)
+
+        if getattr(parsed_ns, "host", None) is None:
+            parsed_ns.host = _first_nonempty_env("MCP_HOST", default="127.0.0.1")
+
+        if getattr(parsed_ns, "port", None) is None:
+            raw_port = _first_nonempty_env("MCP_PORT", default="8000")
+            try:
+                parsed_port = int(raw_port)
+            except ValueError:
+                self.error(f"invalid MCP_PORT integer value: {raw_port!r}")
+            if not (1 <= parsed_port <= 65535):
+                self.error(f"MCP_PORT must be between 1 and 65535, got {parsed_port}")
+            parsed_ns.port = parsed_port
+        elif not (1 <= parsed_ns.port <= 65535):
+            self.error(f"--port must be between 1 and 65535, got {parsed_ns.port}")
+
+        return parsed_ns, remaining
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     """Construct the CLI argument parser for SecOps SOAR MCP."""
-    default_transport = _normalize_transport(os.getenv("MCP_TRANSPORT", "stdio"))
-    default_host = os.getenv("MCP_HOST", "127.0.0.1")
-    default_port = int(os.getenv("MCP_PORT", "8000"))
-    arg_parser = argparse.ArgumentParser(
+    raw_integrations = os.getenv("SOAR_INTEGRATIONS")
+    default_integrations = (
+        raw_integrations.strip()
+        if raw_integrations is not None and raw_integrations.strip()
+        else None
+    )
+    arg_parser = _MCPArgumentParser(
         description="SecOps SOAR MCP Server",
         allow_abbrev=False,
     )
     arg_parser.add_argument(
         "--integrations",
-        default=os.getenv("SOAR_INTEGRATIONS"),
+        default=default_integrations,
         help=(
             "Comma-separated list of integration names to enable "
             "(e.g., CSV,SiemplifyThreatFuse). If not provided, no integrations are enabled."
@@ -205,18 +256,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
     arg_parser.add_argument(
         "--transport",
         choices=("stdio", "streamable-http", "http"),
-        default=default_transport,
+        default=None,
         help="MCP transport to serve (default: MCP_TRANSPORT or stdio).",
     )
     arg_parser.add_argument(
         "--host",
-        default=default_host,
+        default=None,
         help="Bind host for streamable-http transport (default: MCP_HOST or 127.0.0.1).",
     )
     arg_parser.add_argument(
         "--port",
         type=int,
-        default=default_port,
+        default=None,
         help="Bind port for streamable-http transport (default: MCP_PORT or 8000).",
     )
     arg_parser.add_argument(
@@ -226,9 +277,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Serve stateless Streamable HTTP requests (default: MCP_STATELESS_HTTP or true).",
     )
     return arg_parser
-
-
-parser = build_arg_parser()
 
 
 def get_enabled_integrations_set(integrations_arg: str) -> set:
@@ -417,23 +465,65 @@ def _resolve_allowed_hosts(
     return deduped
 
 
+def _resolve_allowed_origins(
+    resolved_hosts: Sequence[str],
+    allowed_origins: Optional[list[str]] = None,
+) -> list[str]:
+    """Build the Origin-header allowlist from resolved allowed_hosts and MCP_ALLOWED_ORIGINS."""
+    candidates: list[str] = []
+    for host_pattern in resolved_hosts:
+        cleaned = host_pattern.strip()
+        if not cleaned:
+            continue
+        candidates.append(f"http://{cleaned}")
+        candidates.append(f"https://{cleaned}")
+        if cleaned.endswith(":*"):
+            base_host = cleaned[:-2]
+            if base_host:
+                candidates.append(f"http://{base_host}")
+                candidates.append(f"https://{base_host}")
+
+    env_origins = os.getenv("MCP_ALLOWED_ORIGINS", "")
+    if env_origins.strip():
+        for entry in env_origins.split(","):
+            cleaned = entry.strip()
+            if cleaned:
+                candidates.append(cleaned)
+
+    if allowed_origins:
+        for entry in allowed_origins:
+            cleaned = entry.strip()
+            if cleaned:
+                candidates.append(cleaned)
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in candidates:
+        if item not in seen:
+            seen.add(item)
+            deduped.append(item)
+    return deduped
+
+
 def build_streamable_http_app(
     server_instance: MCPServer = mcp,
     *,
     host: str = "127.0.0.1",
     stateless_http: bool = True,
     allowed_hosts: Optional[list[str]] = None,
+    allowed_origins: Optional[list[str]] = None,
 ) -> Starlette:
     """Build the bounded Streamable HTTP ASGI application with health probes."""
     _register_health_routes(server_instance)
+    resolved_hosts = _resolve_allowed_hosts(host=host, allowed_hosts=allowed_hosts)
+    resolved_origins = _resolve_allowed_origins(
+        resolved_hosts,
+        allowed_origins=allowed_origins,
+    )
     transport_security = TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
-        allowed_hosts=_resolve_allowed_hosts(host=host, allowed_hosts=allowed_hosts),
-        allowed_origins=[
-            "http://127.0.0.1:*",
-            "http://localhost:*",
-            "http://[::1]:*",
-        ],
+        allowed_hosts=resolved_hosts,
+        allowed_origins=resolved_origins,
     )
     return server_instance.streamable_http_app(
         streamable_http_path="/mcp",
@@ -470,8 +560,10 @@ async def main(argv: Optional[Sequence[str]] = None):
             )
             config = uvicorn.Config(app, host=args.host, port=args.port)
             await uvicorn.Server(config).serve()
-        else:
+        elif transport == "stdio":
             await mcp.run_stdio_async()
+        else:  # pragma: no cover
+            raise ValueError(f"Unsupported MCP transport: {transport!r}")
     except Exception as e:
         logger.error("Error: %s", e)
     finally:
