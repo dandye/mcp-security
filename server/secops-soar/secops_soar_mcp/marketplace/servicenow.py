@@ -15,6 +15,7 @@ from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
 from typing import Any, Optional, List, Dict, Union, Annotated
@@ -44,6 +45,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -57,10 +63,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -70,15 +73,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Incident Number"] = incident_number
@@ -122,13 +129,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Update Incident")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Update Incident for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Update Record',
@@ -146,6 +153,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -159,10 +171,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -172,15 +181,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if table_name is not None:
@@ -209,13 +222,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Update Record")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Update Record for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Get Record Details',
@@ -236,6 +249,11 @@ Action Parameters: Table Name: Required.A name of the table to search for the re
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -249,10 +267,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -262,15 +277,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Table Name"] = table_name
@@ -299,13 +318,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Get Record Details")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Get Record Details for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Get Child Incident Details',
@@ -326,6 +345,11 @@ Action Parameters: Parent Incident Number: Required.The number of the incident t
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -339,10 +363,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -352,15 +373,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Parent Incident Number"] = parent_incident_number
@@ -388,13 +413,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Get Child Incident Details")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Get Child Incident Details for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Create Alert Incident',
@@ -415,6 +440,11 @@ Action Parameters: Impact: Required.The impact level of the incident.The possibl
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -428,10 +458,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -441,15 +468,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Impact"] = impact
@@ -484,18 +515,18 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Create Alert Incident")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Create Alert Incident for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Service Now: Get Oauth Token',
+        title='Service Now: Get OAuth Token',
         annotations=ToolAnnotations(
-            title='Service Now: Get Oauth Token',
+            title='Service Now: Get OAuth Token',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -508,6 +539,11 @@ dict: A dictionary containing the result of the action execution.
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -521,10 +557,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -534,15 +567,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -567,13 +604,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Get Oauth Token")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Get Oauth Token for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Add Comment and Wait for Reply',
@@ -591,6 +628,11 @@ dict: A dictionary containing the result of the action execution.
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -604,10 +646,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -617,15 +656,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Incident Number"] = incident_number
@@ -652,13 +695,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Add Comment And Wait For Reply")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Add Comment And Wait For Reply for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Add Attachment',
@@ -679,6 +722,11 @@ Action Parameters: Mode: Optional.The mode for the action. The possible values a
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -692,10 +740,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -705,15 +750,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Table Name"] = table_name
@@ -743,13 +792,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Add Attachment")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Add Attachment for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Ping',
@@ -770,6 +819,11 @@ Action Parameters: None.
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -783,10 +837,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -796,15 +847,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -829,18 +884,18 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Ping")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Ping for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Service Now: Get CMDB Record Details',
+        title='Service Now: Get Cmdb Record Details',
         annotations=ToolAnnotations(
-            title='Service Now: Get CMDB Record Details',
+            title='Service Now: Get Cmdb Record Details',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -853,6 +908,11 @@ dict: A dictionary containing the result of the action execution.
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -866,10 +926,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -879,15 +936,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Class Name"] = class_name
@@ -916,13 +977,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Get CMDB Record Details")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Get CMDB Record Details for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Add Comment',
@@ -943,6 +1004,11 @@ Action Parameters: Incident Number: Required.The number of the incident.To confi
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -956,10 +1022,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -969,15 +1032,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Incident Number"] = incident_number
@@ -1004,13 +1071,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Add Comment")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Add Comment for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Get User Details',
@@ -1031,6 +1098,11 @@ Action Parameters: User Sys IDs: Required.A comma-separated list of user sys_ids
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1044,10 +1116,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1057,15 +1126,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if user_sys_i_ds is not None:
@@ -1094,19 +1167,19 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Get User Details")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Get User Details for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Download Attachments',
         annotations=ToolAnnotations(
             title='Service Now: Download Attachments',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -1121,6 +1194,11 @@ Action Parameters: Table Name: Required.The name of the table that contains the 
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1134,10 +1212,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1147,15 +1222,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Table Name"] = table_name
@@ -1184,13 +1263,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Download Attachments")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Download Attachments for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Close Incident',
@@ -1208,6 +1287,11 @@ dict: A dictionary containing the result of the action execution.
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1221,10 +1305,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1234,15 +1315,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Incident Number"] = incident_number
@@ -1271,13 +1356,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Close Incident")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Close Incident for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Add Parent Incident',
@@ -1298,6 +1383,11 @@ Action Parameters: Parent Incident Number: Required.A parent incident number. Th
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1311,10 +1401,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1324,15 +1411,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Parent Incident Number"] = parent_incident_number
@@ -1359,13 +1450,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Add Parent Incident")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Add Parent Incident for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Add Comment to Record',
@@ -1386,6 +1477,11 @@ Action Parameters: Table Name: Required.The name of the table to add a comment o
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1399,10 +1495,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1412,15 +1505,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Table Name"] = table_name
@@ -1450,13 +1547,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Add Comment To Record")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Add Comment To Record for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Get Incident',
@@ -1477,6 +1574,11 @@ Action Parameters: Incident Number: Required.The number of the incident.To confi
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1490,10 +1592,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1503,15 +1602,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Incident Number"] = incident_number
@@ -1537,13 +1640,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Get Incident")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Get Incident for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Create Record',
@@ -1561,6 +1664,11 @@ dict: A dictionary containing the result of the action execution.
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1574,10 +1682,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1587,15 +1692,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if table_name is not None:
@@ -1624,13 +1733,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Create Record")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Create Record for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Wait for Comments',
@@ -1638,7 +1747,7 @@ dict: A dictionary containing the result of the action execution.
             title='Service Now: Wait for Comments',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=False,
         ),
     )
@@ -1651,6 +1760,11 @@ Action Parameters: Table Name: Required.The name of the table to add a comment o
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1664,10 +1778,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1677,15 +1788,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Table Name"] = table_name
@@ -1716,13 +1831,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Wait For Comments")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Wait For Comments for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Wait for Field Update',
@@ -1740,6 +1855,11 @@ dict: A dictionary containing the result of the action execution.
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1753,10 +1873,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1766,15 +1883,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Table Name"] = table_name
@@ -1803,13 +1924,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Wait For Field Update")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Wait For Field Update for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Create Incident',
@@ -1830,6 +1951,11 @@ Action Parameters: Short Description: Required.A short description of the incide
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1843,10 +1969,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1856,15 +1979,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Short Description"] = short_description
@@ -1902,13 +2029,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Create Incident")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Create Incident for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: List Records Related to User',
@@ -1929,6 +2056,11 @@ Action Parameters: Table Name: Required.A name of the table to search for relate
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1942,10 +2074,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1955,15 +2084,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Table Name"] = table_name
@@ -1993,13 +2126,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_List Records Related To User")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_List Records Related To User for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: List Record Comments',
@@ -2017,6 +2150,11 @@ dict: A dictionary containing the result of the action execution.
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -2030,10 +2168,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -2043,15 +2178,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Table Name"] = table_name
@@ -2081,18 +2220,18 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_List Record Comments")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_List Record Comments for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Service Now: List CMDB Records',
+        title='Service Now: List Cmdb Records',
         annotations=ToolAnnotations(
-            title='Service Now: List CMDB Records',
+            title='Service Now: List Cmdb Records',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -2105,6 +2244,11 @@ dict: A dictionary containing the result of the action execution.
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -2118,10 +2262,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -2131,15 +2272,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Class Name"] = class_name
@@ -2169,13 +2314,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_List CMDB Records")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_List CMDB Records for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Service Now: Wait for Status Update',
@@ -2196,6 +2341,11 @@ Action Parameters: Incident Number: Required.The number of the incident.To confi
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -2209,10 +2359,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -2222,15 +2369,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceNow")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ServiceNow: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Incident Number"] = incident_number
@@ -2257,10 +2408,10 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceNow_Wait For Status Update")
             except Exception as e:
                 logger.error("Error executing action ServiceNow_Wait For Status Update for ServiceNow: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ServiceNow")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")

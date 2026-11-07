@@ -15,6 +15,7 @@ from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
 from typing import Any, Optional, List, Dict, Union, Annotated
@@ -29,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the PaloAltoNGFW integration.
 
     @mcp.tool(
-        title='Palo Alto NGFW: Edit Blocked Applications',
+        title='Palo Alto Ngfw: Edit Blocked Applications',
         annotations=ToolAnnotations(
-            title='Palo Alto NGFW: Edit Blocked Applications',
+            title='Palo Alto Ngfw: Edit Blocked Applications',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -44,6 +45,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -57,10 +63,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -70,15 +73,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="PaloAltoNGFW")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for PaloAltoNGFW: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if applications_to_block is not None:
@@ -110,18 +117,18 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "PaloAltoNGFW_Edit Blocked Applications")
             except Exception as e:
                 logger.error("Error executing action PaloAltoNGFW_Edit Blocked Applications for PaloAltoNGFW: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto NGFW: Block IPS in Policy',
+        title='Palo Alto Ngfw: Block IPs in Policy',
         annotations=ToolAnnotations(
-            title='Palo Alto NGFW: Block IPS in Policy',
+            title='Palo Alto Ngfw: Block IPs in Policy',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -134,6 +141,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -147,10 +159,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -160,15 +169,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="PaloAltoNGFW")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for PaloAltoNGFW: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Device Name"] = device_name
@@ -197,18 +210,18 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "PaloAltoNGFW_Block ips in policy")
             except Exception as e:
                 logger.error("Error executing action PaloAltoNGFW_Block ips in policy for PaloAltoNGFW: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto NGFW: Add IPS to Group',
+        title='Palo Alto Ngfw: Add IPs to Group',
         annotations=ToolAnnotations(
-            title='Palo Alto NGFW: Add IPS to Group',
+            title='Palo Alto Ngfw: Add IPs to Group',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -221,6 +234,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -234,10 +252,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -247,15 +262,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="PaloAltoNGFW")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for PaloAltoNGFW: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if device_name is not None:
@@ -287,18 +306,18 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "PaloAltoNGFW_Add Ips to group")
             except Exception as e:
                 logger.error("Error executing action PaloAltoNGFW_Add Ips to group for PaloAltoNGFW: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto NGFW: Commit Changes',
+        title='Palo Alto Ngfw: Commit Changes',
         annotations=ToolAnnotations(
-            title='Palo Alto NGFW: Commit Changes',
+            title='Palo Alto Ngfw: Commit Changes',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -311,6 +330,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -324,10 +348,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -337,15 +358,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="PaloAltoNGFW")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for PaloAltoNGFW: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Only My Changes"] = only_my_changes
@@ -371,18 +396,18 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "PaloAltoNGFW_Commit Changes")
             except Exception as e:
                 logger.error("Error executing action PaloAltoNGFW_Commit Changes for PaloAltoNGFW: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto NGFW: Ping',
+        title='Palo Alto Ngfw: Ping',
         annotations=ToolAnnotations(
-            title='Palo Alto NGFW: Ping',
+            title='Palo Alto Ngfw: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -395,6 +420,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -408,10 +438,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -421,15 +448,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="PaloAltoNGFW")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for PaloAltoNGFW: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -454,18 +485,18 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "PaloAltoNGFW_Ping")
             except Exception as e:
                 logger.error("Error executing action PaloAltoNGFW_Ping for PaloAltoNGFW: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto NGFW: Unblock URLs',
+        title='Palo Alto Ngfw: Unblock URLs',
         annotations=ToolAnnotations(
-            title='Palo Alto NGFW: Unblock URLs',
+            title='Palo Alto Ngfw: Unblock URLs',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -478,6 +509,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -491,10 +527,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -504,15 +537,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="PaloAltoNGFW")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for PaloAltoNGFW: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if device_name is not None:
@@ -544,18 +581,18 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "PaloAltoNGFW_Unblock Urls")
             except Exception as e:
                 logger.error("Error executing action PaloAltoNGFW_Unblock Urls for PaloAltoNGFW: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto NGFW: Block URLs',
+        title='Palo Alto Ngfw: Block URLs',
         annotations=ToolAnnotations(
-            title='Palo Alto NGFW: Block URLs',
+            title='Palo Alto Ngfw: Block URLs',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -568,6 +605,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -581,10 +623,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -594,15 +633,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="PaloAltoNGFW")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for PaloAltoNGFW: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if device_name is not None:
@@ -634,18 +677,18 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "PaloAltoNGFW_Block Urls")
             except Exception as e:
                 logger.error("Error executing action PaloAltoNGFW_Block Urls for PaloAltoNGFW: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto NGFW: Remove IPS from Group',
+        title='Palo Alto Ngfw: Remove IPs from Group',
         annotations=ToolAnnotations(
-            title='Palo Alto NGFW: Remove IPS from Group',
+            title='Palo Alto Ngfw: Remove IPs from Group',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -658,6 +701,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -671,10 +719,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -684,15 +729,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="PaloAltoNGFW")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for PaloAltoNGFW: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if device_name is not None:
@@ -724,18 +773,18 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "PaloAltoNGFW_Remove Ips from group")
             except Exception as e:
                 logger.error("Error executing action PaloAltoNGFW_Remove Ips from group for PaloAltoNGFW: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto NGFW: Unblock IPS in Policy',
+        title='Palo Alto Ngfw: Unblock IPs in Policy',
         annotations=ToolAnnotations(
-            title='Palo Alto NGFW: Unblock IPS in Policy',
+            title='Palo Alto Ngfw: Unblock IPs in Policy',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -748,6 +797,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -761,10 +815,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -774,15 +825,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="PaloAltoNGFW")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for PaloAltoNGFW: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Device Name"] = device_name
@@ -811,18 +866,18 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "PaloAltoNGFW_Unblock ips in policy")
             except Exception as e:
                 logger.error("Error executing action PaloAltoNGFW_Unblock ips in policy for PaloAltoNGFW: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto NGFW: Get Blocked Applications',
+        title='Palo Alto Ngfw: Get Blocked Applications',
         annotations=ToolAnnotations(
-            title='Palo Alto NGFW: Get Blocked Applications',
+            title='Palo Alto Ngfw: Get Blocked Applications',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -835,6 +890,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -848,10 +908,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -861,15 +918,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="PaloAltoNGFW")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for PaloAltoNGFW: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Device Name"] = device_name
@@ -897,10 +958,10 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "PaloAltoNGFW_Get Blocked Applications")
             except Exception as e:
                 logger.error("Error executing action PaloAltoNGFW_Get Blocked Applications for PaloAltoNGFW: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")

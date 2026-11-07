@@ -15,6 +15,7 @@ from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
 from typing import Any, Optional, List, Dict, Union, Annotated
@@ -44,6 +45,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -57,10 +63,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -70,15 +73,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ExabeamAdvancedAnalytics")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ExabeamAdvancedAnalytics: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Watchlist Titles"] = watchlist_titles
@@ -108,13 +115,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ExabeamAdvancedAnalytics_List Watchlist Items")
             except Exception as e:
                 logger.error("Error executing action ExabeamAdvancedAnalytics_List Watchlist Items for ExabeamAdvancedAnalytics: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ExabeamAdvancedAnalytics")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Exabeam Advanced Analytics: Delete Watchlist',
@@ -132,6 +139,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -145,10 +157,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -158,15 +167,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ExabeamAdvancedAnalytics")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ExabeamAdvancedAnalytics: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Watchlist Title"] = watchlist_title
@@ -192,13 +205,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ExabeamAdvancedAnalytics_Delete Watchlist")
             except Exception as e:
                 logger.error("Error executing action ExabeamAdvancedAnalytics_Delete Watchlist for ExabeamAdvancedAnalytics: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ExabeamAdvancedAnalytics")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Exabeam Advanced Analytics: Ping',
@@ -216,6 +229,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -229,10 +247,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -242,15 +257,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ExabeamAdvancedAnalytics")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ExabeamAdvancedAnalytics: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -275,13 +294,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ExabeamAdvancedAnalytics_Ping")
             except Exception as e:
                 logger.error("Error executing action ExabeamAdvancedAnalytics_Ping for ExabeamAdvancedAnalytics: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ExabeamAdvancedAnalytics")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Exabeam Advanced Analytics: Enrich Entities',
@@ -299,6 +318,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -312,10 +336,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -325,15 +346,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ExabeamAdvancedAnalytics")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ExabeamAdvancedAnalytics: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Return Entity Timeline"] = return_entity_timeline
@@ -373,13 +398,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ExabeamAdvancedAnalytics_Enrich Entities")
             except Exception as e:
                 logger.error("Error executing action ExabeamAdvancedAnalytics_Enrich Entities for ExabeamAdvancedAnalytics: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ExabeamAdvancedAnalytics")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Exabeam Advanced Analytics: Create Watchlist',
@@ -397,6 +422,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -410,10 +440,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -423,15 +450,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ExabeamAdvancedAnalytics")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ExabeamAdvancedAnalytics: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Title"] = title
@@ -461,13 +492,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ExabeamAdvancedAnalytics_Create Watchlist")
             except Exception as e:
                 logger.error("Error executing action ExabeamAdvancedAnalytics_Create Watchlist for ExabeamAdvancedAnalytics: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ExabeamAdvancedAnalytics")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Exabeam Advanced Analytics: Add Comments to Entity',
@@ -475,7 +506,7 @@ def register_tools(mcp: MCPServer):
             title='Exabeam Advanced Analytics: Add Comments to Entity',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=False,
         ),
     )
@@ -485,6 +516,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -498,10 +534,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -511,15 +544,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ExabeamAdvancedAnalytics")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ExabeamAdvancedAnalytics: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Comment"] = comment
@@ -545,13 +582,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ExabeamAdvancedAnalytics_Add Comments To Entity")
             except Exception as e:
                 logger.error("Error executing action ExabeamAdvancedAnalytics_Add Comments To Entity for ExabeamAdvancedAnalytics: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ExabeamAdvancedAnalytics")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Exabeam Advanced Analytics: Remove Entity from Watchlist',
@@ -569,6 +606,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -582,10 +624,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -595,15 +634,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ExabeamAdvancedAnalytics")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ExabeamAdvancedAnalytics: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Watchlist Title"] = watchlist_title
@@ -629,13 +672,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ExabeamAdvancedAnalytics_Remove Entity From Watchlist")
             except Exception as e:
                 logger.error("Error executing action ExabeamAdvancedAnalytics_Remove Entity From Watchlist for ExabeamAdvancedAnalytics: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ExabeamAdvancedAnalytics")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Exabeam Advanced Analytics: Add Entity to Watchlist',
@@ -653,6 +696,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -666,10 +714,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -679,15 +724,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ExabeamAdvancedAnalytics")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ExabeamAdvancedAnalytics: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Watchlist Title"] = watchlist_title
@@ -713,13 +762,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ExabeamAdvancedAnalytics_Add Entity To Watchlist")
             except Exception as e:
                 logger.error("Error executing action ExabeamAdvancedAnalytics_Add Entity To Watchlist for ExabeamAdvancedAnalytics: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ExabeamAdvancedAnalytics")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Exabeam Advanced Analytics: List Watchlists',
@@ -737,6 +786,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -750,10 +804,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -763,15 +814,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ExabeamAdvancedAnalytics")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for ExabeamAdvancedAnalytics: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if max_watchlists_to_return is not None:
@@ -798,10 +853,10 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ExabeamAdvancedAnalytics_List Watchlists")
             except Exception as e:
                 logger.error("Error executing action ExabeamAdvancedAnalytics_List Watchlists for ExabeamAdvancedAnalytics: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for ExabeamAdvancedAnalytics")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")

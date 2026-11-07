@@ -15,6 +15,7 @@ from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
 from typing import Any, Optional, List, Dict, Union, Annotated
@@ -44,6 +45,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -57,10 +63,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -70,15 +73,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Intezer")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for Intezer: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["File Path"] = file_path
@@ -106,13 +113,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Intezer_Detonate File")
             except Exception as e:
                 logger.error("Error executing action Intezer_Detonate File for Intezer: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for Intezer")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Intezer: Get URL Report',
@@ -130,6 +137,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -143,10 +155,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -156,15 +165,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Intezer")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for Intezer: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Analysis ID"] = analysis_id
@@ -192,13 +205,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Intezer_Get URL Report")
             except Exception as e:
                 logger.error("Error executing action Intezer_Get URL Report for Intezer: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for Intezer")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Intezer: Get File Report',
@@ -216,6 +229,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -229,10 +247,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -242,15 +257,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Intezer")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for Intezer: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if analysis_id is not None:
@@ -283,13 +302,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Intezer_Get File Report")
             except Exception as e:
                 logger.error("Error executing action Intezer_Get File Report for Intezer: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for Intezer")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Intezer: Get Alert',
@@ -307,6 +326,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -320,10 +344,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -333,15 +354,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Intezer")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for Intezer: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Alert ID"] = alert_id
@@ -369,13 +394,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Intezer_Get Alert")
             except Exception as e:
                 logger.error("Error executing action Intezer_Get Alert for Intezer: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for Intezer")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Intezer: Unset Index File',
@@ -393,6 +418,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -406,10 +436,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -419,15 +446,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Intezer")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for Intezer: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if sha256 is not None:
@@ -454,13 +485,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Intezer_Unset Index File")
             except Exception as e:
                 logger.error("Error executing action Intezer_Unset Index File for Intezer: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for Intezer")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Intezer: Detonate URL',
@@ -478,6 +509,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -491,10 +527,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -504,15 +537,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Intezer")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for Intezer: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if url is not None:
@@ -539,13 +576,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Intezer_Detonate URL")
             except Exception as e:
                 logger.error("Error executing action Intezer_Detonate URL for Intezer: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for Intezer")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Intezer: Ping',
@@ -566,6 +603,11 @@ Action Parameters: None.
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -579,10 +621,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -592,15 +631,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Intezer")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for Intezer: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -625,13 +668,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Intezer_Ping")
             except Exception as e:
                 logger.error("Error executing action Intezer_Ping for Intezer: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for Intezer")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Intezer: Detonate Hash',
@@ -649,6 +692,11 @@ dict: A dictionary containing the result of the action execution.
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -662,10 +710,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -675,15 +720,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Intezer")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for Intezer: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if file_hash is not None:
@@ -710,13 +759,13 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Intezer_Detonate Hash")
             except Exception as e:
                 logger.error("Error executing action Intezer_Detonate Hash for Intezer: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for Intezer")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Intezer: Index File',
@@ -734,6 +783,11 @@ dict: A dictionary containing the result of the action execution.
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -747,10 +801,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -760,15 +811,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Intezer")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for Intezer: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Index As"] = index_as
@@ -798,20 +853,20 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Intezer_Index File")
             except Exception as e:
                 logger.error("Error executing action Intezer_Index File for Intezer: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for Intezer")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Intezer: Submit Alert',
         annotations=ToolAnnotations(
             title='Intezer: Submit Alert',
             read_only_hint=False,
-            destructive_hint=True,
+            destructive_hint=False,
             idempotent_hint=False,
             open_world_hint=True,
         ),
@@ -822,6 +877,11 @@ dict: A dictionary containing the result of the action execution.
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -835,10 +895,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -848,15 +905,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Intezer")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for Intezer: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Source"] = source
@@ -884,20 +945,20 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Intezer_Submit Alert")
             except Exception as e:
                 logger.error("Error executing action Intezer_Submit Alert for Intezer: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for Intezer")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Intezer: Submit Suspicious Email',
         annotations=ToolAnnotations(
             title='Intezer: Submit Suspicious Email',
             read_only_hint=False,
-            destructive_hint=True,
+            destructive_hint=False,
             idempotent_hint=False,
             open_world_hint=True,
         ),
@@ -908,6 +969,11 @@ dict: A dictionary containing the result of the action execution.
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -921,10 +987,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -934,15 +997,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Intezer")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for Intezer: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Email File Path"] = email_file_path
@@ -968,20 +1035,20 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Intezer_Submit Suspicious Email")
             except Exception as e:
                 logger.error("Error executing action Intezer_Submit Suspicious Email for Intezer: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for Intezer")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Intezer: Submit File',
         annotations=ToolAnnotations(
             title='Intezer: Submit File',
             read_only_hint=False,
-            destructive_hint=True,
+            destructive_hint=False,
             idempotent_hint=False,
             open_world_hint=True,
         ),
@@ -992,6 +1059,11 @@ dict: A dictionary containing the result of the action execution.
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1005,10 +1077,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1018,15 +1087,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Intezer")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for Intezer: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["File Paths"] = file_paths
@@ -1052,20 +1125,20 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Intezer_Submit File")
             except Exception as e:
                 logger.error("Error executing action Intezer_Submit File for Intezer: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for Intezer")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Intezer: Submit Hash',
         annotations=ToolAnnotations(
             title='Intezer: Submit Hash',
             read_only_hint=False,
-            destructive_hint=True,
+            destructive_hint=False,
             idempotent_hint=False,
             open_world_hint=True,
         ),
@@ -1079,6 +1152,11 @@ Action Parameters: None.
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1092,10 +1170,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1105,15 +1180,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Intezer")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for Intezer: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -1138,10 +1217,10 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Intezer_Submit Hash")
             except Exception as e:
                 logger.error("Error executing action Intezer_Submit Hash for Intezer: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for Intezer")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")

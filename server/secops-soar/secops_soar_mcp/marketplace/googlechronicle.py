@@ -15,6 +15,7 @@ from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
 from typing import Any, Optional, List, Dict, Union, Annotated
@@ -44,6 +45,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -57,10 +63,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -70,15 +73,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleChronicle")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for GoogleChronicle: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Rule ID"] = rule_id
@@ -104,13 +111,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleChronicle_Get Rule Details")
             except Exception as e:
                 logger.error("Error executing action GoogleChronicle_Get Rule Details for GoogleChronicle: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for GoogleChronicle")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Google Chronicle: Get Detection Details',
@@ -128,6 +135,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -141,10 +153,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -154,15 +163,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleChronicle")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for GoogleChronicle: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Rule ID"] = rule_id
@@ -189,18 +202,18 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleChronicle_Get Detection Details")
             except Exception as e:
                 logger.error("Error executing action GoogleChronicle_Get Detection Details for GoogleChronicle: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for GoogleChronicle")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Chronicle: Execute UDM Query',
+        title='Google Chronicle: Execute Udm Query',
         annotations=ToolAnnotations(
-            title='Google Chronicle: Execute UDM Query',
+            title='Google Chronicle: Execute Udm Query',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -213,6 +226,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -226,10 +244,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -239,15 +254,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleChronicle")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for GoogleChronicle: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Query"] = query
@@ -281,13 +300,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleChronicle_Execute UDM Query")
             except Exception as e:
                 logger.error("Error executing action GoogleChronicle_Execute UDM Query for GoogleChronicle: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for GoogleChronicle")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Google Chronicle: Remove Values from Reference List',
@@ -305,6 +324,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -318,10 +342,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -331,15 +352,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleChronicle")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for GoogleChronicle: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Reference List Name"] = reference_list_name
@@ -366,13 +391,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleChronicle_Remove Values From Reference List")
             except Exception as e:
                 logger.error("Error executing action GoogleChronicle_Remove Values From Reference List for GoogleChronicle: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for GoogleChronicle")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Google Chronicle: Add Values to Reference List',
@@ -390,6 +415,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -403,10 +433,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -416,15 +443,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleChronicle")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for GoogleChronicle: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Reference List Name"] = reference_list_name
@@ -451,18 +482,18 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleChronicle_Add Values To Reference List")
             except Exception as e:
                 logger.error("Error executing action GoogleChronicle_Add Values To Reference List for GoogleChronicle: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for GoogleChronicle")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Chronicle: List IOCs',
+        title='Google Chronicle: List Io Cs',
         annotations=ToolAnnotations(
-            title='Google Chronicle: List IOCs',
+            title='Google Chronicle: List Io Cs',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -475,6 +506,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -488,10 +524,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -501,15 +534,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleChronicle")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for GoogleChronicle: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if start_time is not None:
@@ -538,13 +575,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleChronicle_List IOCs")
             except Exception as e:
                 logger.error("Error executing action GoogleChronicle_List IOCs for GoogleChronicle: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for GoogleChronicle")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Google Chronicle: Enrich IP',
@@ -562,6 +599,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -575,10 +617,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -588,15 +627,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleChronicle")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for GoogleChronicle: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if create_insight is not None:
@@ -627,13 +670,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleChronicle_Enrich IP")
             except Exception as e:
                 logger.error("Error executing action GoogleChronicle_Enrich IP for GoogleChronicle: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for GoogleChronicle")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Google Chronicle: Ping',
@@ -651,6 +694,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -664,10 +712,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -677,15 +722,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleChronicle")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for GoogleChronicle: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -710,13 +759,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleChronicle_Ping")
             except Exception as e:
                 logger.error("Error executing action GoogleChronicle_Ping for GoogleChronicle: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for GoogleChronicle")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Google Chronicle: List Events',
@@ -734,6 +783,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -747,10 +801,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -760,15 +811,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleChronicle")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for GoogleChronicle: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if event_types is not None:
@@ -806,13 +861,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleChronicle_List Events")
             except Exception as e:
                 logger.error("Error executing action GoogleChronicle_List Events for GoogleChronicle: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for GoogleChronicle")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Google Chronicle: Execute Retrohunt',
@@ -830,6 +885,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -843,10 +903,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -856,15 +913,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleChronicle")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for GoogleChronicle: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Rule ID"] = rule_id
@@ -896,13 +957,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleChronicle_Execute Retrohunt")
             except Exception as e:
                 logger.error("Error executing action GoogleChronicle_Execute Retrohunt for GoogleChronicle: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for GoogleChronicle")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Google Chronicle: Is Value in Reference List',
@@ -920,6 +981,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -933,10 +999,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -946,15 +1009,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleChronicle")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for GoogleChronicle: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Reference List Names"] = reference_list_names
@@ -983,13 +1050,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleChronicle_Is Value In Reference List")
             except Exception as e:
                 logger.error("Error executing action GoogleChronicle_Is Value In Reference List for GoogleChronicle: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for GoogleChronicle")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Google Chronicle: List Assets',
@@ -1007,6 +1074,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1020,10 +1092,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1033,15 +1102,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleChronicle")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for GoogleChronicle: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if max_hours_backwards is not None:
@@ -1076,13 +1149,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleChronicle_List Assets")
             except Exception as e:
                 logger.error("Error executing action GoogleChronicle_List Assets for GoogleChronicle: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for GoogleChronicle")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Google Chronicle: Lookup Similar Alerts',
@@ -1100,6 +1173,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1113,10 +1191,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1126,15 +1201,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleChronicle")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for GoogleChronicle: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if time_frame is not None:
@@ -1164,13 +1243,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleChronicle_Lookup Similar Alerts")
             except Exception as e:
                 logger.error("Error executing action GoogleChronicle_Lookup Similar Alerts for GoogleChronicle: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for GoogleChronicle")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Google Chronicle: Enrich Domain',
@@ -1188,6 +1267,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1201,10 +1285,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1214,15 +1295,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleChronicle")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for GoogleChronicle: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if create_insight is not None:
@@ -1253,13 +1338,13 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleChronicle_Enrich Domain")
             except Exception as e:
                 logger.error("Error executing action GoogleChronicle_Enrich Domain for GoogleChronicle: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for GoogleChronicle")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Google Chronicle: Get Reference Lists',
@@ -1277,6 +1362,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1290,10 +1380,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1303,15 +1390,19 @@ def register_tools(mcp: MCPServer):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleChronicle")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for GoogleChronicle: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if filter_key is not None:
@@ -1346,10 +1437,10 @@ def register_tools(mcp: MCPServer):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleChronicle_Get Reference Lists")
             except Exception as e:
                 logger.error("Error executing action GoogleChronicle_Get Reference Lists for GoogleChronicle: %s", e)
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
             logger.warning("Warning: No active integration instance found for GoogleChronicle")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            return marketplace_error_result("No active instance found.")

@@ -19,6 +19,7 @@ from contextlib import asynccontextmanager
 import importlib.util
 import json
 from pathlib import Path
+import re
 import sys
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -208,6 +209,76 @@ async def test_all_294_soar_marketplace_modules_annotations_and_schema_budget(
 
     assert len(tools) == 2123
     _assert_tool_annotations_and_schema_budget("secops-soar-marketplace-all", tools)
+
+    by_name = {tool.name: tool for tool in tools}
+
+    # Verify CamelCase splitting across all 2,123 marketplace tool titles
+    allowed_mixed_tokens = {"IPs", "IOCs", "URLs", "VMs", "NetBIOS", "OAuth", "QRadar"}
+    unsplit_titles: list[str] = []
+    for tool in tools:
+        assert tool.title is not None
+        for word in re.split(r"[\s:()\-/]+", tool.title):
+            if word and word not in allowed_mixed_tokens and re.search(r"[a-z][A-Z]", word):
+                unsplit_titles.append(f"{tool.name}: {tool.title!r}")
+                break
+    assert not unsplit_titles, f"Marketplace tools with unsplit CamelCase titles: {unsplit_titles[:20]}"
+
+    assert by_name["sep_quarantine_endpoint"].title == "SEP: Quarantine Endpoint"
+    assert by_name["siemplify_test_siemplify_proxy"].title == "Siemplify: Test Siemplify Proxy"
+    assert by_name["any_run_analyze_file"].title == "Any Run: Analyze File"
+    assert by_name["any_run_analyze_file_url"].title == "Any Run: Analyze File URL"
+    assert by_name["email_v2_download_email_attachments"].title == "Email V2: Download Email Attachments"
+    assert by_name["scc_enterprise_cloud_entity_parser"].title == "SCC Enterprise: Cloud Entity Parser"
+
+    # Verify destructive containment, block, disable, and password-set marketplace annotations
+    for destructive_name in (
+        "sep_quarantine_endpoint",
+        "sep_disable_download_insight",
+        "sep_disable_ntp",
+        "sep_block_hash",
+        "active_directory_set_user_password",
+    ):
+        ann = by_name[destructive_name].annotations
+        assert ann is not None
+        assert ann.read_only_hint is False, f"{destructive_name} must not be read-only"
+        assert ann.destructive_hint is True, f"{destructive_name} must be destructive_hint=True"
+
+    # Verify read-only list/get/enrich/search marketplace annotations (including block_list nouns)
+    for readonly_name in (
+        "i_boss_list_policy_block_list_entries",
+        "anomali_get_threat_info",
+        "cofense_triage_enrich_url",
+        "digital_shadows_enrich_url",
+        "digital_shadows_enrich_hash",
+        "digital_shadows_enrich_cve",
+        "digital_shadows_enrich_ip",
+        "wildfire_get_report",
+        "wildfire_get_pcap",
+        "wildfire_get_file",
+        "proof_point_tap_get_campaign",
+        "shodan_search_for_exploits",
+        "sep12_get_report",
+        "sep_get_report",
+        "sep_list_groups",
+        "sep_get_system_info",
+        "sep_list_endpoints",
+        "threat_crowd_enrich_entities",
+        "wmi_list_services",
+        "wmi_get_system_info",
+        "wmi_list_users",
+    ):
+        ann = by_name[readonly_name].annotations
+        assert ann is not None
+        assert ann.read_only_hint is True, f"{readonly_name} must be read_only_hint=True"
+        assert ann.destructive_hint is False, f"{readonly_name} must have destructive_hint=False"
+        assert ann.idempotent_hint is True, f"{readonly_name} must have idempotent_hint=True"
+
+    # Verify comment append action is non-idempotent
+    comment_ann = by_name["siemplify_case_comment"].annotations
+    assert comment_ann is not None
+    assert comment_ann.read_only_hint is False
+    assert comment_ann.destructive_hint is False
+    assert comment_ann.idempotent_hint is False
 
 
 @pytest.mark.asyncio
@@ -559,18 +630,61 @@ async def test_gti_error_paths_set_is_error_true_over_mcp() -> None:
 
 
 @pytest.mark.asyncio
+async def test_gti_missing_vt_apikey_returns_structured_error_across_all_report_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify missing VT_APIKEY returns structured JSON is_error=True on all 9 report/DTM tools."""
+    monkeypatch.delenv("VT_APIKEY", raising=False)
+
+    calls: list[tuple[str, dict[str, Any]]] = [
+        ("get_collection_report", {"id": "col-123"}),
+        ("get_file_report", {"hash": "44d88612fea8a8f36de82e1278abb02f"}),
+        ("get_file_behavior_report", {"file_behaviour_id": "44d88612fea8a8f36de82e1278abb02f_CAPE"}),
+        ("search_digital_threat_monitoring", {"query": "body:ransomware"}),
+        ("get_hunting_ruleset", {"ruleset_id": "rs-123"}),
+        ("get_domain_report", {"domain": "example.com"}),
+        ("get_ip_address_report", {"ip_address": "8.8.8.8"}),
+        ("get_threat_profile", {"profile_id": "prof-123"}),
+        ("get_url_report", {"url": "https://example.com/malicious"}),
+    ]
+
+    async with Client(gti_server) as client:
+        for tool_name, arguments in calls:
+            res = await client.call_tool(tool_name, arguments)
+            parsed = _extract_error_json(res)
+            assert "VT_APIKEY" in parsed["error"], (
+                f"{tool_name} lost VT_APIKEY diagnostic message: {parsed!r}"
+            )
+
+
+@pytest.mark.asyncio
 async def test_soar_error_paths_set_is_error_true_over_mcp() -> None:
     """Verify uninitialized client and upstream exceptions set is_error=True on secops-soar-mcp."""
     with patch.object(soar_bindings, "http_client", None):
         async with Client(soar_server_mod.mcp) as client:
             uninit_err = await client.call_tool("list_cases", {})
+            mp_uninit_err = await client.call_tool(
+                "csv_ping",
+                {
+                    "case_id": "42",
+                    "alert_group_identifiers": ["ag-1"],
+                    "target_entities": [],
+                },
+            )
 
     parsed_uninit = _extract_error_json(uninit_err)
     assert "not initialized" in parsed_uninit["error"]
 
+    parsed_mp_uninit = _extract_error_json(mp_uninit_err)
+    assert "not initialized" in parsed_mp_uninit["error"]
+    assert parsed_mp_uninit["Status"] == "Failed"
+
     failing_http = MagicMock()
     failing_http.post = AsyncMock(side_effect=RuntimeError("SOAR 503 Service Unavailable"))
-    with patch.object(soar_bindings, "http_client", failing_http):
+    with (
+        patch.object(soar_bindings, "http_client", failing_http),
+        patch.object(soar_bindings, "valid_scopes", ["All entities"]),
+    ):
         async with Client(soar_server_mod.mcp) as client:
             post_err = await client.call_tool(
                 "close_case",
@@ -581,9 +695,66 @@ async def test_soar_error_paths_set_is_error_true_over_mcp() -> None:
                     "reason": "Maintenance",
                 },
             )
+            mp_scope_err = await client.call_tool(
+                "csv_ping",
+                {
+                    "case_id": "42",
+                    "alert_group_identifiers": ["ag-1"],
+                    "target_entities": [],
+                    "scope": "InvalidScope",
+                },
+            )
 
     parsed_post = _extract_error_json(post_err)
     assert "SOAR 503 Service Unavailable" in parsed_post["error"]
+
+    parsed_mp_scope = _extract_error_json(mp_scope_err)
+    assert "Invalid scope 'InvalidScope'" in parsed_mp_scope["error"]
+    assert parsed_mp_scope["Status"] == "Failed"
+
+    # Marketplace HTTP None responses on both GET (instances) and POST (ExecuteManualAction)
+    none_get_http = MagicMock()
+    none_get_http.get = AsyncMock(return_value=None)
+    with (
+        patch.object(soar_bindings, "http_client", none_get_http),
+        patch.object(soar_bindings, "valid_scopes", ["All entities"]),
+    ):
+        async with Client(soar_server_mod.mcp) as client:
+            mp_none_get_err = await client.call_tool(
+                "csv_ping",
+                {
+                    "case_id": "42",
+                    "alert_group_identifiers": ["ag-1"],
+                    "target_entities": [],
+                },
+            )
+
+    parsed_mp_none_get = _extract_error_json(mp_none_get_err)
+    assert "Failed to fetch integration instances" in parsed_mp_none_get["error"]
+    assert parsed_mp_none_get["Status"] == "Failed"
+
+    none_post_http = MagicMock()
+    none_post_http.get = AsyncMock(
+        return_value={"integration_instances": [{"identifier": "csv-default-1"}]}
+    )
+    none_post_http.post = AsyncMock(return_value=None)
+    with (
+        patch.object(soar_bindings, "http_client", none_post_http),
+        patch.object(soar_bindings, "valid_scopes", ["All entities"]),
+    ):
+        async with Client(soar_server_mod.mcp) as client:
+            mp_none_post_err = await client.call_tool(
+                "csv_ping",
+                {
+                    "case_id": "42",
+                    "alert_group_identifiers": ["ag-1"],
+                    "target_entities": [],
+                },
+            )
+
+    parsed_mp_none_post = _extract_error_json(mp_none_post_err)
+    assert "SOAR API request failed" in parsed_mp_none_post["error"]
+    assert parsed_mp_none_post["Status"] == "Failed"
 
 
 @pytest.mark.asyncio

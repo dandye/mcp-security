@@ -105,15 +105,19 @@ async def get_file_report(hash: str, ctx: Context) -> dict[str, typing.Any]:
     hash (required): The MD5, SHA-1, or SHA-256 hash of the file to analyze.
   Example: '8ab2cf...', 'e4d909c290d0...', etc.
   """
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object(
-        client,
-        "files",
-        "file",
-        hash,
-        relationships=FILE_KEY_RELATIONSHIPS,
-        params={"exclude_attributes": "last_analysis_results"}
-    )
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object(
+          client,
+          "files",
+          "file",
+          hash,
+          relationships=FILE_KEY_RELATIONSHIPS,
+          params={"exclude_attributes": "last_analysis_results"}
+      )
+  except Exception as e:
+    logging.exception("Error fetching file report for %s: %s", hash, e)
+    return utils.tool_error_result(f"Failed to fetch file report: {e}")  # type: ignore[return-value]
   if utils.is_error_dict(res):
     return utils.tool_error_result_from_dict(res)  # type: ignore[return-value]
   return utils.sanitize_response(res)
@@ -239,23 +243,31 @@ async def get_file_behavior_report(
   Returns:
     The file behaviour report.
   """
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object(
-        client,
-        "file_behaviours",
-        "file_behaviour",
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object(
+          client,
+          "file_behaviours",
+          "file_behaviour",
+          file_behaviour_id,
+          relationships=[
+              "contacted_domains",
+              "contacted_ips",
+              "contacted_urls",
+              "dropped_files",
+              "embedded_domains",
+              "embedded_ips",
+              "embedded_urls",
+              "associations",
+          ],
+      )
+  except Exception as e:
+    logging.exception(
+        "Error fetching file behavior report for %s: %s",
         file_behaviour_id,
-        relationships=[
-            "contacted_domains",
-            "contacted_ips",
-            "contacted_urls",
-            "dropped_files",
-            "embedded_domains",
-            "embedded_ips",
-            "embedded_urls",
-            "associations",
-        ],
+        e,
     )
+    return utils.tool_error_result(f"Failed to fetch file behavior report: {e}")  # type: ignore[return-value]
   if utils.is_error_dict(res):
     return utils.tool_error_result_from_dict(res)  # type: ignore[return-value]
   return utils.sanitize_response(res)
@@ -463,19 +475,19 @@ async def search_digital_threat_monitoring(
   Returns:
     A dictionary containing the list of documents found and search metadata.
   """
-  async with vt_client(ctx) as client:
-    params = {
-        "size": size,
-        "since": since,
-        "until": until,
-        "page": page,
-        "truncate": truncate,
-        "sanitize": str(sanitize).lower(),
-    }
-    params = {k: v for k, v in params.items() if v is not None and v != ""}
-    path = f"/dtm/docs/search?{urllib.parse.urlencode(params)}"
+  try:
+    async with vt_client(ctx) as client:
+      params = {
+          "size": size,
+          "since": since,
+          "until": until,
+          "page": page,
+          "truncate": truncate,
+          "sanitize": str(sanitize).lower(),
+      }
+      params = {k: v for k, v in params.items() if v is not None and v != ""}
+      path = f"/dtm/docs/search?{urllib.parse.urlencode(params)}"
 
-    try:
       res = await client.post_async(
           path=path, json_data={"query": query}
       )
@@ -492,36 +504,36 @@ async def search_digital_threat_monitoring(
         )
 
       res_json = await res.json_async()
-    except (asyncio.TimeoutError, TimeoutError):  # Catch both
-      return utils.tool_error_result(  # type: ignore[return-value]
-          "The request timed out. Please try reducing the scope of your query by using `since` and `until` parameters to add time delimiters"
-      )
-    except json.JSONDecodeError as json_error:
-      logging.error("Failed to parse JSON response: %s", json_error)
-      return utils.tool_error_result(f"Failed to parse server response: {json_error}.")  # type: ignore[return-value]
-    except Exception as e:
-      logging.error("An unexpected error occurred: %s (type: %s)", e, type(e))
-      return utils.tool_error_result(f"An unexpected error occurred: {e}")  # type: ignore[return-value]
+  except (asyncio.TimeoutError, TimeoutError):  # Catch both
+    return utils.tool_error_result(  # type: ignore[return-value]
+        "The request timed out. Please try reducing the scope of your query by using `since` and `until` parameters to add time delimiters"
+    )
+  except json.JSONDecodeError as json_error:
+    logging.error("Failed to parse JSON response: %s", json_error)
+    return utils.tool_error_result(f"Failed to parse server response: {json_error}.")  # type: ignore[return-value]
+  except Exception as e:
+    logging.error("An unexpected error occurred: %s (type: %s)", e, type(e))
+    return utils.tool_error_result(f"An unexpected error occurred: {e}")  # type: ignore[return-value]
 
-    if isinstance(res_json, dict) and "error" in res_json and "docs" not in res_json:
-      return utils.tool_error_result_from_dict(res_json)  # type: ignore[return-value]
+  if isinstance(res_json, dict) and "error" in res_json and "docs" not in res_json:
+    return utils.tool_error_result_from_dict(res_json)  # type: ignore[return-value]
 
-    # Remove unnecessary information
-    if "docs" in res_json:
-      for i in range(len(res_json["docs"])):
-        res_json["docs"][i].pop("__meta", None)
-        res_json["docs"][i].pop("entities", None)
-       
-    link_header = res.headers.get("link")
-    if link_header and 'rel="next"' in link_header:
-        try:
-            url_part = link_header.split(';')[0].strip().strip('<>')
-            query_string = urllib.parse.urlparse(url_part).query
-            next_page = urllib.parse.parse_qs(query_string).get('page', [None])[0]
-            if next_page:
-                res_json["page"] = next_page
-        except (IndexError, AttributeError):
-            # Could not parse link header, proceed without it
-            pass
+  # Remove unnecessary information
+  if "docs" in res_json:
+    for i in range(len(res_json["docs"])):
+      res_json["docs"][i].pop("__meta", None)
+      res_json["docs"][i].pop("entities", None)
 
-    return utils.sanitize_response(res_json)
+  link_header = res.headers.get("link")
+  if link_header and 'rel="next"' in link_header:
+    try:
+      url_part = link_header.split(";")[0].strip().strip("<>")
+      query_string = urllib.parse.urlparse(url_part).query
+      next_page = urllib.parse.parse_qs(query_string).get("page", [None])[0]
+      if next_page:
+        res_json["page"] = next_page
+    except (IndexError, AttributeError):
+      # Could not parse link header, proceed without it
+      pass
+
+  return utils.sanitize_response(res_json)

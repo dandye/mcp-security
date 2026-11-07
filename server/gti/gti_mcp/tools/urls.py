@@ -89,15 +89,19 @@ async def get_url_report(url: str, ctx: Context) -> dict[str, typing.Any]:
   Returns:
     Report with insights about the URL.
   """
-  url_id = url_to_base64(url)
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object(
-        client,
-        "urls",
-        "url",
-        url_id,
-        relationships=["associations"],
-        params={"exclude_attributes": "last_analysis_results"})
+  try:
+    url_id = url_to_base64(url)
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object(
+          client,
+          "urls",
+          "url",
+          url_id,
+          relationships=["associations"],
+          params={"exclude_attributes": "last_analysis_results"})
+  except Exception as e:
+    logging.exception("Error fetching URL report for %s: %s", url, e)
+    return utils.tool_error_result(f"Failed to fetch URL report: {e}")  # type: ignore[return-value]
   if utils.is_error_dict(res):
     return utils.tool_error_result_from_dict(res)  # type: ignore[return-value]
   return utils.sanitize_response(res)

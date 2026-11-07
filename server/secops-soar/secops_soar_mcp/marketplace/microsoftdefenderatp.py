@@ -15,6 +15,7 @@ from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import (
     ApiManualActionDataModel,
     EmailContent,
@@ -69,6 +70,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -82,10 +88,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -97,18 +100,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
             script_params["Query"] = query
@@ -133,17 +137,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_Run Advanced Hunting Query")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_Run Advanced Hunting Query for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_Run Advanced Hunting Query for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: Get Machine Related Alerts',
@@ -207,6 +207,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -220,10 +225,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -235,18 +237,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
             if status is not None:
@@ -278,17 +281,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_Get Machine Related Alerts")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_Get Machine Related Alerts for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_Get Machine Related Alerts for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: Wait Task Status',
@@ -327,6 +326,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -340,10 +344,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -355,18 +356,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
             script_params["Task IDs"] = task_i_ds
@@ -391,17 +393,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_Wait Task Status")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_Wait Task Status for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_Wait Task Status for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: Get File Related Machines',
@@ -463,6 +461,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -476,10 +479,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -491,18 +491,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
             if machine_name is not None:
@@ -538,17 +539,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_Get File Related Machines")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_Get File Related Machines for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_Get File Related Machines for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: Get Current Task Status',
@@ -587,6 +584,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -600,10 +602,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -615,18 +614,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
             script_params["Task IDs"] = task_i_ds
@@ -651,17 +651,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_Get Current Task Status")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_Get Current Task Status for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_Get Current Task Status for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: Create Stop and Quarantine File Specific Machine Task',
@@ -703,6 +699,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -716,10 +717,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -731,18 +729,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
             script_params["SHA1 File Hash to Quarantine"] = sha1_file_hash_to_quarantine
@@ -768,17 +767,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_Create Stop And Quarantine File Specific Machine Task")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_Create Stop And Quarantine File Specific Machine Task for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_Create Stop And Quarantine File Specific Machine Task for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: Create Isolate Machine Task',
@@ -818,6 +813,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -831,10 +831,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -846,18 +843,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
             script_params["Isolation Type"] = isolation_type
@@ -883,17 +881,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_Create Isolate Machine Task")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_Create Isolate Machine Task for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_Create Isolate Machine Task for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: Update Alert',
@@ -946,6 +940,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -959,10 +958,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -974,18 +970,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
             script_params["Alert ID"] = alert_id
@@ -1018,17 +1015,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_Update Alert")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_Update Alert for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_Update Alert for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: List Alerts',
@@ -1099,6 +1092,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1112,10 +1110,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1127,18 +1122,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
             if time_frame is not None:
@@ -1172,17 +1168,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_List Alerts")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_List Alerts for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_List Alerts for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: Ping',
@@ -1218,6 +1210,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1231,10 +1228,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1246,18 +1240,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
 
@@ -1281,17 +1276,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_Ping")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_Ping for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_Ping for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: Get Machine Logon Users',
@@ -1327,6 +1318,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1340,10 +1336,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1355,18 +1348,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
 
@@ -1390,17 +1384,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_Get Machine Logon Users")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_Get Machine Logon Users for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_Get Machine Logon Users for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: List Machines',
@@ -1469,6 +1459,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1482,10 +1477,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1497,18 +1489,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
             if last_seen_time_frame is not None:
@@ -1546,17 +1539,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_List Machines")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_List Machines for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_List Machines for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: List Indicators',
@@ -1627,6 +1616,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1640,10 +1634,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1655,18 +1646,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
             if indicators is not None:
@@ -1700,17 +1692,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_List Indicators")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_List Indicators for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_List Indicators for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: Submit Entity Indicators',
@@ -1781,6 +1769,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1794,10 +1787,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1809,18 +1799,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
             script_params["Action"] = action
@@ -1852,17 +1843,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_Submit Entity Indicators")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_Submit Entity Indicators for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_Submit Entity Indicators for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: Get File Related Alerts',
@@ -1926,6 +1913,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1939,10 +1931,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1954,18 +1943,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
             if status is not None:
@@ -1997,17 +1987,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_Get File Related Alerts")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_Get File Related Alerts for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_Get File Related Alerts for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: Enrich Entities',
@@ -2043,6 +2029,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -2056,10 +2047,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -2071,18 +2059,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
 
@@ -2106,17 +2095,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_Enrich Entities")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_Enrich Entities for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_Enrich Entities for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: Create Run Antivirus Scan Task',
@@ -2162,6 +2147,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -2175,10 +2165,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -2190,18 +2177,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
             script_params["Antivirus Scan Type"] = antivirus_scan_type
@@ -2227,17 +2215,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_Create Run Antivirus Scan Task")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_Create Run Antivirus Scan Task for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_Create Run Antivirus Scan Task for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: Create Unisolate Machine Task',
@@ -2276,6 +2260,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -2289,10 +2278,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -2304,18 +2290,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
             script_params["Comment"] = comment
@@ -2340,17 +2327,13 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_Create Unisolate Machine Task")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_Create Unisolate Machine Task for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_Create Unisolate Machine Task for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
         title='Microsoft Defender ATP: Delete Entity Indicators',
@@ -2386,6 +2369,11 @@ def register_tools(mcp: MCPServer):
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -2399,10 +2387,7 @@ def register_tools(mcp: MCPServer):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = []  # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -2414,18 +2399,19 @@ def register_tools(mcp: MCPServer):
                     INTEGRATION_NAME="MicrosoftDefenderATP"
                 )
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
             logger.error("Error fetching instance for MicrosoftDefenderATP: %s", e)
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            return marketplace_error_result(f"Error fetching instance: {e}")
 
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {
-                    "Status": "Failed",
-                    "Message": "Instance found but identifier is missing.",
-                }
+                return marketplace_error_result("Instance found but identifier is missing.")
 
             script_params = {}
 
@@ -2449,14 +2435,10 @@ def register_tools(mcp: MCPServer):
                 execution_response = await bindings.http_client.post(
                     Endpoints.EXECUTE_MANUAL_ACTION, req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftDefenderATP_Delete Entity Indicators")
             except Exception as e:
-                logger.error(
-                    f"Error executing action MicrosoftDefenderATP_Delete Entity Indicators for MicrosoftDefenderATP: {e}"
-                )
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftDefenderATP_Delete Entity Indicators for MicrosoftDefenderATP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            logger.warning(
-                f"Warning: No active integration instance found for MicrosoftDefenderATP"
-            )
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftDefenderATP")
+            return marketplace_error_result("No active instance found.")

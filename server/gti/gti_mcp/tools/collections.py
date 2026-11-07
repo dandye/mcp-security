@@ -82,14 +82,18 @@ async def get_collection_report(id: str, ctx: Context) -> dict[str, typing.Any]:
   Returns:
     A collection object. Put attention to the collection type to correctly understand what it represents.
   """
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object(
-        client,
-        "collections",
-        "collection",
-        id,
-        relationships=COLLECTION_KEY_RELATIONSHIPS,
-        params={"exclude_attributes": COLLECTION_EXCLUDED_ATTRS})
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object(
+          client,
+          "collections",
+          "collection",
+          id,
+          relationships=COLLECTION_KEY_RELATIONSHIPS,
+          params={"exclude_attributes": COLLECTION_EXCLUDED_ATTRS})
+  except Exception as e:
+    logging.exception("Error fetching collection report for %s: %s", id, e)
+    return utils.tool_error_result(f"Failed to fetch collection report: {e}")  # type: ignore[return-value]
   if utils.is_error_dict(res):
     return utils.tool_error_result_from_dict(res)  # type: ignore[return-value]
   return res

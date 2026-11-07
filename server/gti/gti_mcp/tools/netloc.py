@@ -108,14 +108,18 @@ async def get_domain_report(domain: str, ctx: Context) -> dict[str, typing.Any]:
   Returns:
     Report with insights about the domain.
   """
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object(
-        client,
-        "domains",
-        "domain",
-        domain,
-        relationships=DOMAIN_KEY_RELATIONSHIPS,
-        params={"exclude_attributes": "last_analysis_results"})
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object(
+          client,
+          "domains",
+          "domain",
+          domain,
+          relationships=DOMAIN_KEY_RELATIONSHIPS,
+          params={"exclude_attributes": "last_analysis_results"})
+  except Exception as e:
+    logging.exception("Error fetching domain report for %s: %s", domain, e)
+    return utils.tool_error_result(f"Failed to fetch domain report: {e}")  # type: ignore[return-value]
   if utils.is_error_dict(res):
     return utils.tool_error_result_from_dict(res)  # type: ignore[return-value]
   return utils.sanitize_response(res)
@@ -219,14 +223,18 @@ async def get_ip_address_report(ip_address: str, ctx: Context) -> dict[str, typi
   Returns:
     Report with insights about the IP address.
   """
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object(
-        client,
-        "ip_addresses",
-        "ip",
-        ip_address,
-        relationships=IP_KEY_RELATIONSHIPS,
-        params={"exclude_attributes": "last_analysis_results"})
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object(
+          client,
+          "ip_addresses",
+          "ip",
+          ip_address,
+          relationships=IP_KEY_RELATIONSHIPS,
+          params={"exclude_attributes": "last_analysis_results"})
+  except Exception as e:
+    logging.exception("Error fetching IP address report for %s: %s", ip_address, e)
+    return utils.tool_error_result(f"Failed to fetch IP address report: {e}")  # type: ignore[return-value]
   if utils.is_error_dict(res):
     return utils.tool_error_result_from_dict(res)  # type: ignore[return-value]
   return utils.sanitize_response(res)

@@ -117,13 +117,17 @@ async def get_hunting_ruleset(ruleset_id: str, ctx: Context) -> dict[str, typing
   Returns:
     Hunting Ruleset object.
   """
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object(
-        client,
-        "intelligence/hunting_rulesets",
-        "hunting_ruleset",
-        ruleset_id,
-    )
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object(
+          client,
+          "intelligence/hunting_rulesets",
+          "hunting_ruleset",
+          ruleset_id,
+      )
+  except Exception as e:
+    logging.exception("Error fetching hunting ruleset %s: %s", ruleset_id, e)
+    return utils.tool_error_result(f"Failed to fetch hunting ruleset: {e}")  # type: ignore[return-value]
   if utils.is_error_dict(res):
     return utils.tool_error_result_from_dict(res)  # type: ignore[return-value]
   return utils.sanitize_response(res)

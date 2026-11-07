@@ -113,8 +113,10 @@ async def test_missing_instance_logs_warning_not_stdout(caplog, capsys) -> None:
     ):
         result = await tool(**_ping_kwargs())
 
+    assert result.is_error is True
     assert result["Status"] == "Failed"
     assert "No active instance found" in result["Message"]
+    assert "No active instance found" in result["error"]
     assert capsys.readouterr().out == ""
     assert any(
         "No active integration instance found for ActiveDirectory"
@@ -140,8 +142,10 @@ async def test_fetch_instance_error_logs_not_stdout(caplog, capsys) -> None:
     ):
         result = await tool(**_ping_kwargs())
 
+    assert result.is_error is True
     assert result["Status"] == "Failed"
     assert "Error fetching instance" in result["Message"]
+    assert "Error fetching instance" in result["error"]
     assert capsys.readouterr().out == ""
     matching = [
         record
