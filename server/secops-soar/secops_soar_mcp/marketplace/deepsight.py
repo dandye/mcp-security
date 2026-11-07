@@ -35,7 +35,7 @@ def register_tools(mcp: MCPServer):
             title='Deep Sight: Scan Hash',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=False,
+            idempotent_hint=True,
             open_world_hint=True,
         ),
     )
@@ -124,7 +124,7 @@ def register_tools(mcp: MCPServer):
             title='Deep Sight: Scan Email',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=False,
+            idempotent_hint=True,
             open_world_hint=True,
         ),
     )
@@ -305,7 +305,7 @@ dict: A dictionary containing the result of the action execution.
             title='Deep Sight: Scan URL',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=False,
+            idempotent_hint=True,
             open_world_hint=True,
         ),
     )
@@ -394,7 +394,7 @@ dict: A dictionary containing the result of the action execution.
             title='Deep Sight: Scan File Name',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=False,
+            idempotent_hint=True,
             open_world_hint=True,
         ),
     )
@@ -483,7 +483,7 @@ dict: A dictionary containing the result of the action execution.
             title='Deep Sight: Scan Domain',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=False,
+            idempotent_hint=True,
             open_world_hint=True,
         ),
     )
@@ -572,7 +572,7 @@ dict: A dictionary containing the result of the action execution.
             title='Deep Sight: Scan IP',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=False,
+            idempotent_hint=True,
             open_world_hint=True,
         ),
     )

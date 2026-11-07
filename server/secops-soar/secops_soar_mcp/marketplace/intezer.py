@@ -1138,7 +1138,7 @@ dict: A dictionary containing the result of the action execution.
         annotations=ToolAnnotations(
             title='Intezer: Submit Hash',
             read_only_hint=False,
-            destructive_hint=True,
+            destructive_hint=False,
             idempotent_hint=False,
             open_world_hint=True,
         ),

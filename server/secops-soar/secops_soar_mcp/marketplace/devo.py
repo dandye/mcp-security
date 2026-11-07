@@ -122,7 +122,7 @@ def register_tools(mcp: MCPServer):
         title='Devo: Advanced Query',
         annotations=ToolAnnotations(
             title='Devo: Advanced Query',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -223,7 +223,7 @@ dict: A dictionary containing the result of the action execution.
         title='Devo: Simple Query',
         annotations=ToolAnnotations(
             title='Devo: Simple Query',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

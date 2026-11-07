@@ -488,7 +488,7 @@ def register_tools(mcp: MCPServer):
         title='Palo Alto Cortex XDR: Resolve an Incident',
         annotations=ToolAnnotations(
             title='Palo Alto Cortex XDR: Resolve an Incident',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

@@ -123,8 +123,8 @@ def register_tools(mcp: MCPServer):
         annotations=ToolAnnotations(
             title='Wildfire: Detonate File',
             read_only_hint=False,
-            destructive_hint=False,
-            idempotent_hint=True,
+            destructive_hint=True,
+            idempotent_hint=False,
             open_world_hint=True,
         ),
     )

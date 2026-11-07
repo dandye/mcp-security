@@ -399,7 +399,7 @@ dict: A dictionary containing the result of the action execution.
             title='Sophos: Scan Endpoints',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=False,
+            idempotent_hint=True,
             open_world_hint=False,
         ),
     )

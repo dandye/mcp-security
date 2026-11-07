@@ -502,7 +502,7 @@ def register_tools(mcp: MCPServer):
         title='Siemplify Utilities: Export Entities as OpenIOC File',
         annotations=ToolAnnotations(
             title='Siemplify Utilities: Export Entities as OpenIOC File',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -594,7 +594,7 @@ def register_tools(mcp: MCPServer):
         title='Siemplify Utilities: Extract Top from JSON',
         annotations=ToolAnnotations(
             title='Siemplify Utilities: Extract Top from JSON',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

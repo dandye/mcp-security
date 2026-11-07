@@ -836,7 +836,7 @@ dict: A dictionary containing the result of the action execution.
             title='MISP: Add Tag to an Event',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=False,
+            idempotent_hint=True,
             open_world_hint=True,
         ),
     )
@@ -1645,7 +1645,7 @@ dict: A dictionary containing the result of the action execution.
         title='MISP: Download File',
         annotations=ToolAnnotations(
             title='MISP: Download File',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,
@@ -1848,7 +1848,7 @@ dict: A dictionary containing the result of the action execution.
         annotations=ToolAnnotations(
             title='MISP: Upload File',
             read_only_hint=False,
-            destructive_hint=False,
+            destructive_hint=True,
             idempotent_hint=False,
             open_world_hint=True,
         ),

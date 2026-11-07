@@ -724,7 +724,7 @@ dict: A dictionary containing the result of the action execution.
         title='Jira: Download Attachments',
         annotations=ToolAnnotations(
             title='Jira: Download Attachments',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

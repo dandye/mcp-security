@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the RSANetWitness integration.
 
     @mcp.tool(
-        title="RSA Net Witness: Update the 'TI' Database of NetWitness",
+        title='RSA Net Witness: Update the TI Database of NetWitness',
         annotations=ToolAnnotations(
-            title="RSA Net Witness: Update the 'TI' Database of NetWitness",
+            title='RSA Net Witness: Update the TI Database of NetWitness',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,

@@ -212,7 +212,7 @@ def register_tools(mcp: MCPServer):
         annotations=ToolAnnotations(
             title='Mal Share: Upload File',
             read_only_hint=False,
-            destructive_hint=False,
+            destructive_hint=True,
             idempotent_hint=False,
             open_world_hint=True,
         ),

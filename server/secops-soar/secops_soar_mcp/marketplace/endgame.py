@@ -282,7 +282,7 @@ dict: A dictionary containing the result of the action execution.
         title='Endgame: Hunt User',
         annotations=ToolAnnotations(
             title='Endgame: Hunt User',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -767,7 +767,7 @@ dict: A dictionary containing the result of the action execution.
         title='Endgame: Hunt Process',
         annotations=ToolAnnotations(
             title='Endgame: Hunt Process',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -1909,7 +1909,7 @@ dict: A dictionary containing the result of the action execution.
         title='Endgame: Hunt IP',
         annotations=ToolAnnotations(
             title='Endgame: Hunt IP',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -2015,7 +2015,7 @@ dict: A dictionary containing the result of the action execution.
         title='Endgame: Hunt Registry',
         annotations=ToolAnnotations(
             title='Endgame: Hunt Registry',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -2206,7 +2206,7 @@ dict: A dictionary containing the result of the action execution.
         title='Endgame: Hunt File',
         annotations=ToolAnnotations(
             title='Endgame: Hunt File',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -2310,7 +2310,7 @@ dict: A dictionary containing the result of the action execution.
         title='Endgame: Download File',
         annotations=ToolAnnotations(
             title='Endgame: Download File',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

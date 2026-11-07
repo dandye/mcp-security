@@ -122,7 +122,7 @@ def register_tools(mcp: MCPServer):
         title='Alien Vault TI: Enriches Entities',
         annotations=ToolAnnotations(
             title='Alien Vault TI: Enriches Entities',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,

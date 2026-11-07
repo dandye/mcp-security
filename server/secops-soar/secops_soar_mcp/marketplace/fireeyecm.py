@@ -672,7 +672,7 @@ def register_tools(mcp: MCPServer):
         title='Fire Eye CM: Download Alert Artifacts',
         annotations=ToolAnnotations(
             title='Fire Eye CM: Download Alert Artifacts',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -855,7 +855,7 @@ def register_tools(mcp: MCPServer):
         title='Fire Eye CM: Download Custom Rules File',
         annotations=ToolAnnotations(
             title='Fire Eye CM: Download Custom Rules File',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -948,7 +948,7 @@ def register_tools(mcp: MCPServer):
         title='Fire Eye CM: Download Quarantined Email',
         annotations=ToolAnnotations(
             title='Fire Eye CM: Download Quarantined Email',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

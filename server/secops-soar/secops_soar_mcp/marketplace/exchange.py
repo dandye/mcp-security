@@ -1348,7 +1348,7 @@ dict: A dictionary containing the result of the action execution.
         title='Exchange: Extract EML Data',
         annotations=ToolAnnotations(
             title='Exchange: Extract EML Data',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -1739,7 +1739,7 @@ dict: A dictionary containing the result of the action execution.
         title='Exchange: Download Attachments',
         annotations=ToolAnnotations(
             title='Exchange: Download Attachments',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

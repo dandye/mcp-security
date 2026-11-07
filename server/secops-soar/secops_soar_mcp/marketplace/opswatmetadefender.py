@@ -34,8 +34,8 @@ def register_tools(mcp: MCPServer):
         annotations=ToolAnnotations(
             title='Opswat Metadefender: Scan Hash',
             read_only_hint=False,
-            destructive_hint=True,
-            idempotent_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
             open_world_hint=True,
         ),
     )

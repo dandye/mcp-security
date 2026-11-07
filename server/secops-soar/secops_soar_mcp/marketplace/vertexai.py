@@ -328,7 +328,7 @@ def register_tools(mcp: MCPServer):
             title='Vertex AI: Analyze EML',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=False,
+            idempotent_hint=True,
             open_world_hint=False,
         ),
     )

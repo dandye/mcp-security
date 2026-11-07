@@ -33,7 +33,7 @@ def register_tools(mcp: MCPServer):
         title='Auto Focus: Hunt IP',
         annotations=ToolAnnotations(
             title='Auto Focus: Hunt IP',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,
@@ -122,7 +122,7 @@ def register_tools(mcp: MCPServer):
         title='Auto Focus: Hunt Domain',
         annotations=ToolAnnotations(
             title='Auto Focus: Hunt Domain',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,
@@ -300,7 +300,7 @@ def register_tools(mcp: MCPServer):
         title='Auto Focus: Hunt File',
         annotations=ToolAnnotations(
             title='Auto Focus: Hunt File',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,
@@ -389,7 +389,7 @@ def register_tools(mcp: MCPServer):
         title='Auto Focus: Hunt URL',
         annotations=ToolAnnotations(
             title='Auto Focus: Hunt URL',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,

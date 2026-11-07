@@ -760,12 +760,12 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Tenable Security Center: Scan IPS',
+        title='Tenable Security Center: Scan IPs',
         annotations=ToolAnnotations(
-            title='Tenable Security Center: Scan IPS',
+            title='Tenable Security Center: Scan IPs',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=False,
+            idempotent_hint=True,
             open_world_hint=False,
         ),
     )

@@ -434,7 +434,7 @@ def register_tools(mcp: MCPServer):
         annotations=ToolAnnotations(
             title='Freshworks Freshservice: Deactivate Agent',
             read_only_hint=False,
-            destructive_hint=False,
+            destructive_hint=True,
             idempotent_hint=True,
             open_world_hint=False,
         ),
@@ -1520,7 +1520,7 @@ def register_tools(mcp: MCPServer):
         annotations=ToolAnnotations(
             title='Freshworks Freshservice: Deactivate Requester',
             read_only_hint=False,
-            destructive_hint=False,
+            destructive_hint=True,
             idempotent_hint=True,
             open_world_hint=False,
         ),

@@ -33,7 +33,7 @@ def register_tools(mcp: MCPServer):
         title='CSV: CSV Search by Entity',
         annotations=ToolAnnotations(
             title='CSV: CSV Search by Entity',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -320,7 +320,7 @@ def register_tools(mcp: MCPServer):
         title='CSV: CSV Search by String',
         annotations=ToolAnnotations(
             title='CSV: CSV Search by String',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

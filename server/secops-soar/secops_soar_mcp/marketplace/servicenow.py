@@ -524,9 +524,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Service Now: Get Oauth Token',
+        title='Service Now: Get OAuth Token',
         annotations=ToolAnnotations(
-            title='Service Now: Get Oauth Token',
+            title='Service Now: Get OAuth Token',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1179,7 +1179,7 @@ dict: A dictionary containing the result of the action execution.
         title='Service Now: Download Attachments',
         annotations=ToolAnnotations(
             title='Service Now: Download Attachments',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -1747,7 +1747,7 @@ dict: A dictionary containing the result of the action execution.
             title='Service Now: Wait for Comments',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=False,
         ),
     )

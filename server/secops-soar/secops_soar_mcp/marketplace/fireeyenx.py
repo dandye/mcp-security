@@ -216,7 +216,7 @@ def register_tools(mcp: MCPServer):
         title='Fire Eye NX: Download Alert Artifacts',
         annotations=ToolAnnotations(
             title='Fire Eye NX: Download Alert Artifacts',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

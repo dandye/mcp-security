@@ -127,7 +127,7 @@ dict: A dictionary containing the result of the action execution.
         title='Sentinel One V2: Resolve Threat',
         annotations=ToolAnnotations(
             title='Sentinel One V2: Resolve Threat',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -1874,7 +1874,7 @@ dict: A dictionary containing the result of the action execution.
         title='Sentinel One V2: Download Threat File',
         annotations=ToolAnnotations(
             title='Sentinel One V2: Download Threat File',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

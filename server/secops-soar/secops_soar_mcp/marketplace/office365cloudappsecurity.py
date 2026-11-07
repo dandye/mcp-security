@@ -498,7 +498,7 @@ def register_tools(mcp: MCPServer):
         annotations=ToolAnnotations(
             title='Office365 Cloud App Security: Bulk Resolve Alert',
             read_only_hint=False,
-            destructive_hint=False,
+            destructive_hint=True,
             idempotent_hint=True,
             open_world_hint=False,
         ),
@@ -960,7 +960,7 @@ def register_tools(mcp: MCPServer):
         annotations=ToolAnnotations(
             title='Office365 Cloud App Security: Dismiss Alert',
             read_only_hint=False,
-            destructive_hint=False,
+            destructive_hint=True,
             idempotent_hint=True,
             open_world_hint=False,
         ),

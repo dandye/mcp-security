@@ -33,7 +33,7 @@ def register_tools(mcp: MCPServer):
         title='Google Cloud Storage: Download an Object from a Bucket',
         annotations=ToolAnnotations(
             title='Google Cloud Storage: Download an Object from a Bucket',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

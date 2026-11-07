@@ -126,9 +126,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto NGFW: Block IPS in Policy',
+        title='Palo Alto NGFW: Block IPs in Policy',
         annotations=ToolAnnotations(
-            title='Palo Alto NGFW: Block IPS in Policy',
+            title='Palo Alto NGFW: Block IPs in Policy',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -219,9 +219,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto NGFW: Add IPS to Group',
+        title='Palo Alto NGFW: Add IPs to Group',
         annotations=ToolAnnotations(
-            title='Palo Alto NGFW: Add IPS to Group',
+            title='Palo Alto NGFW: Add IPs to Group',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -686,9 +686,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto NGFW: Remove IPS from Group',
+        title='Palo Alto NGFW: Remove IPs from Group',
         annotations=ToolAnnotations(
-            title='Palo Alto NGFW: Remove IPS from Group',
+            title='Palo Alto NGFW: Remove IPs from Group',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -782,9 +782,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto NGFW: Unblock IPS in Policy',
+        title='Palo Alto NGFW: Unblock IPs in Policy',
         annotations=ToolAnnotations(
-            title='Palo Alto NGFW: Unblock IPS in Policy',
+            title='Palo Alto NGFW: Unblock IPs in Policy',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,

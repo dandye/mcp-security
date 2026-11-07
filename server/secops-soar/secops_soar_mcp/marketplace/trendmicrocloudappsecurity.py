@@ -483,7 +483,7 @@ def register_tools(mcp: MCPServer):
         title='Trend Micro Cloud App Security: Entity Email Search',
         annotations=ToolAnnotations(
             title='Trend Micro Cloud App Security: Entity Email Search',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

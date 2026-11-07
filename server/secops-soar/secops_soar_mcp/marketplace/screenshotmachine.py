@@ -35,7 +35,7 @@ def register_tools(mcp: MCPServer):
             title='Screenshot Machine: Take URL Screenshot',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=True,
         ),
     )

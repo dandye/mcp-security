@@ -126,9 +126,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto Panorama: Block IPS in Policy',
+        title='Palo Alto Panorama: Block IPs in Policy',
         annotations=ToolAnnotations(
-            title='Palo Alto Panorama: Block IPS in Policy',
+            title='Palo Alto Panorama: Block IPs in Policy',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -314,9 +314,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto Panorama: Add IPS to Group',
+        title='Palo Alto Panorama: Add IPs to Group',
         annotations=ToolAnnotations(
-            title='Palo Alto Panorama: Add IPS to Group',
+            title='Palo Alto Panorama: Add IPs to Group',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -955,9 +955,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto Panorama: Remove IPS from Group',
+        title='Palo Alto Panorama: Remove IPs from Group',
         annotations=ToolAnnotations(
-            title='Palo Alto Panorama: Remove IPS from Group',
+            title='Palo Alto Panorama: Remove IPs from Group',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -1047,9 +1047,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto Panorama: Unblock IPS in Policy',
+        title='Palo Alto Panorama: Unblock IPs in Policy',
         annotations=ToolAnnotations(
-            title='Palo Alto Panorama: Unblock IPS in Policy',
+            title='Palo Alto Panorama: Unblock IPs in Policy',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,

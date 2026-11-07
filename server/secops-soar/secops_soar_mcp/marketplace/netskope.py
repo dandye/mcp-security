@@ -616,7 +616,7 @@ dict: A dictionary containing the result of the action execution.
         title='Netskope: Download File',
         annotations=ToolAnnotations(
             title='Netskope: Download File',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

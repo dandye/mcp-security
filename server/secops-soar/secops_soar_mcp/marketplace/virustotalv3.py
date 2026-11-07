@@ -1113,7 +1113,7 @@ def register_tools(mcp: MCPServer):
         title='Virus Total V3: Download File',
         annotations=ToolAnnotations(
             title='Virus Total V3: Download File',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,

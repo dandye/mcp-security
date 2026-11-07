@@ -500,7 +500,7 @@ dict: A dictionary containing the result of the action execution.
         title='Intsights: Download Alert CSV',
         annotations=ToolAnnotations(
             title='Intsights: Download Alert CSV',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,

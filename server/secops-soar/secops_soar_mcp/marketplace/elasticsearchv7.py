@@ -33,7 +33,7 @@ def register_tools(mcp: MCPServer):
         title='Elastic Search V7: Simple ES Search',
         annotations=ToolAnnotations(
             title='Elastic Search V7: Simple ES Search',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -128,7 +128,7 @@ def register_tools(mcp: MCPServer):
         title='Elastic Search V7: Advanced ES Search',
         annotations=ToolAnnotations(
             title='Elastic Search V7: Advanced ES Search',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -322,7 +322,7 @@ def register_tools(mcp: MCPServer):
         title='Elastic Search V7: DSL Search',
         annotations=ToolAnnotations(
             title='Elastic Search V7: DSL Search',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

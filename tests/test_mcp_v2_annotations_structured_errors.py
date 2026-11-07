@@ -275,15 +275,31 @@ async def test_all_294_soar_marketplace_modules_annotations_and_schema_budget(
         by_name["service_now_get_cmdb_record_details"].title
         == "Service Now: Get CMDB Record Details"
     )
+    assert by_name["qualys_vm_list_ips"].title == "Qualys VM: List IPs"
+    assert by_name["tenable_security_center_scan_ips"].title == "Tenable Security Center: Scan IPs"
+    assert by_name["service_now_get_oauth_token"].title == "Service Now: Get OAuth Token"
+    assert (
+        by_name["rsa_net_witness_update_the_ti_database_of_net_witness"].title
+        == "RSA Net Witness: Update the TI Database of NetWitness"
+    )
 
-    # Verify mutating / external-submission tools are not misclassified as read-only
+    # Verify mutating / alert-resolving / download / external-submission tools are not read-only
     for mutating_name in (
         "ca_service_desk_change_ticket_status",
         "scc_enterprise_cloud_entity_parser",
+        "cb_response_resolve_alert",
+        "palo_alto_cortex_xdr_resolve_an_incident",
+        "sentinel_one_v2_resolve_threat",
+        "crowd_strike_falcon_download_file",
     ):
         ann = by_name[mutating_name].annotations
         assert ann is not None
         assert ann.read_only_hint is False, f"{mutating_name} must have read_only_hint=False"
+
+    slack_block_ann = by_name["slack_build_block"].annotations
+    assert slack_block_ann is not None
+    assert slack_block_ann.read_only_hint is False
+    assert slack_block_ann.destructive_hint is False
 
     url_scan_ann = by_name["url_scan_io_url_check"].annotations
     assert url_scan_ann is not None
@@ -291,7 +307,7 @@ async def test_all_294_soar_marketplace_modules_annotations_and_schema_budget(
     assert url_scan_ann.idempotent_hint is False
     assert url_scan_ann.open_world_hint is True
 
-    # Verify destructive containment, block, disable, email-mitigation, and password-set annotations
+    # Verify destructive containment, block, disable, VM power-off, email-mitigation, and password-set annotations
     for destructive_name in (
         "sep_quarantine_endpoint",
         "sep_disable_download_insight",
@@ -301,18 +317,22 @@ async def test_all_294_soar_marketplace_modules_annotations_and_schema_budget(
         "trend_micro_cloud_app_security_mitigate_emails",
         "trend_micro_cloud_app_security_mitigate_accounts",
         "sentinel_one_v2_mitigate_threat",
+        "v_sphere_power_off",
+        "okta_set_password",
     ):
         ann = by_name[destructive_name].annotations
         assert ann is not None
         assert ann.read_only_hint is False, f"{destructive_name} must not be read-only"
         assert ann.destructive_hint is True, f"{destructive_name} must be destructive_hint=True"
 
-    # Verify external file/payload submission tools are destructive + open-world
+    # Verify external file/payload/sandbox submission tools are destructive + open-world
     for external_submit_name in (
         "virus_total_v3_submit_file",
         "intezer_submit_alert",
         "intezer_submit_suspicious_email",
         "intezer_submit_file",
+        "any_run_analyze_file",
+        "wildfire_detonate_file",
     ):
         ann = by_name[external_submit_name].annotations
         assert ann is not None
@@ -327,7 +347,7 @@ async def test_all_294_soar_marketplace_modules_annotations_and_schema_budget(
     assert reboot_ann.destructive_hint is True
     assert reboot_ann.idempotent_hint is False
 
-    # Verify read-only list/get/enrich/search marketplace annotations (including block_list nouns)
+    # Verify read-only list/get/enrich/search/hash-lookup marketplace annotations
     for readonly_name in (
         "i_boss_list_policy_block_list_entries",
         "anomali_get_threat_info",
@@ -350,6 +370,9 @@ async def test_all_294_soar_marketplace_modules_annotations_and_schema_budget(
         "wmi_list_services",
         "wmi_get_system_info",
         "wmi_list_users",
+        "vm_ray_scan_hash",
+        "cb_enterprise_edr_process_search",
+        "splunk_splunk_query",
     ):
         ann = by_name[readonly_name].annotations
         assert ann is not None
@@ -357,7 +380,7 @@ async def test_all_294_soar_marketplace_modules_annotations_and_schema_budget(
         assert ann.destructive_hint is False, f"{readonly_name} must have destructive_hint=False"
         assert ann.idempotent_hint is True, f"{readonly_name} must have idempotent_hint=True"
 
-    # Verify comment and note-appending actions are non-idempotent
+    # Verify comment, note-appending, and snapshot-creation actions are non-idempotent
     for append_note_name in (
         "siemplify_case_comment",
         "axonius_add_note",
@@ -374,6 +397,9 @@ async def test_all_294_soar_marketplace_modules_annotations_and_schema_budget(
         "service_desk_plus_add_note",
         "service_desk_plus_v3_add_note_and_wait_for_reply",
         "service_desk_plus_v3_add_note",
+        "exabeam_advanced_analytics_add_comments_to_entity",
+        "awsec2_take_snapshot",
+        "v_sphere_take_snapshot",
     ):
         note_ann = by_name[append_note_name].annotations
         assert note_ann is not None

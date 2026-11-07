@@ -33,7 +33,7 @@ def register_tools(mcp: MCPServer):
         title='Splunk: Splunk CSV Viewer',
         annotations=ToolAnnotations(
             title='Splunk: Splunk CSV Viewer',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -419,7 +419,7 @@ dict: A dictionary containing the result of the action execution.
         title='Splunk: Splunk Query',
         annotations=ToolAnnotations(
             title='Splunk: Splunk Query',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

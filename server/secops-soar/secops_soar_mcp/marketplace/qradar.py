@@ -221,7 +221,7 @@ def register_tools(mcp: MCPServer):
         title='Q Radar: QRadar AQL Search',
         annotations=ToolAnnotations(
             title='Q Radar: QRadar AQL Search',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -311,7 +311,7 @@ def register_tools(mcp: MCPServer):
         title='Q Radar: Similar Events Query',
         annotations=ToolAnnotations(
             title='Q Radar: Similar Events Query',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -866,7 +866,7 @@ def register_tools(mcp: MCPServer):
         title='Q Radar: QRadar Simple AQL Search',
         annotations=ToolAnnotations(
             title='Q Radar: QRadar Simple AQL Search',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -972,7 +972,7 @@ def register_tools(mcp: MCPServer):
         title='Q Radar: Similar Flows Query',
         annotations=ToolAnnotations(
             title='Q Radar: Similar Flows Query',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

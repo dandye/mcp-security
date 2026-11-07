@@ -122,7 +122,7 @@ def register_tools(mcp: MCPServer):
         title='Mongo DB: Free Query',
         annotations=ToolAnnotations(
             title='Mongo DB: Free Query',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

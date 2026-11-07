@@ -394,7 +394,7 @@ def register_tools(mcp: MCPServer):
         title='AWSS3: Download File from Bucket',
         annotations=ToolAnnotations(
             title='AWSS3: Download File from Bucket',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

@@ -302,7 +302,7 @@ def register_tools(mcp: MCPServer):
         title='Fire Eye EX: Download Alert Artifacts',
         annotations=ToolAnnotations(
             title='Fire Eye EX: Download Alert Artifacts',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -393,7 +393,7 @@ def register_tools(mcp: MCPServer):
         title='Fire Eye EX: Download Quarantined Email',
         annotations=ToolAnnotations(
             title='Fire Eye EX: Download Quarantined Email',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
