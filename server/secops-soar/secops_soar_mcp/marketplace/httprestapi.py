@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
@@ -24,11 +24,11 @@ from logger_utils import get_logger
 logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the HTTP integration.
 
     @mcp.tool()
-    async def http_get_data(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], url: Annotated[str, Field(..., description="The url to send the request to.")], username: Annotated[str, Field(default=None, description="")], password: Annotated[str, Field(default=None, description="")], ssl_verification: Annotated[bool, Field(default=None, description="Whether to verify the SSL certificate of the destination server.")], ignore_http_error_codes: Annotated[bool, Field(default=None, description="If enabled, action should ignore 4xx or 5xx HTTP error codes and not return error.")], headers_json: Annotated[Union[str, dict], Field(default=None, description="JSON object of HTTP headers to be sent with the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def http_get_data(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], url: Annotated[str, Field(..., description="The url to send the request to.")], username: Annotated[Optional[str], Field(default=None, description="")], password: Annotated[Optional[str], Field(default=None, description="")], ssl_verification: Annotated[Optional[bool], Field(default=None, description="Whether to verify the SSL certificate of the destination server.")], ignore_http_error_codes: Annotated[Optional[bool], Field(default=None, description="If enabled, action should ignore 4xx or 5xx HTTP error codes and not return error.")], headers_json: Annotated[Optional[Union[str, dict]], Field(default=None, description="JSON object of HTTP headers to be sent with the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Send HTTP get request
 
         Returns:
@@ -113,7 +113,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def http_get_url_data(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], username: Annotated[str, Field(default=None, description="Username for basic authentication. Optional.")], password: Annotated[str, Field(default=None, description="Password for basic authentication. Optional.")], ssl_verification: Annotated[bool, Field(default=None, description="Whether to verify the SSL certificate of the destination server.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def http_get_url_data(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], username: Annotated[Optional[str], Field(default=None, description="Username for basic authentication. Optional.")], password: Annotated[Optional[str], Field(default=None, description="Password for basic authentication. Optional.")], ssl_verification: Annotated[Optional[bool], Field(default=None, description="Whether to verify the SSL certificate of the destination server.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Send HTTP GET request to URL entities
 
         Returns:
@@ -267,7 +267,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def http_post_data(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], url: Annotated[str, Field(..., description="The url to send the request to.")], data: Annotated[str, Field(..., description="The data to send with the request.")], username: Annotated[str, Field(default=None, description="")], password: Annotated[str, Field(default=None, description="")], ssl_verification: Annotated[bool, Field(default=None, description="Whether to verify the SSL certificate of the destination server.")], headers_json: Annotated[Union[str, dict], Field(default=None, description="JSON object of HTTP headers to be sent with the request.")], content_type: Annotated[List[str], Field(default=None, description="Content Type. If set to application/json the input data must be JSON string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def http_post_data(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], url: Annotated[str, Field(..., description="The url to send the request to.")], data: Annotated[str, Field(..., description="The data to send with the request.")], username: Annotated[Optional[str], Field(default=None, description="")], password: Annotated[Optional[str], Field(default=None, description="")], ssl_verification: Annotated[Optional[bool], Field(default=None, description="Whether to verify the SSL certificate of the destination server.")], headers_json: Annotated[Optional[Union[str, dict]], Field(default=None, description="JSON object of HTTP headers to be sent with the request.")], content_type: Annotated[Optional[List[str]], Field(default=None, description="Content Type. If set to application/json the input data must be JSON string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Send HTTP post requests
 
         Returns:

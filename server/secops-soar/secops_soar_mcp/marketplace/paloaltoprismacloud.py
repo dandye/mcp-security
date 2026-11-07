@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
@@ -24,7 +24,7 @@ from logger_utils import get_logger
 logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the PaloAltoPrismaCloud integration.
 
     @mcp.tool()
@@ -103,7 +103,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def palo_alto_prisma_cloud_respond_to_alert(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_id: Annotated[str, Field(..., description="ID of the response alert.")], response_type: Annotated[List[str], Field(default=None, description="Alert status. If the Snooze value is selected, the Snooze Time parameter is required. Possible values: Dismiss Snooze Reopen Remediate")], snooze_time: Annotated[str, Field(default=None, description="Snooze time in hours.")], dismiss_note: Annotated[str, Field(default=None, description="Note for a dismissal.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def palo_alto_prisma_cloud_respond_to_alert(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_id: Annotated[str, Field(..., description="ID of the response alert.")], response_type: Annotated[Optional[List[str]], Field(default=None, description="Alert status. If the Snooze value is selected, the Snooze Time parameter is required. Possible values: Dismiss Snooze Reopen Remediate")], snooze_time: Annotated[Optional[str], Field(default=None, description="Snooze time in hours.")], dismiss_note: Annotated[Optional[str], Field(default=None, description="Note for a dismissal.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Respond to an alert in Palo Alto Prisma Cloud.
 
         Returns:

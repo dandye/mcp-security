@@ -13,7 +13,7 @@
 # limitations under the License.
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from gti_mcp.tools import collections
 
 @pytest.mark.asyncio

@@ -21,26 +21,7 @@ except ImportError:
     sys.modules["secops.chronicle"] = MagicMock()
     sys.modules["secops.exceptions"] = MagicMock()
 
-# Mock mcp if not installed
-try:
-    import mcp
-except ImportError:
-    mock_mcp = MagicMock()
-    sys.modules["mcp"] = mock_mcp
-    sys.modules["mcp.server"] = MagicMock()
-    sys.modules["mcp.server.fastmcp"] = MagicMock()
-    
-    # Make @server.tool() a pass-through decorator
-    def tool_decorator(*args, **kwargs):
-        def wrapper(func):
-            return func
-        return wrapper
-    
-    # We need to mock FastMCP class to return an instance that has .tool method
-    mock_fastmcp_instance = MagicMock()
-    mock_fastmcp_instance.tool.side_effect = tool_decorator
-    
-    sys.modules["mcp.server.fastmcp"].FastMCP.return_value = mock_fastmcp_instance
+import mcp  # noqa: F401
 
 from secops_mcp.tools.search import search_udm
 from secops_mcp.tools.udm_search import export_udm_search_csv

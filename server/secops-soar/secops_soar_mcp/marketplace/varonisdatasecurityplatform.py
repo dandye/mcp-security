@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
@@ -24,11 +24,11 @@ from logger_utils import get_logger
 logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the VaronisDataSecurityPlatform integration.
 
     @mcp.tool()
-    async def varonis_data_security_platform_update_alert(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_guid: Annotated[str, Field(..., description="Specify alert GUID for the update. This action can run on multiple alerts. Multiple alerts can be specified as a comma-separated string.")], alert_status: Annotated[List[str], Field(..., description="Specify the alert status to update to.")], closing_reason: Annotated[List[str], Field(default=None, description="Specify the closing reason for the alert. When the alert status is changed to \"closed\", closing reason must be specified.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def varonis_data_security_platform_update_alert(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_guid: Annotated[str, Field(..., description="Specify alert GUID for the update. This action can run on multiple alerts. Multiple alerts can be specified as a comma-separated string.")], alert_status: Annotated[List[str], Field(..., description="Specify the alert status to update to.")], closing_reason: Annotated[Optional[List[str]], Field(default=None, description="Specify the closing reason for the alert. When the alert status is changed to \"closed\", closing reason must be specified.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Update status of alerts ingested from the Varonis Data Security Platform connector with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:

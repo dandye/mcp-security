@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
@@ -24,11 +24,11 @@ from logger_utils import get_logger
 logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the ScreenshotMachine integration.
 
     @mcp.tool()
-    async def screenshot_machine_take_url_screenshot(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], image_format: Annotated[str, Field(default=None, description="Format of the image, e.g: jpg")], delay: Annotated[str, Field(default=None, description="Using delay parameter, you can manage how long capturing engine should wait before the screenshot is created. This parameter must be an integer. Default value is 2000.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def screenshot_machine_take_url_screenshot(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], image_format: Annotated[Optional[str], Field(default=None, description="Format of the image, e.g: jpg")], delay: Annotated[Optional[str], Field(default=None, description="Using delay parameter, you can manage how long capturing engine should wait before the screenshot is created. This parameter must be an integer. Default value is 2000.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Take a screenshot of URL. Supported entities: IP, Hostname and URL.
 
         Returns:

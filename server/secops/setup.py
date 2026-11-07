@@ -19,11 +19,12 @@ setup = setuptools.setup
 
 setup(
     name="google-secops-mcp",
-    version="0.7.1",
-    py_modules=["secops_mcp", "main"],  # Include both modules
+    version="0.9.0",
+    packages=setuptools.find_packages(include=["secops_mcp*"]),
     install_requires=[
         "httpx>=0.28.1",
-        "mcp[cli]>=1.26.0,<2.0",
+        "mcp[cli]>=2.3.0,<3.0.0",
+        "requests>=2.32.0",
         "secops>=0.35.1",
         "google-auth>=2.48.0",
         "google-auth-httplib2>=0.3.0",
@@ -31,7 +32,11 @@ setup(
     ],
     entry_points={
         "console_scripts": [
+            "secops_mcp=secops_mcp.server:main",
             "secops-mcp=secops_mcp.server:main",
+        ],
+        "mcp": [
+            "secops_mcp=secops_mcp.server:main",
         ],
     },
 )

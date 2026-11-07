@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import (
     ApiManualActionDataModel,
@@ -28,7 +28,7 @@ from logger_utils import get_logger
 logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the MicrosoftDefenderATP integration.
 
     @mcp.tool()
@@ -142,28 +142,28 @@ def register_tools(mcp: FastMCP):
             List[str], Field(..., description="Identifiers for the alert groups.")
         ],
         status: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Statuses of the alert to look for. Comma-separated string",
             ),
         ],
         severity: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Severities of the alert to look for. Comma-separated string.",
             ),
         ],
         category: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Categories of the alert to look for. Comma-separated string.",
             ),
         ],
         incident_id: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Microsoft Defender Incident ID for which you want to find related alerts.",
@@ -382,30 +382,30 @@ def register_tools(mcp: FastMCP):
             List[str], Field(..., description="Identifiers for the alert groups.")
         ],
         machine_name: Annotated[
-            str, Field(default=None, description="Full Machine Name to look for")
+            Optional[str], Field(default=None, description="Full Machine Name to look for")
         ],
         machine_ip_address: Annotated[
-            str, Field(default=None, description="Machine IP Address to look for")
+            Optional[str], Field(default=None, description="Machine IP Address to look for")
         ],
         machine_risk_score: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Machine risk score to look for. Comma-separated string.",
             ),
         ],
         machine_health_status: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Machine health status to look for. Comma-separated string",
             ),
         ],
         machine_os_platform: Annotated[
-            str, Field(default=None, description="Machine OS platform to look for.")
+            Optional[str], Field(default=None, description="Machine OS platform to look for.")
         ],
         rbac_group_id: Annotated[
-            str, Field(default=None, description="RBAC Group ID to look for.")
+            Optional[str], Field(default=None, description="RBAC Group ID to look for.")
         ],
         target_entities: Annotated[
             List[TargetEntity],
@@ -841,17 +841,17 @@ def register_tools(mcp: FastMCP):
             str, Field(..., description="Microsoft Defender ATP Alert ID to update.")
         ],
         status: Annotated[
-            List[str], Field(default=None, description="Status of the alert")
+            Optional[List[str]], Field(default=None, description="Status of the alert")
         ],
         assigned_to: Annotated[
-            str, Field(default=None, description="User who is assigned to this alert")
+            Optional[str], Field(default=None, description="User who is assigned to this alert")
         ],
         classification: Annotated[
-            List[str],
+            Optional[List[str]],
             Field(default=None, description="Classification to update alert with"),
         ],
         determination: Annotated[
-            List[str],
+            Optional[List[str]],
             Field(default=None, description="Determination to update alert with"),
         ],
         target_entities: Annotated[
@@ -964,35 +964,35 @@ def register_tools(mcp: FastMCP):
             List[str], Field(..., description="Identifiers for the alert groups.")
         ],
         time_frame: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Time frame in hours for which to fetch Alerts",
             ),
         ],
         status: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Statuses of the alert to look for. Comma-separated string",
             ),
         ],
         severity: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Severities of the alert to look for. Comma-separated string.",
             ),
         ],
         category: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Categories of the alert to look for. Comma-separated string.",
             ),
         ],
         incident_id: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Microsoft Defender Incident ID for which you want to find related alerts.",
@@ -1309,37 +1309,37 @@ def register_tools(mcp: FastMCP):
             List[str], Field(..., description="Identifiers for the alert groups.")
         ],
         last_seen_time_frame: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Time frame in hours for which to fetch Machines",
             ),
         ],
         machine_name: Annotated[
-            str, Field(default=None, description="Full Machine Name to look for")
+            Optional[str], Field(default=None, description="Full Machine Name to look for")
         ],
         machine_ip_address: Annotated[
-            str, Field(default=None, description="Machine IP Address to look for")
+            Optional[str], Field(default=None, description="Machine IP Address to look for")
         ],
         machine_risk_score: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Machine risk score to look for. Comma-separated string.",
             ),
         ],
         machine_health_status: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Machine health status to look for. Comma-separated string",
             ),
         ],
         machine_os_platform: Annotated[
-            str, Field(default=None, description="Machine OS platform to look for.")
+            Optional[str], Field(default=None, description="Machine OS platform to look for.")
         ],
         rbac_group_id: Annotated[
-            str, Field(default=None, description="RBAC Group ID to look for.")
+            Optional[str], Field(default=None, description="RBAC Group ID to look for.")
         ],
         target_entities: Annotated[
             List[TargetEntity],
@@ -1456,35 +1456,35 @@ def register_tools(mcp: FastMCP):
             List[str], Field(..., description="Identifiers for the alert groups.")
         ],
         indicators: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Specify a comma-separated list of indicators that you would like to retrieve.",
             ),
         ],
         indicator_types: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Specify a comma-separated list of indicator types that you want to retrieve. Possible values: FileSha1, FileSha256, FileMd5, CertificateThumbprint, IpAddress, DomainName, Url.",
             ),
         ],
         actions: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Specify a comma-separated list of indicator actions that you want to use for filtering. Possible values: Warn,Block,Audit,Alert,AlertAndBlock,BlockAndRemediate,Allowed.",
             ),
         ],
         severity: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Specify a comma-separated list of severities that you want to use for filtering. Possible values: Informational,Low,Medium,High.",
             ),
         ],
         max_results_to_return: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Specify how many indicators to return. Default: 50.",
@@ -1622,14 +1622,14 @@ def register_tools(mcp: FastMCP):
             str, Field(..., description="Specify the description for the entities.")
         ],
         application: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Specify an application that is related to the entities.",
             ),
         ],
         recommended_action: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Specify what should be the recommended actions for the handling of the entities.",
@@ -1744,28 +1744,28 @@ def register_tools(mcp: FastMCP):
             List[str], Field(..., description="Identifiers for the alert groups.")
         ],
         status: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Statuses of the alert to look for. Comma-separated string",
             ),
         ],
         severity: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Severities of the alert to look for. Comma-separated string.",
             ),
         ],
         category: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Categories of the alert to look for. Comma-separated string.",
             ),
         ],
         incident_id: Annotated[
-            str,
+            Optional[str],
             Field(
                 default=None,
                 description="Microsoft Defender Incident ID for which you want to find related alerts.",

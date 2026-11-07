@@ -32,7 +32,7 @@ def test_info():
     response = client.get("/info")
     assert response.status_code == 200
     data = response.json()
-    assert data["version"] == "0.2.0"
+    assert data["version"] == "0.3.0"
     assert "tools" in data
     assert "user" in data
     assert bool(data["user"])

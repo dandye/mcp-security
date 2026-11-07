@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
@@ -24,7 +24,7 @@ from logger_utils import get_logger
 logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the GoogleCloudStorage integration.
 
     @mcp.tool()
@@ -105,7 +105,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def google_cloud_storage_list_bucket_objects(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], bucket_name: Annotated[str, Field(..., description="Specify name of the bucket from which to retrieve objects.")], max_objects_to_return: Annotated[str, Field(default=None, description="Specify how many objects to return.")], retrieves_the_access_control_list_of_an_object: Annotated[bool, Field(default=None, description="If checked, retrieve the Access Control List of an object.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def google_cloud_storage_list_bucket_objects(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], bucket_name: Annotated[str, Field(..., description="Specify name of the bucket from which to retrieve objects.")], max_objects_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many objects to return.")], retrieves_the_access_control_list_of_an_object: Annotated[Optional[bool], Field(default=None, description="If checked, retrieve the Access Control List of an object.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """List objects stored in the Cloud Storage bucket.
 
         Returns:
@@ -487,7 +487,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def google_cloud_storage_list_buckets(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_results: Annotated[str, Field(default=None, description="Maximum number of buckets to return.")], project_id: Annotated[str, Field(default=None, description="Specify the name of the project, from where you want to retrieve a list of buckets. If nothing is provided, the project will be extracted from integration configuration.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def google_cloud_storage_list_buckets(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_results: Annotated[Optional[str], Field(default=None, description="Maximum number of buckets to return.")], project_id: Annotated[Optional[str], Field(default=None, description="Specify the name of the project, from where you want to retrieve a list of buckets. If nothing is provided, the project will be extracted from integration configuration.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Retrieve a list of buckets from Google Cloud Storage.
 
         Returns:

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
@@ -26,7 +26,7 @@ from logger_utils import get_logger
 logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the ActiveDirectory integration.
 
     @mcp.tool()
@@ -1077,7 +1077,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def active_directory_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], mark_entities_as_internal: Annotated[bool, Field(default=None, description="Specify whether successfully enriched entities should be automatically marked as \u201cInternal Entity\u201d")], specific_attribute_names_to_enrich_with: Annotated[str, Field(default=None, description="Provide a comma separated list of attribute names to enrich the entities with. If nothing is provided - action will enrich with all available attributes. If an attribute contains a few values - it will be enriched with all of the available values. Parameter is case sensitive.")], should_case_wall_table_be_filtered_by_the_specified_attributes: Annotated[bool, Field(default=None, description="If checked, the Case Wall Table for this action will only present the specified attributes, found in the \u201cSpecific Attribute Names To Enrich With\u201d parameter.")], should_json_result_be_filtered_by_the_specified_attributes: Annotated[bool, Field(default=None, description="If checked, the JSON result for this action will only return the specified attributes, found in the \u201cSpecific Attribute Names To Enrich With\u201d parameter.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def active_directory_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], mark_entities_as_internal: Annotated[Optional[bool], Field(default=None, description="Specify whether successfully enriched entities should be automatically marked as \u201cInternal Entity\u201d")], specific_attribute_names_to_enrich_with: Annotated[Optional[str], Field(default=None, description="Provide a comma separated list of attribute names to enrich the entities with. If nothing is provided - action will enrich with all available attributes. If an attribute contains a few values - it will be enriched with all of the available values. Parameter is case sensitive.")], should_case_wall_table_be_filtered_by_the_specified_attributes: Annotated[Optional[bool], Field(default=None, description="If checked, the Case Wall Table for this action will only present the specified attributes, found in the \u201cSpecific Attribute Names To Enrich With\u201d parameter.")], should_json_result_be_filtered_by_the_specified_attributes: Annotated[Optional[bool], Field(default=None, description="If checked, the JSON result for this action will only return the specified attributes, found in the \u201cSpecific Attribute Names To Enrich With\u201d parameter.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Enrich Hostname or Username entities with Active Directory properties
 
         Returns:
@@ -1459,7 +1459,7 @@ Note - For this action, please make sure to have a verified SSL connection and a
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def active_directory_search_active_directory(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query_string: Annotated[str, Field(..., description="Specify the query string you would like to perform in AD.")], limit: Annotated[str, Field(default=None, description="Specify the maximum number of listings to fetch from Active Directory.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def active_directory_search_active_directory(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query_string: Annotated[str, Field(..., description="Specify the query string you would like to perform in AD.")], limit: Annotated[Optional[str], Field(default=None, description="Specify the maximum number of listings to fetch from Active Directory.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Search Active Directory with Siemplify, using your personal query.
 
         Returns:

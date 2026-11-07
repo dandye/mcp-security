@@ -21,18 +21,42 @@ import logging
 import os
 from typing import Any, Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from secops import SecOpsClient
 
-# Initialize FastMCP server with a descriptive name
-server = FastMCP('Google Security Operations MCP server', log_level="ERROR")
+# Initialize MCPServer with rich 2026-07-28 discovery metadata
+server = MCPServer(
+    name='secops-mcp',
+    title='Google Security Operations SIEM MCP Server',
+    version='0.9.0',
+    description=(
+        'MCP server for Google Security Operations (Chronicle SIEM) Unified '
+        'Data Model (UDM) event search, entity context, security alerts, '
+        'IOC matches, data tables, feeds, parsers, and YARA-L 2.0 detection '
+        'rule lifecycle management.'
+    ),
+    website_url='https://github.com/google/mcp-security',
+    instructions=(
+        'Use these tools to investigate telemetry and manage detections in '
+        'Google Security Operations (Chronicle SIEM). Start triage with '
+        'get_security_alerts or get_ioc_matches, pivot on observables with '
+        'lookup_entity, and query raw telemetry with search_security_events '
+        'or export_udm_search_csv using UDM syntax. All detection rule tools '
+        '(list_security_rules, search_security_rules, create_rule, '
+        'update_rule, test_rule, get_rule_detections) author and evaluate '
+        'YARA-L 2.0 (YL2) Chronicle SIEM UDM event detection rules, not '
+        'standard YARA binary/file payload rules (use gti-mcp for standard '
+        'YARA file/payload hunting).'
+    ),
+    log_level='ERROR',
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('secops-mcp')
 
 # Constants
-USER_AGENT = 'secops-app/0.7.1'
+USER_AGENT = 'secops-mcp/0.9.0'
 
 # Default Chronicle configuration from environment variables
 DEFAULT_PROJECT_ID = os.environ.get('CHRONICLE_PROJECT_ID', '725716774503')

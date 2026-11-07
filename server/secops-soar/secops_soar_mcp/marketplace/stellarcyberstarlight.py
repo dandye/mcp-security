@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
@@ -24,11 +24,11 @@ from logger_utils import get_logger
 logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the StellarCyberStarlight integration.
 
     @mcp.tool()
-    async def stellar_cyber_starlight_simple_search(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], index: Annotated[str, Field(..., description="Specify in which index do you want to search. You can find a list of known indexes in the documentation.")], query: Annotated[str, Field(..., description="Specify query filter for the search.")], max_results_to_return: Annotated[str, Field(default=None, description="Specify how many results to return in response.")], sort_field: Annotated[str, Field(default=None, description="Specify the field, which should be used for sorting.")], sort_order: Annotated[List[str], Field(default=None, description="Specify the sort order for the result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def stellar_cyber_starlight_simple_search(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], index: Annotated[str, Field(..., description="Specify in which index do you want to search. You can find a list of known indexes in the documentation.")], query: Annotated[str, Field(..., description="Specify query filter for the search.")], max_results_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many results to return in response.")], sort_field: Annotated[Optional[str], Field(default=None, description="Specify the field, which should be used for sorting.")], sort_order: Annotated[Optional[List[str]], Field(default=None, description="Specify the sort order for the result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Perform simple search in Stellar Cyber Starlight.
 
         Returns:
@@ -184,7 +184,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def stellar_cyber_starlight_update_security_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], index: Annotated[str, Field(..., description="Specify the index of the security event.")], id: Annotated[str, Field(..., description="Specify the ID of the security event.")], status: Annotated[List[str], Field(..., description="Specify the new status for the security event.")], comment: Annotated[str, Field(default=None, description="Specify a comment for the security event.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def stellar_cyber_starlight_update_security_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], index: Annotated[str, Field(..., description="Specify the index of the security event.")], id: Annotated[str, Field(..., description="Specify the ID of the security event.")], status: Annotated[List[str], Field(..., description="Specify the new status for the security event.")], comment: Annotated[Optional[str], Field(default=None, description="Specify a comment for the security event.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Update security event in Stellar Cyber Starlight.
 
         Returns:

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
@@ -24,7 +24,7 @@ from logger_utils import get_logger
 logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the GoogleSecurityCommandCenter integration.
 
     @mcp.tool()
@@ -177,7 +177,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def google_security_command_center_list_asset_vulnerabilities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], asset_resource_names: Annotated[str, Field(..., description="Specify a comma-separated list of resource names of the assets for which you want to return data.")], timeframe: Annotated[List[str], Field(default=None, description="Specify the timeframe for the vulnerabilities/misconfiguration search.")], record_types: Annotated[List[str], Field(default=None, description="Specify what kind of records should be returned.")], output_type: Annotated[List[str], Field(default=None, description="Specify what kind of output should be returned in the JSON result for the asset.")], max_records_to_return: Annotated[str, Field(default=None, description="Specify how many records to return per record type per assets: Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def google_security_command_center_list_asset_vulnerabilities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], asset_resource_names: Annotated[str, Field(..., description="Specify a comma-separated list of resource names of the assets for which you want to return data.")], timeframe: Annotated[Optional[List[str]], Field(default=None, description="Specify the timeframe for the vulnerabilities/misconfiguration search.")], record_types: Annotated[Optional[List[str]], Field(default=None, description="Specify what kind of records should be returned.")], output_type: Annotated[Optional[List[str]], Field(default=None, description="Specify what kind of output should be returned in the JSON result for the asset.")], max_records_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many records to return per record type per assets: Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """List vulnerabilities related to the entities in Google Security Command Center.
 
         Returns:
@@ -260,7 +260,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def google_security_command_center_update_finding(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], finding_name: Annotated[str, Field(..., description="Specify a comma-separated list of finding names which you want to update. Note: finding name has the following structure: organizations/{organization_id}/sources/{source_id}/findings/{finding_id}")], mute_status: Annotated[List[str], Field(default=None, description="Specify the mute status for the finding.")], state_status: Annotated[List[str], Field(default=None, description="Specify the state status for the finding.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def google_security_command_center_update_finding(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], finding_name: Annotated[str, Field(..., description="Specify a comma-separated list of finding names which you want to update. Note: finding name has the following structure: organizations/{organization_id}/sources/{source_id}/findings/{finding_id}")], mute_status: Annotated[Optional[List[str]], Field(default=None, description="Specify the mute status for the finding.")], state_status: Annotated[Optional[List[str]], Field(default=None, description="Specify the state status for the finding.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Update finding in Google Security Command Center.
 
         Returns:

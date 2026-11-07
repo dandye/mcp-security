@@ -19,15 +19,22 @@ setup = setuptools.setup
 
 setup(
     name="secops-soar-mcp",
-    version="0.1.2",
-    packages=setuptools.find_packages(),
+    version="0.3.0",
+    packages=setuptools.find_packages(include=["secops_soar_mcp*", "logger_utils*"]),
     install_requires=[
         "aiohttp>=3.11.15",
-        "mcp[cli]>=1.4.1,<2.0",
+        "httpx>=0.28.1",
+        "mcp[cli]>=2.3.0,<3.0.0",
+        "pydantic>=2.11.2",
+        "python-dotenv>=1.1.0",
     ],
     entry_points={
         "console_scripts": [
+            "secops_soar_mcp=secops_soar_mcp.server:run_main",
             "secops-soar-mcp=secops_soar_mcp.server:run_main",
+        ],
+        "mcp": [
+            "secops-soar=secops_soar_mcp.server:run_main",
         ],
     },
 )

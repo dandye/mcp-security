@@ -31,9 +31,9 @@ async def search_udm(
     start_time: Optional[str] = None,
     end_time: Optional[str] = None,
     max_events: Optional[int] = None,
-    project_id: str = None,
-    customer_id: str = None,
-    region: str = None,
+    project_id: Optional[str] = None,
+    customer_id: Optional[str] = None,
+    region: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Search UDM events using UDM query in Chronicle.
 

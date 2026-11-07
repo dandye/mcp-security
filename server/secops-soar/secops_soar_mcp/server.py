@@ -15,9 +15,10 @@
 
 import asyncio
 import importlib
+import importlib.util
 from pathlib import Path
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from logger_utils import get_logger, setup_logging
 from secops_soar_mcp.case_management import (
     register_tools as register_tools_case_management,
@@ -26,7 +27,27 @@ from secops_soar_mcp.utils.utils import normalize_integration_name
 import argparse
 
 logger = get_logger(__name__)
-mcp = FastMCP("SecOps SOAR")
+mcp = MCPServer(
+    name="secops-soar-mcp",
+    title="Google Security Operations SOAR MCP Server",
+    version="0.3.0",
+    description=(
+        "MCP server for Google Security Operations SOAR case lifecycle "
+        "management, alert grouping, entity context, investigation comments, "
+        "and third-party marketplace response integrations."
+    ),
+    website_url="https://github.com/google/mcp-security",
+    instructions=(
+        "Use these tools to manage Google Security Operations SOAR cases and "
+        "orchestrate response actions. Begin incident review with list_cases "
+        "and get_case_full_details, inspect linked alerts and raw telemetry "
+        "via list_alerts_by_case and list_events_by_alert, pivot on entities "
+        "with list_alert_group_identifiers_by_case, "
+        "get_entities_by_alert_group_identifiers, and get_entity_details, "
+        "record investigation audit trails with post_case_comment, and "
+        "finalize disposition with close_case."
+    ),
+)
 
 register_tools_case_management(mcp)
 
@@ -99,13 +120,36 @@ def register_tools(integrations_arg: str):
                 )  # The filename without .py (e.g., "csv")
                 if module_stem not in enabled_integrations_set:
                     continue
-                module_import_path = f"marketplace.{module_stem}"  # The import path (e.g., "marketplace.csv")
+                primary_import_path = f"secops_soar_mcp.marketplace.{module_stem}"
+                fallback_import_path = f"marketplace.{module_stem}"
+                module_import_path = primary_import_path
 
                 try:
                     logger.debug(
-                        "  Attempting to import module: %s", module_import_path
+                        "  Attempting to import module: %s", primary_import_path
                     )
-                    module = importlib.import_module(module_import_path)
+                    try:
+                        module = importlib.import_module(primary_import_path)
+                    except ModuleNotFoundError as primary_err:
+                        module_import_path = fallback_import_path
+                        try:
+                            module = importlib.import_module(fallback_import_path)
+                        except ModuleNotFoundError:
+                            if "." in module_stem:
+                                safe_stem = module_stem.replace(".", "_")
+                                spec = importlib.util.spec_from_file_location(
+                                    f"secops_soar_mcp.marketplace.{safe_stem}",
+                                    py_file,
+                                )
+                                if spec is not None and spec.loader is not None:
+                                    module = importlib.util.module_from_spec(spec)
+                                    spec.loader.exec_module(module)
+                                else:
+                                    module_import_path = primary_import_path
+                                    raise primary_err from None
+                            else:
+                                module_import_path = primary_import_path
+                                raise primary_err from None
 
                     if hasattr(module, "register_tools") and callable(
                         getattr(module, "register_tools")

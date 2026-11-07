@@ -24,7 +24,7 @@ def test_cli_help():
 def test_cli_info():
     result = runner.invoke(app, ["info"])
     assert result.exit_code == 0
-    assert "MCP Security Agent v0.2.0" in result.stdout
+    assert "MCP Security Agent v0.3.0" in result.stdout
     assert "Model:" in result.stdout
     assert "Project:" in result.stdout
     assert "ADC:" in result.stdout

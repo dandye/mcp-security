@@ -14,7 +14,7 @@
 import base64
 import typing
 
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 
 from .. import utils
 from ..server import server, vt_client

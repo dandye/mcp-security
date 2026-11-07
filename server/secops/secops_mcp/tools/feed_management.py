@@ -246,7 +246,7 @@ async def create_feed(
 async def update_feed(
     feed_id: str,
     display_name: Optional[str] = None,
-    feed_details: Dict[str, Any] = None,
+    feed_details: Optional[Dict[str, Any]] = None,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,

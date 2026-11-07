@@ -11,15 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import mcp
 import pytest
 from unittest import mock
-from mcp.server import fastmcp
+from mcp.server.mcpserver import Context
 from gti_mcp.tools import files
 
 @pytest.mark.asyncio
 async def test_get_file_behavior_summary_api_error_handled():
     """Test get_file_behavior_summary returns error dict on API error (e.g. 404)."""
-    mock_ctx = mock.MagicMock(spec=fastmcp.Context)
+    mock_ctx = mock.MagicMock(spec=Context)
 
     mock_response = mock.MagicMock()
     mock_response.status = 404
@@ -43,7 +44,7 @@ async def test_get_file_behavior_summary_api_error_handled():
 @pytest.mark.asyncio
 async def test_get_file_behavior_summary_unexpected_format_handled():
     """Test get_file_behavior_summary returns error dict on unexpected response format."""
-    mock_ctx = mock.MagicMock(spec=fastmcp.Context)
+    mock_ctx = mock.MagicMock(spec=Context)
 
     mock_response = mock.MagicMock()
     async def json_async():
@@ -65,9 +66,9 @@ async def test_get_file_behavior_summary_unexpected_format_handled():
 
 @pytest.mark.asyncio
 async def test_get_entities_related_to_a_file_invalid_relationship_returns_error_dict():
-    """Invalid relationship_name returns an error dict via FastMCP call_tool.
+    """Invalid relationship_name returns an error dict via MCPServer call_tool.
 
-    Invoking through server.call_tool exercises FastMCP outputSchema /
+    Invoking through server.call_tool exercises MCPServer output_schema /
     structured-output validation, so a regression that drops the Union return
     annotation fails this test (ToolError / pydantic list_type).
     """
@@ -81,10 +82,9 @@ async def test_get_entities_related_to_a_file_invalid_relationship_returns_error
             "descriptors_only": True,
         },
     )
-    # FastMCP wraps Union returns as (unstructured, structured) with
-    # structured == {"result": <tool return value>}.
-    assert isinstance(result, tuple)
-    _content, structured = result
+    assert isinstance(result, mcp.types.CallToolResult)
+    assert result.is_error is False
+    structured = result.structured_content
     assert isinstance(structured, dict)
     payload = structured.get("result", structured)
     assert isinstance(payload, dict)

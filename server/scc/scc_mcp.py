@@ -14,16 +14,37 @@
 import logging
 import os
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from google.api_core import exceptions as google_exceptions
 from google.cloud import asset_v1
 from google.cloud import securitycenter_v2
 from google.protobuf import json_format 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
-# Initialize FastMCP server
-mcp = FastMCP("scc-mcp")
+# Initialize MCPServer with rich 2026-07-28 discovery metadata
+mcp = MCPServer(
+    name="scc-mcp",
+    title="Google Cloud Security Command Center MCP Server",
+    version="0.3.0",
+    description=(
+        "MCP server for Google Cloud Security Command Center (SCC v2) and "
+        "Cloud Asset Inventory (CAI) posture findings, attack exposure "
+        "prioritization, compliance control mapping, remediation guidance, "
+        "and finding mute management."
+    ),
+    website_url="https://github.com/google/mcp-security",
+    instructions=(
+        "Use these tools to triage Google Cloud security posture and active "
+        "threats in Security Command Center v2. Always supply either "
+        "project_id or organization_id. Prioritize risk with "
+        "top_vulnerability_findings (sorted by Attack Exposure Score) or "
+        "query broadly with search_findings and search_findings_by_compliance, "
+        "inspect full finding and Cloud Asset Inventory context with "
+        "get_finding_details and get_finding_remediation, and update finding "
+        "suppression state with set_finding_mute."
+    ),
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -69,8 +90,8 @@ def proto_message_to_dict(message: Any) -> Dict[str, Any]:
 
 
 def _build_parent(
-    project_id: str = None,
-    organization_id: str = None,
+    project_id: Optional[str] = None,
+    organization_id: Optional[str] = None,
     location: str = "global",
 ) -> str:
     """Build the canonical SCC v2 parent resource path."""
@@ -99,16 +120,16 @@ def _build_or_filter(field: str, value: str) -> str:
 
 @mcp.tool()
 async def search_findings(
-    project_id: str = None,
-    organization_id: str = None,
-    finding_class: str = None,
-    severity: str = None,
-    state: str = "ACTIVE",
-    category: str = None,
-    resource_name: str = None,
-    resource_type: str = None,
-    mute: str = None,
-    custom_filter: str = None,
+    project_id: Optional[str] = None,
+    organization_id: Optional[str] = None,
+    finding_class: Optional[str] = None,
+    severity: Optional[str] = None,
+    state: Optional[str] = "ACTIVE",
+    category: Optional[str] = None,
+    resource_name: Optional[str] = None,
+    resource_type: Optional[str] = None,
+    mute: Optional[str] = None,
+    custom_filter: Optional[str] = None,
     max_findings: int = 50,
     location: str = "global",
     order_by: str = "event_time desc",
@@ -224,9 +245,9 @@ async def search_findings(
 
 @mcp.tool()
 async def get_finding_details(
-    project_id: str = None,
-    organization_id: str = None,
-    finding_id: str = None,
+    project_id: Optional[str] = None,
+    organization_id: Optional[str] = None,
+    finding_id: Optional[str] = None,
     location: str = "global",
     include_resource_details: bool = True,
 ) -> Dict[str, Any]:
@@ -333,14 +354,14 @@ async def get_finding_details(
 
 @mcp.tool()
 async def search_findings_by_compliance(
-    project_id: str = None,
-    organization_id: str = None,
-    search_text: str = None,
-    compliance_standard: str = None,
-    compliance_version: str = None,
-    compliance_id: str = None,
-    severity: str = None,
-    state: str = "ACTIVE",
+    project_id: Optional[str] = None,
+    organization_id: Optional[str] = None,
+    search_text: Optional[str] = None,
+    compliance_standard: Optional[str] = None,
+    compliance_version: Optional[str] = None,
+    compliance_id: Optional[str] = None,
+    severity: Optional[str] = None,
+    state: Optional[str] = "ACTIVE",
     max_findings: int = 50,
     location: str = "global",
 ) -> Dict[str, Any]:
@@ -519,8 +540,8 @@ async def search_findings_by_compliance(
 
 @mcp.tool()
 async def top_vulnerability_findings(
-    project_id: str = None,
-    organization_id: str = None,
+    project_id: Optional[str] = None,
+    organization_id: Optional[str] = None,
     max_findings: int = 20,
     location: str = "global",
 ) -> Dict[str, Any]:
@@ -612,11 +633,11 @@ async def top_vulnerability_findings(
 
 @mcp.tool()
 async def get_finding_remediation(
-    project_id: str = None,
-    organization_id: str = None,
-    resource_name: str = None,
-    category: str = None,
-    finding_id: str = None,
+    project_id: Optional[str] = None,
+    organization_id: Optional[str] = None,
+    resource_name: Optional[str] = None,
+    category: Optional[str] = None,
+    finding_id: Optional[str] = None,
     location: str = "global",
 ) -> Dict[str, Any]:
     """Name: get_finding_remediation
@@ -773,10 +794,10 @@ async def get_finding_remediation(
 
 @mcp.tool()
 async def set_finding_mute(
-    project_id: str = None,
-    organization_id: str = None,
-    finding_id: str = None,
-    mute: str = None,
+    project_id: Optional[str] = None,
+    organization_id: Optional[str] = None,
+    finding_id: Optional[str] = None,
+    mute: Optional[str] = None,
     location: str = "global",
 ) -> Dict[str, Any]:
     """Name: set_finding_mute
@@ -839,7 +860,7 @@ async def set_finding_mute(
         full_name = finding.name
         mute_enum = securitycenter_v2.Finding.Mute[mute_upper]
 
-        request = securitycenter_v2.SetMuteFindingRequest(
+        request = securitycenter_v2.SetMuteRequest(
             name=full_name,
             mute=mute_enum,
         )
@@ -853,22 +874,22 @@ async def set_finding_mute(
         }
 
     except google_exceptions.NotFound as e:
-        logger.error(f"Finding not found: {e}")
+        logger.error("Finding not found: %s", e)
         return {"error": "Not Found", "details": str(e)}
     except google_exceptions.PermissionDenied as e:
-        logger.error(f"Permission denied setting mute: {e}")
+        logger.error("Permission denied setting mute: %s", e)
         return {"error": "Permission Denied", "details": str(e)}
     except KeyError:
         return {"error": "Invalid mute value", "details": f"'{mute}' is not a valid Mute enum value. Use MUTED or UNMUTED."}
     except Exception as e:
-        logger.error(f"Unexpected error setting mute on {finding_id}: {e}", exc_info=True)
+        logger.error("Unexpected error setting mute on %s: %s", finding_id, e, exc_info=True)
         return {"error": "An unexpected error occurred", "details": str(e)}
 
 
 # --- Main execution ---
 
 def main() -> None:
-  """Runs the FastMCP server."""
+  """Runs the SCC MCP server."""
   if not scc_client:
     logger.critical("SCC Client failed to initialize. MCP server cannot serve SCC tools.")
 

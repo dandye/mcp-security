@@ -21,10 +21,10 @@ from typing import Optional
 # To run this, you need the MCP SDK installed.
 # If not available, we'll use a placeholder class for demonstration.
 try:
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
 except ImportError:
-    print("Warning: 'mcp.server.fastmcp' not found. Using a placeholder class.", file=sys.stderr)
-    class FastMCP:
+    print("Warning: 'mcp.server.mcpserver' not found. Using a placeholder class.", file=sys.stderr)
+    class MCPServer:
         def __init__(self, name):
             self._name = name
             self._tools = {}
@@ -41,8 +41,8 @@ except ImportError:
 CLIENT_ID: Optional[str] = None
 CLIENT_SECRET: Optional[str] = None
 
-# Initialize FastMCP server for the XDR sample
-mcp = FastMCP("xdr_sample_server")
+# Initialize MCPServer for the XDR sample
+mcp = MCPServer("xdr_sample_server")
 
 # --- XDR Tools ---
 

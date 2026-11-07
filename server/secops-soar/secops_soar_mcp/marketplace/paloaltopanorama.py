@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
@@ -24,11 +24,11 @@ from logger_utils import get_logger
 logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the PaloAltoPanorama integration.
 
     @mcp.tool()
-    async def palo_alto_panorama_edit_blocked_applications(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], policy_name: Annotated[str, Field(..., description="Specify name of the policy.")], applications_to_block: Annotated[str, Field(default=None, description="Specify what kind of application should be blocked. Example: apple-siri,windows-azure.")], applications_to_un_block: Annotated[str, Field(default=None, description="Specify what kind of application should be unblocked. Example: apple-siri,windows-azure.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def palo_alto_panorama_edit_blocked_applications(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], policy_name: Annotated[str, Field(..., description="Specify name of the policy.")], applications_to_block: Annotated[Optional[str], Field(default=None, description="Specify what kind of application should be blocked. Example: apple-siri,windows-azure.")], applications_to_un_block: Annotated[Optional[str], Field(default=None, description="Specify what kind of application should be unblocked. Example: apple-siri,windows-azure.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Block and unblock applications. Each application is added to or removed from a given policy
 
         Returns:
@@ -187,7 +187,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def palo_alto_panorama_get_correlated_traffic_between_i_ps(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source_ip: Annotated[str, Field(..., description="Specify source IP that will be used to get traffic.")], destination_ip: Annotated[str, Field(..., description="Specify destination IP that will be used to get traffic.")], max_hours_backwards: Annotated[str, Field(default=None, description="Specify the amount of hours from where to fetch logs.")], max_logs_to_return: Annotated[str, Field(default=None, description="Specify how many logs to return. Maximum is 1000.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def palo_alto_panorama_get_correlated_traffic_between_i_ps(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source_ip: Annotated[str, Field(..., description="Specify source IP that will be used to get traffic.")], destination_ip: Annotated[str, Field(..., description="Specify destination IP that will be used to get traffic.")], max_hours_backwards: Annotated[Optional[str], Field(default=None, description="Specify the amount of hours from where to fetch logs.")], max_logs_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many logs to return. Maximum is 1000.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Action returns correlated network traffic logs from Palo Alto Panorama between Source IP Address and Destination IP Address.
 
         Returns:
@@ -344,7 +344,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def palo_alto_panorama_search_logs(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], log_type: Annotated[List[str], Field(..., description="Specify which log type should be returned.")], query: Annotated[str, Field(default=None, description="Specify what query filter should be used to return logs.")], max_hours_backwards: Annotated[str, Field(default=None, description="Specify the amount of hours from where to fetch logs.")], max_logs_to_return: Annotated[str, Field(default=None, description="Specify how many logs to return. Maximum is 1000.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def palo_alto_panorama_search_logs(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], log_type: Annotated[List[str], Field(..., description="Specify which log type should be returned.")], query: Annotated[Optional[str], Field(default=None, description="Specify what query filter should be used to return logs.")], max_hours_backwards: Annotated[Optional[str], Field(default=None, description="Specify the amount of hours from where to fetch logs.")], max_logs_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many logs to return. Maximum is 1000.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Search logs in Palo Alto Panorama based on the query.
 
         Returns:

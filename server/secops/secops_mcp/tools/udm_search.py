@@ -33,9 +33,9 @@ async def export_udm_search_csv(
     start_time: Optional[str] = None,
     end_time: Optional[str] = None,
     case_insensitive: bool = True,
-    project_id: str = None,
-    customer_id: str = None,
-    region: str = None,
+    project_id: Optional[str] = None,
+    customer_id: Optional[str] = None,
+    region: Optional[str] = None,
 ) -> str:
     """Export UDM search results to CSV format for analysis and reporting.
 
@@ -203,9 +203,9 @@ async def export_udm_search_csv(
 async def find_udm_field_values(
     query: str,
     page_size: Optional[int] = None,
-    project_id: str = None,
-    customer_id: str = None,
-    region: str = None,
+    project_id: Optional[str] = None,
+    customer_id: Optional[str] = None,
+    region: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Find and autocomplete UDM field values in Chronicle SIEM.
 

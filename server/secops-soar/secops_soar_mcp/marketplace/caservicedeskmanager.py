@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
@@ -24,11 +24,11 @@ from logger_utils import get_logger
 logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the CaServiceDesk integration.
 
     @mcp.tool()
-    async def ca_service_desk_create_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], summary: Annotated[str, Field(..., description="Incident's summary text")], description: Annotated[str, Field(..., description="Incident's description text")], category_name: Annotated[str, Field(..., description="Incident's area name. e.g. Software")], group_name: Annotated[str, Field(..., description="Group name. e.g. Test")], username: Annotated[str, Field(..., description="User name")], custom_fields: Annotated[str, Field(default=None, description="Specify a JSON object containing all of the needed fields and values. The structure is the following: {\"field\u201d:\u201dvalue\"}. If the same field is provided in the \u201cCustom Fields\u201c parameter and other parameters, the \u201cCustom Fields\u201c  parameter value has priority.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def ca_service_desk_create_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], summary: Annotated[str, Field(..., description="Incident's summary text")], description: Annotated[str, Field(..., description="Incident's description text")], category_name: Annotated[str, Field(..., description="Incident's area name. e.g. Software")], group_name: Annotated[str, Field(..., description="Group name. e.g. Test")], username: Annotated[str, Field(..., description="User name")], custom_fields: Annotated[Optional[str], Field(default=None, description="Specify a JSON object containing all of the needed fields and values. The structure is the following: {\"field\u201d:\u201dvalue\"}. If the same field is provided in the \u201cCustom Fields\u201c parameter and other parameters, the \u201cCustom Fields\u201c  parameter value has priority.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Create new ticket in CA ServiceDesk.
 
         Returns:
@@ -185,7 +185,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def ca_service_desk_sync_ticket_history(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], comment_type_field: Annotated[str, Field(default=None, description="Ticket type. e.g. type.sym")], analyst_name_field: Annotated[str, Field(default=None, description="Analyst Name. e.g. analyst.combo_name")], time_stamp_field: Annotated[str, Field(default=None, description="Time field e.g. time_stamap.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def ca_service_desk_sync_ticket_history(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], comment_type_field: Annotated[Optional[str], Field(default=None, description="Ticket type. e.g. type.sym")], analyst_name_field: Annotated[Optional[str], Field(default=None, description="Analyst Name. e.g. analyst.combo_name")], time_stamp_field: Annotated[Optional[str], Field(default=None, description="Time field e.g. time_stamap.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Fetch and attach the entire ticket history to an alert
 
         Returns:
@@ -643,7 +643,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def ca_service_desk_search_tickets(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(default=None, description="Incident ID to filter by")], summary: Annotated[str, Field(default=None, description="Summary content to filter by")], description: Annotated[str, Field(default=None, description="Description content to filter by")], status: Annotated[str, Field(default=None, description="Filter by status. e.g. Open")], days_backwards: Annotated[str, Field(default=None, description="Get results from 'x' days backwards. e.g. 5'")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def ca_service_desk_search_tickets(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[Optional[str], Field(default=None, description="Incident ID to filter by")], summary: Annotated[Optional[str], Field(default=None, description="Summary content to filter by")], description: Annotated[Optional[str], Field(default=None, description="Description content to filter by")], status: Annotated[Optional[str], Field(default=None, description="Filter by status. e.g. Open")], days_backwards: Annotated[Optional[str], Field(default=None, description="Get results from 'x' days backwards. e.g. 5'")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Search tickets in CA Desk Manager by field
 
         Returns:

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
@@ -24,7 +24,7 @@ from logger_utils import get_logger
 logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the CheckPointSandBlast integration.
 
     @mcp.tool()
@@ -177,7 +177,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def check_point_sand_blast_upload_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_path: Annotated[str, Field(..., description="The full path of the file to upload. For multiple, use comma separated values.")], enable_threat_emulation_feature: Annotated[bool, Field(default=None, description="If enabled, threat emulation feature will be enabled for the upload. By default, if no features are selected, threat emulation will be used.")], enable_anti_virus_feature: Annotated[bool, Field(default=None, description="If enabled, antivirus feature will be enabled for the upload. By default, if no features are selected, threat emulation will be used.")], enable_threat_extraction_feature: Annotated[bool, Field(default=None, description="If enabled, threat extraction feature will be enabled for the upload. By default, if no features are selected, threat emulation will be used.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def check_point_sand_blast_upload_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_path: Annotated[str, Field(..., description="The full path of the file to upload. For multiple, use comma separated values.")], enable_threat_emulation_feature: Annotated[Optional[bool], Field(default=None, description="If enabled, threat emulation feature will be enabled for the upload. By default, if no features are selected, threat emulation will be used.")], enable_anti_virus_feature: Annotated[Optional[bool], Field(default=None, description="If enabled, antivirus feature will be enabled for the upload. By default, if no features are selected, threat emulation will be used.")], enable_threat_extraction_feature: Annotated[Optional[bool], Field(default=None, description="If enabled, threat extraction feature will be enabled for the upload. By default, if no features are selected, threat emulation will be used.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Upload files for analysis
 
         Returns:

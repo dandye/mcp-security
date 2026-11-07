@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
@@ -24,7 +24,7 @@ from logger_utils import get_logger
 logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the CBEnterpriseEDR integration.
 
     @mcp.tool()
@@ -102,7 +102,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def cb_enterprise_edr_process_search(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], record_limit: Annotated[str, Field(..., description="Specify how many records can be returned by the action.")], query: Annotated[str, Field(default=None, description="Query to execute in process search. For example, process_name:svchost.exe - to search based by process name, process_hash:9520a99e77d6196d0d09833146424113 - to search based by process hash.")], time_frame: Annotated[str, Field(default=None, description="Specify a time frame in hours for which to fetch alerts.")], sort_by: Annotated[str, Field(default=None, description="Specify a parameter for sorting the data.")], sort_order: Annotated[List[str], Field(default=None, description="Sort order.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def cb_enterprise_edr_process_search(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], record_limit: Annotated[str, Field(..., description="Specify how many records can be returned by the action.")], query: Annotated[Optional[str], Field(default=None, description="Query to execute in process search. For example, process_name:svchost.exe - to search based by process name, process_hash:9520a99e77d6196d0d09833146424113 - to search based by process hash.")], time_frame: Annotated[Optional[str], Field(default=None, description="Specify a time frame in hours for which to fetch alerts.")], sort_by: Annotated[Optional[str], Field(default=None, description="Specify a parameter for sorting the data.")], sort_order: Annotated[Optional[List[str]], Field(default=None, description="Sort order.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Search information about process activity on the host with CB sensor based on the provided search parameters. The action accepts Host Siemplify entities.
 
         Returns:
@@ -259,7 +259,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def cb_enterprise_edr_get_events_associated_with_process_by_process_guid(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], process_guid: Annotated[str, Field(..., description="Specify a process guid to search events for.")], query: Annotated[str, Field(..., description="Query to execute in process search.For example, \u201cnetconn_action:ACTION_CONNECTION_CREATE OR netconn_action:ACTION_CONNECTION_ESTABLISHED\u201d")], record_limit: Annotated[str, Field(..., description="Specify how many records can be returned by the action.")], search_criteria: Annotated[str, Field(default=None, description="Specify a search criteria for the request. Currently, only \u201cevent_type\u201d values are accepted as the search criteria, for example, netconn. Multiple values are accepted as a comma separated string.")], time_frame: Annotated[str, Field(default=None, description="Specify a time frame in hours for which to fetch events.")], sort_by: Annotated[str, Field(default=None, description="Specify a parameter for sorting the data.")], sort_order: Annotated[List[str], Field(default=None, description="Sort order.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def cb_enterprise_edr_get_events_associated_with_process_by_process_guid(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], process_guid: Annotated[str, Field(..., description="Specify a process guid to search events for.")], query: Annotated[str, Field(..., description="Query to execute in process search.For example, \u201cnetconn_action:ACTION_CONNECTION_CREATE OR netconn_action:ACTION_CONNECTION_ESTABLISHED\u201d")], record_limit: Annotated[str, Field(..., description="Specify how many records can be returned by the action.")], search_criteria: Annotated[Optional[str], Field(default=None, description="Specify a search criteria for the request. Currently, only \u201cevent_type\u201d values are accepted as the search criteria, for example, netconn. Multiple values are accepted as a comma separated string.")], time_frame: Annotated[Optional[str], Field(default=None, description="Specify a time frame in hours for which to fetch events.")], sort_by: Annotated[Optional[str], Field(default=None, description="Specify a parameter for sorting the data.")], sort_order: Annotated[Optional[List[str]], Field(default=None, description="Sort order.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Get events associated with specific processes based on the information from the VMware Carbon Black Enterprise EDR. This action can get more detailed results on specific process activity than “Process Search” action. Note for the action to work, Siemplify process artifact passed to action should be a process guid type.
 
         Returns:

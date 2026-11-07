@@ -44,13 +44,9 @@ def soar_config(config_path: str) -> Dict[str, str]:
         FileNotFoundError: If the config file is missing
     """
     if not os.path.exists(config_path):
-        raise FileNotFoundError(
-            f"SOAR config file not found at {config_path}. "
-            f"Please create this file with the following format:\n"
-            f"{{\n"
-            f'    "SOAR_URL": "your-soar-url",\n'
-            f'    "SOAR_APP_KEY": "your-soar-app-key",\n'
-            f"}}"
+        pytest.skip(
+            f"SOAR config file not found at {config_path}; "
+            "skipping live SOAR integration tests."
         )
 
     with open(config_path, "r") as f:

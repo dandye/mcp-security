@@ -13,7 +13,7 @@
 # limitations under the License.
 import asyncio
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import CasePriority
 from logger_utils import get_logger
@@ -24,7 +24,7 @@ from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     @mcp.tool()
     async def create_case(
         name: Annotated[str, Field(..., description="The name or title of the case.")],
@@ -44,21 +44,21 @@ def register_tools(mcp: FastMCP):
                     ]
                 },
             ),
-        ],
+        ] = None,
         description: Annotated[
             Optional[str],
             Field(
                 default=None,
                 description="A description for the case providing context about the security incident.",
             ),
-        ],
+        ] = None,
         environment: Annotated[
             Optional[str],
             Field(
                 default=None,
                 description="The environment for the case.",
             ),
-        ],
+        ] = None,
     ) -> dict:
         """Create a new manual case in the Security Orchestration, Automation, and Response (SOAR) platform.
 
@@ -115,7 +115,7 @@ def register_tools(mcp: FastMCP):
                 default=None,
                 description="The nextPageToken to fetch the next page of results.",
             ),
-        ],
+        ] = None,
     ) -> dict:
         """List cases available in the Security Orchestration, Automation, and Response (SOAR) platform.
 
@@ -196,7 +196,7 @@ def register_tools(mcp: FastMCP):
                 default=None,
                 description="The nextPageToken to fetch the next page of results.",
             ),
-        ],
+        ] = None,
     ) -> dict:
         """List the security alerts associated with a specific case ID in the SOAR platform.
 
@@ -246,7 +246,7 @@ def register_tools(mcp: FastMCP):
                 default=None,
                 description="The nextPageToken to fetch the next page of results.",
             ),
-        ],
+        ] = None,
     ):
         """List alert group identifiers associated with a specific case ID in the SOAR platform.
 
@@ -295,7 +295,7 @@ def register_tools(mcp: FastMCP):
                 default=None,
                 description="The nextPageToken to fetch the next page of results.",
             ),
-        ],
+        ] = None,
     ):
         """List the underlying security events associated with a specific alert within a given case.
 
@@ -479,7 +479,7 @@ def register_tools(mcp: FastMCP):
                 default=None,
                 description="Optional comma-separated tags to apply to the case when closing.",
             ),
-        ],
+        ] = None,
     ):
         """Close a specific case in the SOAR platform.
 
@@ -810,49 +810,49 @@ def register_tools(mcp: FastMCP):
                 default=None,
                 description="The term to search for",
             ),
-        ],
+        ] = None,
         type: Annotated[
             Optional[List[str]],
             Field(
                 default=None,
                 description="The type of the entity",
             ),
-        ],
+        ] = None,
         is_suspicious: Annotated[
             Optional[bool],
             Field(
                 default=None,
                 description="A boolean that states if the entity is suspicious",
             ),
-        ],
+        ] = None,
         is_internal_asset: Annotated[
             Optional[bool],
             Field(
                 default=None,
                 description="A boolean that states if the entity is an internal asset",
             ),
-        ],
+        ] = None,
         is_enriched: Annotated[
             Optional[bool],
             Field(
                 default=None,
                 description="A boolean that states if the entity is enriched",
             ),
-        ],
+        ] = None,
         network_name: Annotated[
             Optional[List[str]],
             Field(
                 default=None,
                 description="The network name",
             ),
-        ],
+        ] = None,
         environment_name: Annotated[
             Optional[List[str]],
             Field(
                 default=None,
                 description="The environment name",
             ),
-        ],
+        ] = None,
     ):
         """Search for entities within the SOAR platform based on various criteria.
 

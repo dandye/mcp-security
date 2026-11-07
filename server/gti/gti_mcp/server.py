@@ -20,7 +20,7 @@ import logging
 import os
 import vt
 
-from mcp.server.fastmcp import FastMCP, Context
+from mcp.server.mcpserver import Context, MCPServer
 
 logging.basicConfig(level=logging.ERROR)
 
@@ -50,18 +50,44 @@ async def vt_client(ctx: Context) -> AsyncIterator[vt.Client]:
   finally:
     await client.close_async()
 
-# Create a named server and specify dependencies for deployment and development
-server = FastMCP(
-    "Google Threat Intelligence MCP server",
+# Create a named server and specify dependencies and discovery metadata
+server = MCPServer(
+    name="gti-mcp",
+    title="Google Threat Intelligence MCP Server",
+    version="0.2.0",
+    description=(
+        "MCP server for Google Threat Intelligence (GTI) and VirusTotal v3 "
+        "IOC enrichment, threat actor/malware/campaign collections, sandbox "
+        "behavior analysis, digital threat monitoring, and standard YARA "
+        "file/payload livehunt and retrohunt rulesets."
+    ),
+    website_url="https://github.com/google/mcp-security",
+    instructions=(
+        "Use these tools to enrich indicators and pivot across Google Threat "
+        "Intelligence collections. Check list_threat_profiles first when "
+        "scoping organization-relevant threats, then use search_threats or "
+        "get_collection_report and pivot via relationship tools "
+        "(get_entities_related_to_a_collection, get_entities_related_to_a_file, "
+        "get_entities_related_to_a_domain, get_entities_related_to_an_ip_address, "
+        "get_entities_related_to_an_url). Ruleset and hunting tools in gti-mcp "
+        "operate on standard YARA rules for binary/file payload matching, not "
+        "YARA-L 2.0 Chronicle SIEM UDM event detection rules (use secops-mcp "
+        "for YARA-L 2.0 SIEM rules)."
+    ),
     dependencies=["vt-py"],
-    stateless_http=stateless)
+)
 
 # Load tools.
 from gti_mcp.tools import *
 
+
 # Run the server
 def main():
-  server.run(transport='stdio')
+  transport = os.getenv("GTI_MCP_TRANSPORT", os.getenv("MCP_TRANSPORT", "stdio"))
+  if transport == "streamable-http":
+    server.run(transport="streamable-http", stateless_http=stateless)
+  else:
+    server.run(transport=transport)
 
 
 if __name__ == '__main__':

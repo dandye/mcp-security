@@ -1,6 +1,6 @@
 [project]
 name = "scc-mcp"
-version = "0.1.1"
+version = "0.3.0"
 description = "Security Command Center MCP server"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -14,15 +14,20 @@ classifiers = [
     "Topic :: Security",
 ]
 dependencies = [
+    "aiohttp>=3.9.0",
+    "google-cloud-asset>=3.15.0",
+    "google-cloud-securitycenter>=1.38.0",
     "httpx>=0.28.1",
-    "mcp[cli]>=1.4.1,<2.0",
+    "mcp[cli]>=2.3.0,<3.0.0",
     "python-dotenv>=1.0.0",
     "typing-extensions>=4.8.0",
-    "aiohttp>=3.9.0",
-    "asyncio>=3.4.3",
-    "google-cloud-securitycenter>=1.38.0",
-    "google-cloud-asset>=3.15.0",
     "uvicorn[standard]",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
 ]
 
 [project.urls]
@@ -40,3 +45,6 @@ scc-mcp = "scc_mcp:main"
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["scc_mcp"]

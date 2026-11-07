@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
@@ -24,7 +24,7 @@ from logger_utils import get_logger
 logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the Rapid7InsightIDR integration.
 
     @mcp.tool()
@@ -103,7 +103,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def rapid7_insight_idr_update_investigation(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], investigation_id: Annotated[str, Field(..., description="Specify the ID of the investigation that needs to be updated.")], status: Annotated[List[str], Field(default=None, description="Specify the status for the investigation.")], disposition: Annotated[List[str], Field(default=None, description="Specify the disposition for the investigation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def rapid7_insight_idr_update_investigation(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], investigation_id: Annotated[str, Field(..., description="Specify the ID of the investigation that needs to be updated.")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify the status for the investigation.")], disposition: Annotated[Optional[List[str]], Field(default=None, description="Specify the disposition for the investigation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Update investigation in Rapid7 InsightIDR. Note: this action was built using API endpoints that are in preview release.
 
         Returns:
@@ -182,7 +182,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def rapid7_insight_idr_list_investigations(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], time_frame: Annotated[str, Field(default=None, description="Specify a time frame in hours for which to fetch findings.")], record_limit: Annotated[str, Field(default=None, description="Specify how many records can be returned by the action.")], include_closed_investigations: Annotated[bool, Field(default=None, description="Specify whether to include closed investigations in results or not.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def rapid7_insight_idr_list_investigations(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], time_frame: Annotated[Optional[str], Field(default=None, description="Specify a time frame in hours for which to fetch findings.")], record_limit: Annotated[Optional[str], Field(default=None, description="Specify how many records can be returned by the action.")], include_closed_investigations: Annotated[Optional[bool], Field(default=None, description="Specify whether to include closed investigations in results or not.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """List Rapid7 InsightIDR investigations based on the specified action input parameters.  Note: Action is not working with Siemplify entities, only with action input parameters.
 
         Returns:
@@ -487,7 +487,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def rapid7_insight_idr_list_saved_queries(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], record_limit: Annotated[str, Field(default=None, description="Specify how many records can be returned by the action.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def rapid7_insight_idr_list_saved_queries(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], record_limit: Annotated[Optional[str], Field(default=None, description="Specify how many records can be returned by the action.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """List Rapid7 InsightIDR saved queries.  Note: Action is not working with Siemplify entities, only with action input parameters.
 
         Returns:
@@ -639,7 +639,7 @@ def register_tools(mcp: FastMCP):
             return {"Status": "Failed", "Message": "No active instance found."}
 
     @mcp.tool()
-    async def rapid7_insight_idr_create_saved_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Name for the new saved query")], statement: Annotated[str, Field(..., description="A statement to execute in query, should follow LEQL syntax, for example: where(foo=bar)")], time_frame: Annotated[str, Field(..., description="Specify a time frame in hours for which query should fetch data.")], logs: Annotated[str, Field(default=None, description="Log names query should execute against. Parameter accepts multiple values as a comma separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    async def rapid7_insight_idr_create_saved_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Name for the new saved query")], statement: Annotated[str, Field(..., description="A statement to execute in query, should follow LEQL syntax, for example: where(foo=bar)")], time_frame: Annotated[str, Field(..., description="Specify a time frame in hours for which query should fetch data.")], logs: Annotated[Optional[str], Field(default=None, description="Log names query should execute against. Parameter accepts multiple values as a comma separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
         """Create Rapid7 InsightIDR saved query based on the specified action input parameters. Note: Action is not working with Siemplify Entities.
 
         Returns:

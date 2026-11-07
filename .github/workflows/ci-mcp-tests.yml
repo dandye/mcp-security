@@ -1,0 +1,82 @@
+name: CI MCP Tests
+
+on:
+  push:
+    branches:
+      - main
+      - 'mcp-v2__*'
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-mcp-tests-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  mcp-tests:
+    name: MCP v2 Unit, Contract, and Build Tests (Python 3.11)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pinned test and SDK dependencies
+        run: |
+          pip install \
+            mcp[cli]==2.3.0 \
+            google-adk[mcp]==2.13.0 \
+            pytest==9.2.0 \
+            pytest-asyncio==1.4.1 \
+            pytest-mock==3.17.0 \
+            pytest-httpserver==1.2.0 \
+            jsonschema==4.26.0 \
+            build==1.6.1 \
+            twine==7.0.0
+
+      - name: Install local MCP server and ADK packages
+        run: |
+          pip install \
+            -e ./server/secops \
+            -e ./server/gti \
+            -e ./server/secops-soar \
+            -e ./server/scc \
+            -e ./run-with-google-adk
+
+      - name: Run server/secops unit tests
+        working-directory: server/secops
+        run: pytest tests/*_unit.py -v
+
+      - name: Run server/gti unit tests
+        working-directory: server/gti
+        run: pytest tests/ -v
+
+      - name: Run server/secops-soar unit tests
+        working-directory: server/secops-soar
+        run: pytest tests/unit -v
+
+      - name: Run server/scc unit tests
+        working-directory: server/scc
+        run: pytest tests/ -v
+
+      - name: Run run-with-google-adk unit tests
+        working-directory: run-with-google-adk
+        run: pytest tests/ -v
+
+      - name: Run cross-server MCP 2026-07-28 protocol contract suite
+        run: pytest tests/test_mcp_v2_protocol_contract.py -v
+
+      - name: Verify sdist and wheel builds across all packages
+        run: |
+          for pkg in server/secops server/gti server/secops-soar server/scc run-with-google-adk; do
+            python -m build "$pkg" --outdir "/tmp/dist-$(basename "$pkg")"
+            python -m twine check "/tmp/dist-$(basename "$pkg")"/*
+          done

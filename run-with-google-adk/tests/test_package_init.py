@@ -14,7 +14,7 @@ import mcp_security_agent
 def test_package_version():
     assert hasattr(mcp_security_agent, "__version__")
     assert isinstance(mcp_security_agent.__version__, str)
-    assert mcp_security_agent.__version__ == "0.2.0"
+    assert mcp_security_agent.__version__ == "0.3.0"
 
 
 def test_package_exports():
