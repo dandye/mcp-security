@@ -881,7 +881,7 @@ dict: A dictionary containing the result of the action execution.
         title='Tanium: Download File',
         annotations=ToolAnnotations(
             title='Tanium: Download File',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

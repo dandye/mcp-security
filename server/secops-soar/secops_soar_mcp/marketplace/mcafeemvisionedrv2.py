@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the McAfeeMvisionEDRV2 integration.
 
     @mcp.tool(
-        title='Mc Afee Mvision Edrv2: Create Investigation',
+        title='Mc Afee Mvision EDRV2: Create Investigation',
         annotations=ToolAnnotations(
-            title='Mc Afee Mvision Edrv2: Create Investigation',
+            title='Mc Afee Mvision EDRV2: Create Investigation',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -125,9 +125,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Mvision Edrv2: Ping',
+        title='Mc Afee Mvision EDRV2: Ping',
         annotations=ToolAnnotations(
-            title='Mc Afee Mvision Edrv2: Ping',
+            title='Mc Afee Mvision EDRV2: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the AWSIAM integration.
 
     @mcp.tool(
-        title='Awsiam: List Policies',
+        title='AWSIAM: List Policies',
         annotations=ToolAnnotations(
-            title='Awsiam: List Policies',
+            title='AWSIAM: List Policies',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -123,9 +123,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsiam: Remove a User from a Group',
+        title='AWSIAM: Remove a User from a Group',
         annotations=ToolAnnotations(
-            title='Awsiam: Remove a User from a Group',
+            title='AWSIAM: Remove a User from a Group',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -214,9 +214,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsiam: Create a Group',
+        title='AWSIAM: Create a Group',
         annotations=ToolAnnotations(
-            title='Awsiam: Create a Group',
+            title='AWSIAM: Create a Group',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -304,9 +304,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsiam: Ping',
+        title='AWSIAM: Ping',
         annotations=ToolAnnotations(
-            title='Awsiam: Ping',
+            title='AWSIAM: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -393,9 +393,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsiam: List Groups',
+        title='AWSIAM: List Groups',
         annotations=ToolAnnotations(
-            title='Awsiam: List Groups',
+            title='AWSIAM: List Groups',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -484,9 +484,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsiam: Attach a Policy',
+        title='AWSIAM: Attach a Policy',
         annotations=ToolAnnotations(
-            title='Awsiam: Attach a Policy',
+            title='AWSIAM: Attach a Policy',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -576,9 +576,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsiam: Add a User to a Group',
+        title='AWSIAM: Add a User to a Group',
         annotations=ToolAnnotations(
-            title='Awsiam: Add a User to a Group',
+            title='AWSIAM: Add a User to a Group',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -667,9 +667,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsiam: Create a Policy',
+        title='AWSIAM: Create a Policy',
         annotations=ToolAnnotations(
-            title='Awsiam: Create a Policy',
+            title='AWSIAM: Create a Policy',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -760,9 +760,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsiam: Disable User Access',
+        title='AWSIAM: Disable User Access',
         annotations=ToolAnnotations(
-            title='Awsiam: Disable User Access',
+            title='AWSIAM: Disable User Access',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -849,9 +849,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsiam: Create a User',
+        title='AWSIAM: Create a User',
         annotations=ToolAnnotations(
-            title='Awsiam: Create a User',
+            title='AWSIAM: Create a User',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -939,9 +939,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsiam: List Users',
+        title='AWSIAM: List Users',
         annotations=ToolAnnotations(
-            title='Awsiam: List Users',
+            title='AWSIAM: List Users',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

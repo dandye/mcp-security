@@ -211,9 +211,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Chronicle: Execute Udm Query',
+        title='Google Chronicle: Execute UDM Query',
         annotations=ToolAnnotations(
-            title='Google Chronicle: Execute Udm Query',
+            title='Google Chronicle: Execute UDM Query',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -491,9 +491,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Chronicle: List Io Cs',
+        title='Google Chronicle: List IOCs',
         annotations=ToolAnnotations(
-            title='Google Chronicle: List Io Cs',
+            title='Google Chronicle: List IOCs',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

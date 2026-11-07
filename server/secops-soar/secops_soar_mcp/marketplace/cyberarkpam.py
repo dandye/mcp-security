@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the CyberArkPAM integration.
 
     @mcp.tool(
-        title='Cyber Ark Pam: List Accounts',
+        title='Cyber Ark PAM: List Accounts',
         annotations=ToolAnnotations(
-            title='Cyber Ark Pam: List Accounts',
+            title='Cyber Ark PAM: List Accounts',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -131,9 +131,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cyber Ark Pam: Ping',
+        title='Cyber Ark PAM: Ping',
         annotations=ToolAnnotations(
-            title='Cyber Ark Pam: Ping',
+            title='Cyber Ark PAM: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -220,9 +220,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cyber Ark Pam: Get Account Password Value',
+        title='Cyber Ark PAM: Get Account Password Value',
         annotations=ToolAnnotations(
-            title='Cyber Ark Pam: Get Account Password Value',
+            title='Cyber Ark PAM: Get Account Password Value',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

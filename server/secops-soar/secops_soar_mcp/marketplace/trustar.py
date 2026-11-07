@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the TruSTAR integration.
 
     @mcp.tool(
-        title='Tru Star: Get Related Io Cs',
+        title='Tru STAR: Get Related IOCs',
         annotations=ToolAnnotations(
-            title='Tru Star: Get Related Io Cs',
+            title='Tru STAR: Get Related IOCs',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -126,9 +126,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Tru Star: Get Related Reports',
+        title='Tru STAR: Get Related Reports',
         annotations=ToolAnnotations(
-            title='Tru Star: Get Related Reports',
+            title='Tru STAR: Get Related Reports',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -226,9 +226,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Tru Star: Ping',
+        title='Tru STAR: Ping',
         annotations=ToolAnnotations(
-            title='Tru Star: Ping',
+            title='Tru STAR: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -315,9 +315,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Tru Star: Enrich Entities',
+        title='Tru STAR: Enrich Entities',
         annotations=ToolAnnotations(
-            title='Tru Star: Enrich Entities',
+            title='Tru STAR: Enrich Entities',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -410,9 +410,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Tru Star: List Enclaves',
+        title='Tru STAR: List Enclaves',
         annotations=ToolAnnotations(
-            title='Tru Star: List Enclaves',
+            title='Tru STAR: List Enclaves',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

@@ -1048,7 +1048,7 @@ def register_tools(mcp: MCPServer):
         title='Cofense Triage: Download Report Preview',
         annotations=ToolAnnotations(
             title='Cofense Triage: Download Report Preview',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -1144,7 +1144,7 @@ def register_tools(mcp: MCPServer):
         title='Cofense Triage: Download Report Email',
         annotations=ToolAnnotations(
             title='Cofense Triage: Download Report Email',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

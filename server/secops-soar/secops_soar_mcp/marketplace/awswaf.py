@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the AWSWAF integration.
 
     @mcp.tool(
-        title='Awswaf: Create Regex Pattern Set',
+        title='AWSWAF: Create Regex Pattern Set',
         annotations=ToolAnnotations(
-            title='Awswaf: Create Regex Pattern Set',
+            title='AWSWAF: Create Regex Pattern Set',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -128,9 +128,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: Remove Rule from Rule Group',
+        title='AWSWAF: Remove Rule from Rule Group',
         annotations=ToolAnnotations(
-            title='Awswaf: Remove Rule from Rule Group',
+            title='AWSWAF: Remove Rule from Rule Group',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -219,9 +219,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: Create Web Acl',
+        title='AWSWAF: Create Web ACL',
         annotations=ToolAnnotations(
-            title='Awswaf: Create Web Acl',
+            title='AWSWAF: Create Web ACL',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -322,9 +322,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: Add Pattern to Regex Pattern Set',
+        title='AWSWAF: Add Pattern to Regex Pattern Set',
         annotations=ToolAnnotations(
-            title='Awswaf: Add Pattern to Regex Pattern Set',
+            title='AWSWAF: Add Pattern to Regex Pattern Set',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -413,9 +413,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: Create IP Set',
+        title='AWSWAF: Create IP Set',
         annotations=ToolAnnotations(
-            title='Awswaf: Create IP Set',
+            title='AWSWAF: Create IP Set',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -507,9 +507,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: Create Rule Group',
+        title='AWSWAF: Create Rule Group',
         annotations=ToolAnnotations(
-            title='Awswaf: Create Rule Group',
+            title='AWSWAF: Create Rule Group',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -605,9 +605,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: Ping',
+        title='AWSWAF: Ping',
         annotations=ToolAnnotations(
-            title='Awswaf: Ping',
+            title='AWSWAF: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -694,9 +694,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: Remove Rule from Web Acl',
+        title='AWSWAF: Remove Rule from Web ACL',
         annotations=ToolAnnotations(
-            title='Awswaf: Remove Rule from Web Acl',
+            title='AWSWAF: Remove Rule from Web ACL',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -785,9 +785,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: List IP Sets',
+        title='AWSWAF: List IP Sets',
         annotations=ToolAnnotations(
-            title='Awswaf: List IP Sets',
+            title='AWSWAF: List IP Sets',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -876,9 +876,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: List Regex Pattern Sets',
+        title='AWSWAF: List Regex Pattern Sets',
         annotations=ToolAnnotations(
-            title='Awswaf: List Regex Pattern Sets',
+            title='AWSWAF: List Regex Pattern Sets',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -967,9 +967,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: Add Rule to Rule Group',
+        title='AWSWAF: Add Rule to Rule Group',
         annotations=ToolAnnotations(
-            title='Awswaf: Add Rule to Rule Group',
+            title='AWSWAF: Add Rule to Rule Group',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1058,9 +1058,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: List Web Ac Ls',
+        title='AWSWAF: List Web ACLs',
         annotations=ToolAnnotations(
-            title='Awswaf: List Web Ac Ls',
+            title='AWSWAF: List Web ACLs',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1149,9 +1149,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: List Rule Groups',
+        title='AWSWAF: List Rule Groups',
         annotations=ToolAnnotations(
-            title='Awswaf: List Rule Groups',
+            title='AWSWAF: List Rule Groups',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1240,9 +1240,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: Remove IP from IP Set',
+        title='AWSWAF: Remove IP from IP Set',
         annotations=ToolAnnotations(
-            title='Awswaf: Remove IP from IP Set',
+            title='AWSWAF: Remove IP from IP Set',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -1330,9 +1330,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: Add IP to IP Set',
+        title='AWSWAF: Add IP to IP Set',
         annotations=ToolAnnotations(
-            title='Awswaf: Add IP to IP Set',
+            title='AWSWAF: Add IP to IP Set',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1420,9 +1420,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: Remove Pattern from Regex Pattern Set',
+        title='AWSWAF: Remove Pattern from Regex Pattern Set',
         annotations=ToolAnnotations(
-            title='Awswaf: Remove Pattern from Regex Pattern Set',
+            title='AWSWAF: Remove Pattern from Regex Pattern Set',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -1511,9 +1511,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: Remove Entity from Regex Pattern Set',
+        title='AWSWAF: Remove Entity from Regex Pattern Set',
         annotations=ToolAnnotations(
-            title='Awswaf: Remove Entity from Regex Pattern Set',
+            title='AWSWAF: Remove Entity from Regex Pattern Set',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -1605,9 +1605,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: Add Rule to Web Acl',
+        title='AWSWAF: Add Rule to Web ACL',
         annotations=ToolAnnotations(
-            title='Awswaf: Add Rule to Web Acl',
+            title='AWSWAF: Add Rule to Web ACL',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1700,9 +1700,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awswaf: Add Entity to Regex Pattern Set',
+        title='AWSWAF: Add Entity to Regex Pattern Set',
         annotations=ToolAnnotations(
-            title='Awswaf: Add Entity to Regex Pattern Set',
+            title='AWSWAF: Add Entity to Regex Pattern Set',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,

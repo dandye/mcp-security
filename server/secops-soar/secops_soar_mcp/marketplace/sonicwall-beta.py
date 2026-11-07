@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the SonicWall-Beta integration.
 
     @mcp.tool(
-        title='Sonic Wall Beta: Add IP to Address Group',
+        title='Sonic Wall-Beta: Add IP to Address Group',
         annotations=ToolAnnotations(
-            title='Sonic Wall Beta: Add IP to Address Group',
+            title='Sonic Wall-Beta: Add IP to Address Group',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -121,9 +121,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Sonic Wall Beta: List URI Groups',
+        title='Sonic Wall-Beta: List URI Groups',
         annotations=ToolAnnotations(
-            title='Sonic Wall Beta: List URI Groups',
+            title='Sonic Wall-Beta: List URI Groups',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -212,9 +212,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Sonic Wall Beta: List Address Groups',
+        title='Sonic Wall-Beta: List Address Groups',
         annotations=ToolAnnotations(
-            title='Sonic Wall Beta: List Address Groups',
+            title='Sonic Wall-Beta: List Address Groups',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -305,9 +305,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Sonic Wall Beta: Ping',
+        title='Sonic Wall-Beta: Ping',
         annotations=ToolAnnotations(
-            title='Sonic Wall Beta: Ping',
+            title='Sonic Wall-Beta: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -394,9 +394,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Sonic Wall Beta: Add URI List to URI Group',
+        title='Sonic Wall-Beta: Add URI List to URI Group',
         annotations=ToolAnnotations(
-            title='Sonic Wall Beta: Add URI List to URI Group',
+            title='Sonic Wall-Beta: Add URI List to URI Group',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -485,9 +485,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Sonic Wall Beta: Remove IP from Address Group',
+        title='Sonic Wall-Beta: Remove IP from Address Group',
         annotations=ToolAnnotations(
-            title='Sonic Wall Beta: Remove IP from Address Group',
+            title='Sonic Wall-Beta: Remove IP from Address Group',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -575,9 +575,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Sonic Wall Beta: Remove URL from URI List',
+        title='Sonic Wall-Beta: Remove URL from URI List',
         annotations=ToolAnnotations(
-            title='Sonic Wall Beta: Remove URL from URI List',
+            title='Sonic Wall-Beta: Remove URL from URI List',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -665,9 +665,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Sonic Wall Beta: Create Cfs Profile',
+        title='Sonic Wall-Beta: Create CFS Profile',
         annotations=ToolAnnotations(
-            title='Sonic Wall Beta: Create Cfs Profile',
+            title='Sonic Wall-Beta: Create CFS Profile',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -765,9 +765,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Sonic Wall Beta: Add URL to URI List',
+        title='Sonic Wall-Beta: Add URL to URI List',
         annotations=ToolAnnotations(
-            title='Sonic Wall Beta: Add URL to URI List',
+            title='Sonic Wall-Beta: Add URL to URI List',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -855,9 +855,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Sonic Wall Beta: List URI Lists',
+        title='Sonic Wall-Beta: List URI Lists',
         annotations=ToolAnnotations(
-            title='Sonic Wall Beta: List URI Lists',
+            title='Sonic Wall-Beta: List URI Lists',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

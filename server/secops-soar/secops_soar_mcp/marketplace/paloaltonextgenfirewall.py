@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the PaloAltoNGFW integration.
 
     @mcp.tool(
-        title='Palo Alto Ngfw: Edit Blocked Applications',
+        title='Palo Alto NGFW: Edit Blocked Applications',
         annotations=ToolAnnotations(
-            title='Palo Alto Ngfw: Edit Blocked Applications',
+            title='Palo Alto NGFW: Edit Blocked Applications',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -126,9 +126,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto Ngfw: Block IPs in Policy',
+        title='Palo Alto NGFW: Block IPS in Policy',
         annotations=ToolAnnotations(
-            title='Palo Alto Ngfw: Block IPs in Policy',
+            title='Palo Alto NGFW: Block IPS in Policy',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -219,9 +219,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto Ngfw: Add IPs to Group',
+        title='Palo Alto NGFW: Add IPS to Group',
         annotations=ToolAnnotations(
-            title='Palo Alto Ngfw: Add IPs to Group',
+            title='Palo Alto NGFW: Add IPS to Group',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -315,9 +315,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto Ngfw: Commit Changes',
+        title='Palo Alto NGFW: Commit Changes',
         annotations=ToolAnnotations(
-            title='Palo Alto Ngfw: Commit Changes',
+            title='Palo Alto NGFW: Commit Changes',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -405,9 +405,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto Ngfw: Ping',
+        title='Palo Alto NGFW: Ping',
         annotations=ToolAnnotations(
-            title='Palo Alto Ngfw: Ping',
+            title='Palo Alto NGFW: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -494,9 +494,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto Ngfw: Unblock URLs',
+        title='Palo Alto NGFW: Unblock URLs',
         annotations=ToolAnnotations(
-            title='Palo Alto Ngfw: Unblock URLs',
+            title='Palo Alto NGFW: Unblock URLs',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -590,9 +590,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto Ngfw: Block URLs',
+        title='Palo Alto NGFW: Block URLs',
         annotations=ToolAnnotations(
-            title='Palo Alto Ngfw: Block URLs',
+            title='Palo Alto NGFW: Block URLs',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -686,9 +686,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto Ngfw: Remove IPs from Group',
+        title='Palo Alto NGFW: Remove IPS from Group',
         annotations=ToolAnnotations(
-            title='Palo Alto Ngfw: Remove IPs from Group',
+            title='Palo Alto NGFW: Remove IPS from Group',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -782,9 +782,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto Ngfw: Unblock IPs in Policy',
+        title='Palo Alto NGFW: Unblock IPS in Policy',
         annotations=ToolAnnotations(
-            title='Palo Alto Ngfw: Unblock IPs in Policy',
+            title='Palo Alto NGFW: Unblock IPS in Policy',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -875,9 +875,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Palo Alto Ngfw: Get Blocked Applications',
+        title='Palo Alto NGFW: Get Blocked Applications',
         annotations=ToolAnnotations(
-            title='Palo Alto Ngfw: Get Blocked Applications',
+            title='Palo Alto NGFW: Get Blocked Applications',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

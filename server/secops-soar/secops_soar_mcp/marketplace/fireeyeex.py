@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the FireEyeEX integration.
 
     @mcp.tool(
-        title='Fire Eye Ex: Release Quarantined Email',
+        title='Fire Eye EX: Release Quarantined Email',
         annotations=ToolAnnotations(
-            title='Fire Eye Ex: Release Quarantined Email',
+            title='Fire Eye EX: Release Quarantined Email',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -120,9 +120,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Ex: Ping',
+        title='Fire Eye EX: Ping',
         annotations=ToolAnnotations(
-            title='Fire Eye Ex: Ping',
+            title='Fire Eye EX: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -209,9 +209,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Ex: Delete Quarantined Email',
+        title='Fire Eye EX: Delete Quarantined Email',
         annotations=ToolAnnotations(
-            title='Fire Eye Ex: Delete Quarantined Email',
+            title='Fire Eye EX: Delete Quarantined Email',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -299,10 +299,10 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Ex: Download Alert Artifacts',
+        title='Fire Eye EX: Download Alert Artifacts',
         annotations=ToolAnnotations(
-            title='Fire Eye Ex: Download Alert Artifacts',
-            read_only_hint=False,
+            title='Fire Eye EX: Download Alert Artifacts',
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -390,10 +390,10 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Ex: Download Quarantined Email',
+        title='Fire Eye EX: Download Quarantined Email',
         annotations=ToolAnnotations(
-            title='Fire Eye Ex: Download Quarantined Email',
-            read_only_hint=False,
+            title='Fire Eye EX: Download Quarantined Email',
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -481,9 +481,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Ex: List Quarantined Emails',
+        title='Fire Eye EX: List Quarantined Emails',
         annotations=ToolAnnotations(
-            title='Fire Eye Ex: List Quarantined Emails',
+            title='Fire Eye EX: List Quarantined Emails',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

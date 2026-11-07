@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the ExchangeExtensionPack integration.
 
     @mcp.tool(
-        title='Exchange Extension Pack: Add Senders to Exchange Siemplify Mail Flow Rule',
+        title='Exchange Extension Pack: Add Senders to Exchange-Siemplify Mail Flow Rule',
         annotations=ToolAnnotations(
-            title='Exchange Extension Pack: Add Senders to Exchange Siemplify Mail Flow Rule',
+            title='Exchange Extension Pack: Add Senders to Exchange-Siemplify Mail Flow Rule',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -220,9 +220,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Exchange Extension Pack: Remove Domains from Exchange Siemplify Mail Flow Rules',
+        title='Exchange Extension Pack: Remove Domains from Exchange-Siemplify Mail Flow Rules',
         annotations=ToolAnnotations(
-            title='Exchange Extension Pack: Remove Domains from Exchange Siemplify Mail Flow Rules',
+            title='Exchange Extension Pack: Remove Domains from Exchange-Siemplify Mail Flow Rules',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -496,9 +496,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Exchange Extension Pack: Add Domains to Exchange Siemplify Mail Flow Rules',
+        title='Exchange Extension Pack: Add Domains to Exchange-Siemplify Mail Flow Rules',
         annotations=ToolAnnotations(
-            title='Exchange Extension Pack: Add Domains to Exchange Siemplify Mail Flow Rules',
+            title='Exchange Extension Pack: Add Domains to Exchange-Siemplify Mail Flow Rules',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -588,9 +588,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Exchange Extension Pack: Remove Senders from Exchange Siemplify Mail Flow Rules',
+        title='Exchange Extension Pack: Remove Senders from Exchange-Siemplify Mail Flow Rules',
         annotations=ToolAnnotations(
-            title='Exchange Extension Pack: Remove Senders from Exchange Siemplify Mail Flow Rules',
+            title='Exchange Extension Pack: Remove Senders from Exchange-Siemplify Mail Flow Rules',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -880,9 +880,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Exchange Extension Pack: List Exchange Siemplify Mail Flow Rules',
+        title='Exchange Extension Pack: List Exchange-Siemplify Mail Flow Rules',
         annotations=ToolAnnotations(
-            title='Exchange Extension Pack: List Exchange Siemplify Mail Flow Rules',
+            title='Exchange Extension Pack: List Exchange-Siemplify Mail Flow Rules',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -970,9 +970,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Exchange Extension Pack: Delete Exchange Siemplify Mail Flow Rules',
+        title='Exchange Extension Pack: Delete Exchange-Siemplify Mail Flow Rules',
         annotations=ToolAnnotations(
-            title='Exchange Extension Pack: Delete Exchange Siemplify Mail Flow Rules',
+            title='Exchange Extension Pack: Delete Exchange-Siemplify Mail Flow Rules',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,

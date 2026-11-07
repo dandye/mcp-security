@@ -524,9 +524,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Service Now: Get OAuth Token',
+        title='Service Now: Get Oauth Token',
         annotations=ToolAnnotations(
-            title='Service Now: Get OAuth Token',
+            title='Service Now: Get Oauth Token',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -893,9 +893,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Service Now: Get Cmdb Record Details',
+        title='Service Now: Get CMDB Record Details',
         annotations=ToolAnnotations(
-            title='Service Now: Get Cmdb Record Details',
+            title='Service Now: Get CMDB Record Details',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1179,7 +1179,7 @@ dict: A dictionary containing the result of the action execution.
         title='Service Now: Download Attachments',
         annotations=ToolAnnotations(
             title='Service Now: Download Attachments',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -1747,7 +1747,7 @@ dict: A dictionary containing the result of the action execution.
             title='Service Now: Wait for Comments',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=False,
+            idempotent_hint=True,
             open_world_hint=False,
         ),
     )
@@ -2229,9 +2229,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Service Now: List Cmdb Records',
+        title='Service Now: List CMDB Records',
         annotations=ToolAnnotations(
-            title='Service Now: List Cmdb Records',
+            title='Service Now: List CMDB Records',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

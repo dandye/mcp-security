@@ -123,7 +123,7 @@ def register_tools(mcp: MCPServer):
         title='Log Rhythm: Download Case Files',
         annotations=ToolAnnotations(
             title='Log Rhythm: Download Case Files',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -505,7 +505,7 @@ dict: A dictionary containing the result of the action execution.
             title='Log Rhythm: Add Note to Case',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=False,
         ),
     )

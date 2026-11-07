@@ -30,10 +30,10 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the ElasticSearch integration.
 
     @mcp.tool(
-        title='Elastic Search: Simple Es Search',
+        title='Elastic Search: Simple ES Search',
         annotations=ToolAnnotations(
-            title='Elastic Search: Simple Es Search',
-            read_only_hint=True,
+            title='Elastic Search: Simple ES Search',
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -125,10 +125,10 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Elastic Search: Advanced Es Search',
+        title='Elastic Search: Advanced ES Search',
         annotations=ToolAnnotations(
-            title='Elastic Search: Advanced Es Search',
-            read_only_hint=True,
+            title='Elastic Search: Advanced ES Search',
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -322,7 +322,7 @@ def register_tools(mcp: MCPServer):
         title='Elastic Search: DSL Search',
         annotations=ToolAnnotations(
             title='Elastic Search: DSL Search',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

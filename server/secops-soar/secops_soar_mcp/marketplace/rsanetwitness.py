@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the RSANetWitness integration.
 
     @mcp.tool(
-        title='RSA Net Witness: Update the TI Database of Net Witness',
+        title="RSA Net Witness: Update the 'TI' Database of NetWitness",
         annotations=ToolAnnotations(
-            title='RSA Net Witness: Update the TI Database of Net Witness',
+            title="RSA Net Witness: Update the 'TI' Database of NetWitness",
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -120,9 +120,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='RSA Net Witness: Query Net Witness for Events Around IP',
+        title='RSA Net Witness: Query NetWitness for Events Around IP',
         annotations=ToolAnnotations(
-            title='RSA Net Witness: Query Net Witness for Events Around IP',
+            title='RSA Net Witness: Query NetWitness for Events Around IP',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -209,9 +209,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='RSA Net Witness: Query Net Witness for Events Around Host',
+        title='RSA Net Witness: Query NetWitness for Events Around Host',
         annotations=ToolAnnotations(
-            title='RSA Net Witness: Query Net Witness for Events Around Host',
+            title='RSA Net Witness: Query NetWitness for Events Around Host',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -477,9 +477,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='RSA Net Witness: Update the TI Database of Net Witness Raw Input',
+        title='RSA Net Witness: Update the TI Database of NetWitness Raw Input',
         annotations=ToolAnnotations(
-            title='RSA Net Witness: Update the TI Database of Net Witness Raw Input',
+            title='RSA Net Witness: Update the TI Database of NetWitness Raw Input',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -568,9 +568,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='RSA Net Witness: Query Net Witness for Events Around User',
+        title='RSA Net Witness: Query NetWitness for Events Around User',
         annotations=ToolAnnotations(
-            title='RSA Net Witness: Query Net Witness for Events Around User',
+            title='RSA Net Witness: Query NetWitness for Events Around User',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

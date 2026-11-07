@@ -228,7 +228,7 @@ dict: A dictionary containing the result of the action execution.
         annotations=ToolAnnotations(
             title='Cybereason: Prevent File',
             read_only_hint=False,
-            destructive_hint=True,
+            destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
         ),
@@ -955,7 +955,7 @@ dict: A dictionary containing the result of the action execution.
         annotations=ToolAnnotations(
             title='Cybereason: Clear Reputation',
             read_only_hint=False,
-            destructive_hint=False,
+            destructive_hint=True,
             idempotent_hint=True,
             open_world_hint=False,
         ),

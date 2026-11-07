@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the F5BIGIPiControlAPI integration.
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: Add IP to Data Group',
+        title='F5 BIGI Pi Control API: Add IP to Data Group',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: Add IP to Data Group',
+            title='F5 BIGI Pi Control API: Add IP to Data Group',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -120,9 +120,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: Create Data Group',
+        title='F5 BIGI Pi Control API: Create Data Group',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: Create Data Group',
+            title='F5 BIGI Pi Control API: Create Data Group',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -211,9 +211,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: Add IP to Address List',
+        title='F5 BIGI Pi Control API: Add IP to Address List',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: Add IP to Address List',
+            title='F5 BIGI Pi Control API: Add IP to Address List',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -301,9 +301,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: Add Port to Port List',
+        title='F5 BIGI Pi Control API: Add Port to Port List',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: Add Port to Port List',
+            title='F5 BIGI Pi Control API: Add Port to Port List',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -392,9 +392,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: Remove Port from Port List',
+        title='F5 BIGI Pi Control API: Remove Port from Port List',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: Remove Port from Port List',
+            title='F5 BIGI Pi Control API: Remove Port from Port List',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -483,9 +483,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: Create I Rule',
+        title='F5 BIGI Pi Control API: Create IRule',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: Create I Rule',
+            title='F5 BIGI Pi Control API: Create IRule',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -574,9 +574,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: List Address Lists',
+        title='F5 BIGI Pi Control API: List Address Lists',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: List Address Lists',
+            title='F5 BIGI Pi Control API: List Address Lists',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -669,9 +669,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: Update I Rule',
+        title='F5 BIGI Pi Control API: Update IRule',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: Update I Rule',
+            title='F5 BIGI Pi Control API: Update IRule',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -760,9 +760,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: Remove IP from Address List',
+        title='F5 BIGI Pi Control API: Remove IP from Address List',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: Remove IP from Address List',
+            title='F5 BIGI Pi Control API: Remove IP from Address List',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -850,9 +850,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: Delete I Rule',
+        title='F5 BIGI Pi Control API: Delete IRule',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: Delete I Rule',
+            title='F5 BIGI Pi Control API: Delete IRule',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -940,9 +940,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: Ping',
+        title='F5 BIGI Pi Control API: Ping',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: Ping',
+            title='F5 BIGI Pi Control API: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1029,9 +1029,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: Delete Data Group',
+        title='F5 BIGI Pi Control API: Delete Data Group',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: Delete Data Group',
+            title='F5 BIGI Pi Control API: Delete Data Group',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -1119,9 +1119,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: Create Address List',
+        title='F5 BIGI Pi Control API: Create Address List',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: Create Address List',
+            title='F5 BIGI Pi Control API: Create Address List',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -1209,9 +1209,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: List Port Lists',
+        title='F5 BIGI Pi Control API: List Port Lists',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: List Port Lists',
+            title='F5 BIGI Pi Control API: List Port Lists',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1304,9 +1304,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: Create Port List',
+        title='F5 BIGI Pi Control API: Create Port List',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: Create Port List',
+            title='F5 BIGI Pi Control API: Create Port List',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -1395,9 +1395,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: Delete Port List',
+        title='F5 BIGI Pi Control API: Delete Port List',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: Delete Port List',
+            title='F5 BIGI Pi Control API: Delete Port List',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -1485,9 +1485,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: Delete Address List',
+        title='F5 BIGI Pi Control API: Delete Address List',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: Delete Address List',
+            title='F5 BIGI Pi Control API: Delete Address List',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -1575,9 +1575,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: List I Rules',
+        title='F5 BIGI Pi Control API: List IRules',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: List I Rules',
+            title='F5 BIGI Pi Control API: List IRules',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1670,9 +1670,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: List Data Groups',
+        title='F5 BIGI Pi Control API: List Data Groups',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: List Data Groups',
+            title='F5 BIGI Pi Control API: List Data Groups',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1765,9 +1765,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigi Pi Control API: Remove IP from Data Group',
+        title='F5 BIGI Pi Control API: Remove IP from Data Group',
         annotations=ToolAnnotations(
-            title='F5 Bigi Pi Control API: Remove IP from Data Group',
+            title='F5 BIGI Pi Control API: Remove IP from Data Group',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,

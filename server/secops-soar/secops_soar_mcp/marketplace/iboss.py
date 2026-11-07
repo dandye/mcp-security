@@ -221,7 +221,7 @@ def register_tools(mcp: MCPServer):
         title='I Boss: URL Lookup',
         annotations=ToolAnnotations(
             title='I Boss: URL Lookup',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

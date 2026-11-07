@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the EasyVista integration.
 
     @mcp.tool(
-        title='Easy Vista: Close Easy Vista Ticket',
+        title='Easy Vista: Close EasyVista Ticket',
         annotations=ToolAnnotations(
-            title='Easy Vista: Close Easy Vista Ticket',
+            title='Easy Vista: Close EasyVista Ticket',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -217,9 +217,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Easy Vista: Get Easy Vista Ticket',
+        title='Easy Vista: Get EasyVista Ticket',
         annotations=ToolAnnotations(
-            title='Easy Vista: Get Easy Vista Ticket',
+            title='Easy Vista: Get EasyVista Ticket',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

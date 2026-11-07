@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the SymantecICDX integration.
 
     @mcp.tool(
-        title='Symantec Icdx: Get Events Minutes Back',
+        title='Symantec ICDX: Get Events Minutes Back',
         annotations=ToolAnnotations(
-            title='Symantec Icdx: Get Events Minutes Back',
+            title='Symantec ICDX: Get Events Minutes Back',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -126,9 +126,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Symantec Icdx: Ping',
+        title='Symantec ICDX: Ping',
         annotations=ToolAnnotations(
-            title='Symantec Icdx: Ping',
+            title='Symantec ICDX: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -215,9 +215,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Symantec Icdx: Get Event',
+        title='Symantec ICDX: Get Event',
         annotations=ToolAnnotations(
-            title='Symantec Icdx: Get Event',
+            title='Symantec ICDX: Get Event',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

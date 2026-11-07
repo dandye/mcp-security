@@ -30,12 +30,12 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the AWSIAMAccessAnalyzer integration.
 
     @mcp.tool(
-        title='Awsiam Access Analyzer: Scan Resources',
+        title='AWSIAM Access Analyzer: Scan Resources',
         annotations=ToolAnnotations(
-            title='Awsiam Access Analyzer: Scan Resources',
+            title='AWSIAM Access Analyzer: Scan Resources',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=False,
         ),
     )
@@ -120,9 +120,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsiam Access Analyzer: Ping',
+        title='AWSIAM Access Analyzer: Ping',
         annotations=ToolAnnotations(
-            title='Awsiam Access Analyzer: Ping',
+            title='AWSIAM Access Analyzer: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -209,9 +209,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsiam Access Analyzer: Archive Finding',
+        title='AWSIAM Access Analyzer: Archive Finding',
         annotations=ToolAnnotations(
-            title='Awsiam Access Analyzer: Archive Finding',
+            title='AWSIAM Access Analyzer: Archive Finding',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,

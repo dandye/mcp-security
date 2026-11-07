@@ -136,7 +136,7 @@ dict: A dictionary containing the result of the action execution.
         title='Proof Point TAP: Decode URL',
         annotations=ToolAnnotations(
             title='Proof Point TAP: Decode URL',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

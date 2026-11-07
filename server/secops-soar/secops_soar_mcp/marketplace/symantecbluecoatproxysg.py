@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the SymantecBlueCoatProxySG integration.
 
     @mcp.tool(
-        title='Symantec Blue Coat Proxy Sg: Block Entities',
+        title='Symantec Blue Coat Proxy SG: Block Entities',
         annotations=ToolAnnotations(
-            title='Symantec Blue Coat Proxy Sg: Block Entities',
+            title='Symantec Blue Coat Proxy SG: Block Entities',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -119,9 +119,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Symantec Blue Coat Proxy Sg: Ping',
+        title='Symantec Blue Coat Proxy SG: Ping',
         annotations=ToolAnnotations(
-            title='Symantec Blue Coat Proxy Sg: Ping',
+            title='Symantec Blue Coat Proxy SG: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -208,9 +208,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Symantec Blue Coat Proxy Sg: Enrich Entities',
+        title='Symantec Blue Coat Proxy SG: Enrich Entities',
         annotations=ToolAnnotations(
-            title='Symantec Blue Coat Proxy Sg: Enrich Entities',
+            title='Symantec Blue Coat Proxy SG: Enrich Entities',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

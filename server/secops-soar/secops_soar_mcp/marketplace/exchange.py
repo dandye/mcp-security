@@ -245,9 +245,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Exchange: Add Domains to Exchange Siemplify Inbox Rules',
+        title='Exchange: Add Domains to Exchange-Siemplify Inbox Rules',
         annotations=ToolAnnotations(
-            title='Exchange: Add Domains to Exchange Siemplify Inbox Rules',
+            title='Exchange: Add Domains to Exchange-Siemplify Inbox Rules',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -851,9 +851,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Exchange: List Exchange Siemplify Inbox Rules',
+        title='Exchange: List Exchange-Siemplify Inbox Rules',
         annotations=ToolAnnotations(
-            title='Exchange: List Exchange Siemplify Inbox Rules',
+            title='Exchange: List Exchange-Siemplify Inbox Rules',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -947,9 +947,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Exchange: Delete Exchange Siemplify Inbox Rules',
+        title='Exchange: Delete Exchange-Siemplify Inbox Rules',
         annotations=ToolAnnotations(
-            title='Exchange: Delete Exchange Siemplify Inbox Rules',
+            title='Exchange: Delete Exchange-Siemplify Inbox Rules',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -1348,7 +1348,7 @@ dict: A dictionary containing the result of the action execution.
         title='Exchange: Extract EML Data',
         annotations=ToolAnnotations(
             title='Exchange: Extract EML Data',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -1442,9 +1442,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Exchange: Remove Domains from Exchange Siemplify Inbox Rules',
+        title='Exchange: Remove Domains from Exchange-Siemplify Inbox Rules',
         annotations=ToolAnnotations(
-            title='Exchange: Remove Domains from Exchange Siemplify Inbox Rules',
+            title='Exchange: Remove Domains from Exchange-Siemplify Inbox Rules',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -1540,9 +1540,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Exchange: Remove Senders from Exchange Siemplify Inbox Rules',
+        title='Exchange: Remove Senders from Exchange-Siemplify Inbox Rules',
         annotations=ToolAnnotations(
-            title='Exchange: Remove Senders from Exchange Siemplify Inbox Rules',
+            title='Exchange: Remove Senders from Exchange-Siemplify Inbox Rules',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -1739,7 +1739,7 @@ dict: A dictionary containing the result of the action execution.
         title='Exchange: Download Attachments',
         annotations=ToolAnnotations(
             title='Exchange: Download Attachments',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -2250,9 +2250,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Exchange: Add Senders to Exchange Siemplify Inbox Rule',
+        title='Exchange: Add Senders to Exchange-Siemplify Inbox Rule',
         annotations=ToolAnnotations(
-            title='Exchange: Add Senders to Exchange Siemplify Inbox Rule',
+            title='Exchange: Add Senders to Exchange-Siemplify Inbox Rule',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,

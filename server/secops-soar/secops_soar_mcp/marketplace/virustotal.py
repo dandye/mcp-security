@@ -34,8 +34,8 @@ def register_tools(mcp: MCPServer):
         annotations=ToolAnnotations(
             title='Virus Total: Scan Hash',
             read_only_hint=False,
-            destructive_hint=False,
-            idempotent_hint=True,
+            destructive_hint=True,
+            idempotent_hint=False,
             open_world_hint=True,
         ),
     )
@@ -315,8 +315,8 @@ dict: A dictionary containing the result of the action execution.
         annotations=ToolAnnotations(
             title='Virus Total: Scan URL',
             read_only_hint=False,
-            destructive_hint=False,
-            idempotent_hint=True,
+            destructive_hint=True,
+            idempotent_hint=False,
             open_world_hint=True,
         ),
     )
@@ -410,8 +410,8 @@ dict: A dictionary containing the result of the action execution.
         annotations=ToolAnnotations(
             title='Virus Total: Scan IP',
             read_only_hint=False,
-            destructive_hint=False,
-            idempotent_hint=True,
+            destructive_hint=True,
+            idempotent_hint=False,
             open_world_hint=True,
         ),
     )

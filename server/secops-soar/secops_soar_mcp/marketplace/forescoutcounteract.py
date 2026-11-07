@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the ForeScoutCounterACT integration.
 
     @mcp.tool(
-        title='Fore Scout Counter Act: Ping',
+        title='Fore Scout Counter ACT: Ping',
         annotations=ToolAnnotations(
-            title='Fore Scout Counter Act: Ping',
+            title='Fore Scout Counter ACT: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -119,9 +119,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fore Scout Counter Act: Enrich Entities',
+        title='Fore Scout Counter ACT: Enrich Entities',
         annotations=ToolAnnotations(
-            title='Fore Scout Counter Act: Enrich Entities',
+            title='Fore Scout Counter ACT: Enrich Entities',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

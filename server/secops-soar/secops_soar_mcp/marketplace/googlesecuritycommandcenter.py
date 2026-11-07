@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the GoogleSecurityCommandCenter integration.
 
     @mcp.tool(
-        title='Google Security Command Center: Push Finding to Pub Sub',
+        title='Google Security Command Center: Push Finding to Pub-Sub',
         annotations=ToolAnnotations(
-            title='Google Security Command Center: Push Finding to Pub Sub',
+            title='Google Security Command Center: Push Finding to Pub-Sub',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,

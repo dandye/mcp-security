@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the Rapid7InsightIDR integration.
 
     @mcp.tool(
-        title='Rapid7 Insight Idr: Delete Saved Query',
+        title='Rapid7 Insight IDR: Delete Saved Query',
         annotations=ToolAnnotations(
-            title='Rapid7 Insight Idr: Delete Saved Query',
+            title='Rapid7 Insight IDR: Delete Saved Query',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -120,9 +120,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Rapid7 Insight Idr: Update Investigation',
+        title='Rapid7 Insight IDR: Update Investigation',
         annotations=ToolAnnotations(
-            title='Rapid7 Insight Idr: Update Investigation',
+            title='Rapid7 Insight IDR: Update Investigation',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -214,9 +214,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Rapid7 Insight Idr: List Investigations',
+        title='Rapid7 Insight IDR: List Investigations',
         annotations=ToolAnnotations(
-            title='Rapid7 Insight Idr: List Investigations',
+            title='Rapid7 Insight IDR: List Investigations',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -309,9 +309,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Rapid7 Insight Idr: Ping',
+        title='Rapid7 Insight IDR: Ping',
         annotations=ToolAnnotations(
-            title='Rapid7 Insight Idr: Ping',
+            title='Rapid7 Insight IDR: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -398,9 +398,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Rapid7 Insight Idr: Set Investigation Status',
+        title='Rapid7 Insight IDR: Set Investigation Status',
         annotations=ToolAnnotations(
-            title='Rapid7 Insight Idr: Set Investigation Status',
+            title='Rapid7 Insight IDR: Set Investigation Status',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -489,9 +489,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Rapid7 Insight Idr: Run Saved Query',
+        title='Rapid7 Insight IDR: Run Saved Query',
         annotations=ToolAnnotations(
-            title='Rapid7 Insight Idr: Run Saved Query',
+            title='Rapid7 Insight IDR: Run Saved Query',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -579,9 +579,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Rapid7 Insight Idr: List Saved Queries',
+        title='Rapid7 Insight IDR: List Saved Queries',
         annotations=ToolAnnotations(
-            title='Rapid7 Insight Idr: List Saved Queries',
+            title='Rapid7 Insight IDR: List Saved Queries',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -670,9 +670,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Rapid7 Insight Idr: Set Investigation Assignee',
+        title='Rapid7 Insight IDR: Set Investigation Assignee',
         annotations=ToolAnnotations(
-            title='Rapid7 Insight Idr: Set Investigation Assignee',
+            title='Rapid7 Insight IDR: Set Investigation Assignee',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -761,9 +761,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Rapid7 Insight Idr: Create Saved Query',
+        title='Rapid7 Insight IDR: Create Saved Query',
         annotations=ToolAnnotations(
-            title='Rapid7 Insight Idr: Create Saved Query',
+            title='Rapid7 Insight IDR: Create Saved Query',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,

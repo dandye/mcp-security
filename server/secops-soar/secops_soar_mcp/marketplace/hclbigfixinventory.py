@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the HCLBigFixInventory integration.
 
     @mcp.tool(
-        title='Hcl Big Fix Inventory: Ping',
+        title='HCL Big Fix Inventory: Ping',
         annotations=ToolAnnotations(
-            title='Hcl Big Fix Inventory: Ping',
+            title='HCL Big Fix Inventory: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -119,9 +119,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Hcl Big Fix Inventory: Enrich Entities',
+        title='HCL Big Fix Inventory: Enrich Entities',
         annotations=ToolAnnotations(
-            title='Hcl Big Fix Inventory: Enrich Entities',
+            title='HCL Big Fix Inventory: Enrich Entities',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

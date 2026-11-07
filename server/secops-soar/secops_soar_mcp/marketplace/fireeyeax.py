@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the FireEyeAX integration.
 
     @mcp.tool(
-        title='Fire Eye Ax: Get Appliance Details',
+        title='Fire Eye AX: Get Appliance Details',
         annotations=ToolAnnotations(
-            title='Fire Eye Ax: Get Appliance Details',
+            title='Fire Eye AX: Get Appliance Details',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -119,9 +119,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Ax: Ping',
+        title='Fire Eye AX: Ping',
         annotations=ToolAnnotations(
-            title='Fire Eye Ax: Ping',
+            title='Fire Eye AX: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -208,9 +208,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Ax: Submit URL',
+        title='Fire Eye AX: Submit URL',
         annotations=ToolAnnotations(
-            title='Fire Eye Ax: Submit URL',
+            title='Fire Eye AX: Submit URL',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -307,9 +307,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Ax: Submit File',
+        title='Fire Eye AX: Submit File',
         annotations=ToolAnnotations(
-            title='Fire Eye Ax: Submit File',
+            title='Fire Eye AX: Submit File',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,

@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the ElasticaCloudSOC integration.
 
     @mcp.tool(
-        title='Elastica Cloud Soc: Ping',
+        title='Elastica Cloud SOC: Ping',
         annotations=ToolAnnotations(
-            title='Elastica Cloud Soc: Ping',
+            title='Elastica Cloud SOC: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -119,9 +119,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Elastica Cloud Soc: Get User Activities',
+        title='Elastica Cloud SOC: Get User Activities',
         annotations=ToolAnnotations(
-            title='Elastica Cloud Soc: Get User Activities',
+            title='Elastica Cloud SOC: Get User Activities',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

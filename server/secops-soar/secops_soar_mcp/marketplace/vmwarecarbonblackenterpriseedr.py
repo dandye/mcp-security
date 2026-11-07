@@ -122,7 +122,7 @@ def register_tools(mcp: MCPServer):
         title='CB Enterprise EDR: Process Search',
         annotations=ToolAnnotations(
             title='CB Enterprise EDR: Process Search',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

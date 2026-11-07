@@ -1309,9 +1309,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Azure Active Directory: List User S Groups Membership',
+        title="Azure Active Directory: List User's Groups Membership",
         annotations=ToolAnnotations(
-            title='Azure Active Directory: List User S Groups Membership',
+            title="Azure Active Directory: List User's Groups Membership",
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

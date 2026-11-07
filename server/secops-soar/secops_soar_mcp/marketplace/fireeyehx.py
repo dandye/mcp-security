@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the FireEyeHX integration.
 
     @mcp.tool(
-        title='Fire Eye Hx: Is Contain Malware Alerts',
+        title='Fire Eye HX: Is Contain Malware Alerts',
         annotations=ToolAnnotations(
-            title='Fire Eye Hx: Is Contain Malware Alerts',
+            title='Fire Eye HX: Is Contain Malware Alerts',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -119,11 +119,11 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Hx: Cancel Host Contain',
+        title='Fire Eye HX: Cancel Host Contain',
         annotations=ToolAnnotations(
-            title='Fire Eye Hx: Cancel Host Contain',
+            title='Fire Eye HX: Cancel Host Contain',
             read_only_hint=False,
-            destructive_hint=False,
+            destructive_hint=True,
             idempotent_hint=True,
             open_world_hint=False,
         ),
@@ -208,9 +208,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Hx: Get Host Alert Groups',
+        title='Fire Eye HX: Get Host Alert Groups',
         annotations=ToolAnnotations(
-            title='Fire Eye Hx: Get Host Alert Groups',
+            title='Fire Eye HX: Get Host Alert Groups',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -301,9 +301,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Hx: Contain Host',
+        title='Fire Eye HX: Contain Host',
         annotations=ToolAnnotations(
-            title='Fire Eye Hx: Contain Host',
+            title='Fire Eye HX: Contain Host',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -391,9 +391,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Hx: Get Host Info',
+        title='Fire Eye HX: Get Host Info',
         annotations=ToolAnnotations(
-            title='Fire Eye Hx: Get Host Info',
+            title='Fire Eye HX: Get Host Info',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -480,9 +480,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Hx: Get Alert Group Details',
+        title='Fire Eye HX: Get Alert Group Details',
         annotations=ToolAnnotations(
-            title='Fire Eye Hx: Get Alert Group Details',
+            title='Fire Eye HX: Get Alert Group Details',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -570,9 +570,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Hx: Ping',
+        title='Fire Eye HX: Ping',
         annotations=ToolAnnotations(
-            title='Fire Eye Hx: Ping',
+            title='Fire Eye HX: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -659,9 +659,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Hx: Get Alerts in Alert Group',
+        title='Fire Eye HX: Get Alerts in Alert Group',
         annotations=ToolAnnotations(
-            title='Fire Eye Hx: Get Alerts in Alert Group',
+            title='Fire Eye HX: Get Alerts in Alert Group',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -751,9 +751,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Hx: Acknowledge Alert Groups',
+        title='Fire Eye HX: Acknowledge Alert Groups',
         annotations=ToolAnnotations(
-            title='Fire Eye Hx: Acknowledge Alert Groups',
+            title='Fire Eye HX: Acknowledge Alert Groups',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -846,9 +846,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Hx: Get List of File Acquisitions for Host',
+        title='Fire Eye HX: Get List of File Acquisitions for Host',
         annotations=ToolAnnotations(
-            title='Fire Eye Hx: Get List of File Acquisitions for Host',
+            title='Fire Eye HX: Get List of File Acquisitions for Host',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -941,9 +941,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Hx: Get Alerts',
+        title='Fire Eye HX: Get Alerts',
         annotations=ToolAnnotations(
-            title='Fire Eye Hx: Get Alerts',
+            title='Fire Eye HX: Get Alerts',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1042,9 +1042,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Hx: Get Indicators',
+        title='Fire Eye HX: Get Indicators',
         annotations=ToolAnnotations(
-            title='Fire Eye Hx: Get Indicators',
+            title='Fire Eye HX: Get Indicators',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1145,9 +1145,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Hx: Get Indicator',
+        title='Fire Eye HX: Get Indicator',
         annotations=ToolAnnotations(
-            title='Fire Eye Hx: Get Indicator',
+            title='Fire Eye HX: Get Indicator',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

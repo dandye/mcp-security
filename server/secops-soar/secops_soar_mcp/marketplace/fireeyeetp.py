@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the FireEyeETP integration.
 
     @mcp.tool(
-        title='Fire Eye Etp: Ping',
+        title='Fire Eye ETP: Ping',
         annotations=ToolAnnotations(
-            title='Fire Eye Etp: Ping',
+            title='Fire Eye ETP: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

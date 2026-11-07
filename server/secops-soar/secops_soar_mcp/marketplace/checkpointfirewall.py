@@ -214,7 +214,7 @@ def register_tools(mcp: MCPServer):
         title='Check Point Firewall: Download Log Attachment',
         annotations=ToolAnnotations(
             title='Check Point Firewall: Download Log Attachment',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -304,9 +304,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Check Point Firewall: Add a Sam Rule',
+        title='Check Point Firewall: Add a SAM Rule',
         annotations=ToolAnnotations(
-            title='Check Point Firewall: Add a Sam Rule',
+            title='Check Point Firewall: Add a SAM Rule',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -682,9 +682,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Check Point Firewall: Remove Sam Rule',
+        title='Check Point Firewall: Remove SAM Rule',
         annotations=ToolAnnotations(
-            title='Check Point Firewall: Remove Sam Rule',
+            title='Check Point Firewall: Remove SAM Rule',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,

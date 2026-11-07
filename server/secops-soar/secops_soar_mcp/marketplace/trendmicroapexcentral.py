@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the TrendMicroApexCentral integration.
 
     @mcp.tool(
-        title='Trend Micro Apex Central: Create File Udso',
+        title='Trend Micro Apex Central: Create File UDSO',
         annotations=ToolAnnotations(
-            title='Trend Micro Apex Central: Create File Udso',
+            title='Trend Micro Apex Central: Create File UDSO',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -212,9 +212,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Trend Micro Apex Central: Create Entity Udso',
+        title='Trend Micro Apex Central: Create Entity UDSO',
         annotations=ToolAnnotations(
-            title='Trend Micro Apex Central: Create Entity Udso',
+            title='Trend Micro Apex Central: Create Entity UDSO',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,

@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the AzureSecurityCenter integration.
 
     @mcp.tool(
-        title='Azure Security Center: Get O Auth Refresh Token',
+        title='Azure Security Center: Get OAuth Refresh Token',
         annotations=ToolAnnotations(
-            title='Azure Security Center: Get O Auth Refresh Token',
+            title='Azure Security Center: Get OAuth Refresh Token',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -495,9 +495,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Azure Security Center: Get O Auth Authorization Code',
+        title='Azure Security Center: Get OAuth Authorization Code',
         annotations=ToolAnnotations(
-            title='Azure Security Center: Get O Auth Authorization Code',
+            title='Azure Security Center: Get OAuth Authorization Code',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

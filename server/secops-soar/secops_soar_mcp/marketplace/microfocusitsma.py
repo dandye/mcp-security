@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the MicroFocusITSMA integration.
 
     @mcp.tool(
-        title='Micro Focus Itsma: Update Incident',
+        title='Micro Focus ITSMA: Update Incident',
         annotations=ToolAnnotations(
-            title='Micro Focus Itsma: Update Incident',
+            title='Micro Focus ITSMA: Update Incident',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -130,9 +130,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Micro Focus Itsma: Ping',
+        title='Micro Focus ITSMA: Ping',
         annotations=ToolAnnotations(
-            title='Micro Focus Itsma: Ping',
+            title='Micro Focus ITSMA: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -219,9 +219,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Micro Focus Itsma: Create Incident',
+        title='Micro Focus ITSMA: Create Incident',
         annotations=ToolAnnotations(
-            title='Micro Focus Itsma: Create Incident',
+            title='Micro Focus ITSMA: Create Incident',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -313,9 +313,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Micro Focus Itsma: Update Incident External Status',
+        title='Micro Focus ITSMA: Update Incident External Status',
         annotations=ToolAnnotations(
-            title='Micro Focus Itsma: Update Incident External Status',
+            title='Micro Focus ITSMA: Update Incident External Status',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,

@@ -119,9 +119,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='IP Void: Who Is',
+        title='IP Void: WHOIS',
         annotations=ToolAnnotations(
-            title='IP Void: Who Is',
+            title='IP Void: WHOIS',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

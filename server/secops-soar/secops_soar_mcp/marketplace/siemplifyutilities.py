@@ -499,10 +499,10 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Siemplify Utilities: Export Entities as Open IOC File',
+        title='Siemplify Utilities: Export Entities as OpenIOC File',
         annotations=ToolAnnotations(
-            title='Siemplify Utilities: Export Entities as Open IOC File',
-            read_only_hint=False,
+            title='Siemplify Utilities: Export Entities as OpenIOC File',
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -594,7 +594,7 @@ def register_tools(mcp: MCPServer):
         title='Siemplify Utilities: Extract Top from JSON',
         annotations=ToolAnnotations(
             title='Siemplify Utilities: Extract Top from JSON',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

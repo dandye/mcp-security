@@ -33,7 +33,7 @@ def register_tools(mcp: MCPServer):
         title='Google Cloud Storage: Download an Object from a Bucket',
         annotations=ToolAnnotations(
             title='Google Cloud Storage: Download an Object from a Bucket',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -487,9 +487,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Cloud Storage: Update an Acl Entry on Bucket',
+        title='Google Cloud Storage: Update an ACL Entry on Bucket',
         annotations=ToolAnnotations(
-            title='Google Cloud Storage: Update an Acl Entry on Bucket',
+            title='Google Cloud Storage: Update an ACL Entry on Bucket',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,

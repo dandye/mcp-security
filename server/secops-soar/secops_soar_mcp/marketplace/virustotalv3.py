@@ -120,9 +120,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Virus Total V3: Search Io Cs',
+        title='Virus Total V3: Search IOCs',
         annotations=ToolAnnotations(
-            title='Virus Total V3: Search Io Cs',
+            title='Virus Total V3: Search IOCs',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -338,9 +338,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Virus Total V3: Get Related I Ps',
+        title='Virus Total V3: Get Related IPs',
         annotations=ToolAnnotations(
-            title='Virus Total V3: Get Related I Ps',
+            title='Virus Total V3: Get Related IPs',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1113,7 +1113,7 @@ def register_tools(mcp: MCPServer):
         title='Virus Total V3: Download File',
         annotations=ToolAnnotations(
             title='Virus Total V3: Download File',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,
@@ -1592,7 +1592,7 @@ def register_tools(mcp: MCPServer):
         annotations=ToolAnnotations(
             title='Virus Total V3: Submit File',
             read_only_hint=False,
-            destructive_hint=False,
+            destructive_hint=True,
             idempotent_hint=False,
             open_world_hint=True,
         ),
@@ -1702,9 +1702,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Virus Total V3: Get Related Ur Ls',
+        title='Virus Total V3: Get Related URLs',
         annotations=ToolAnnotations(
-            title='Virus Total V3: Get Related Ur Ls',
+            title='Virus Total V3: Get Related URLs',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

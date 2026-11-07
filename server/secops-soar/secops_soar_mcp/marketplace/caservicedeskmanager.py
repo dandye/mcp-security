@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the CaServiceDesk integration.
 
     @mcp.tool(
-        title='Ca Service Desk: Create Ticket',
+        title='CA Service Desk: Create Ticket',
         annotations=ToolAnnotations(
-            title='Ca Service Desk: Create Ticket',
+            title='CA Service Desk: Create Ticket',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -126,9 +126,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Ca Service Desk: Wait for Status Change',
+        title='CA Service Desk: Wait for Status Change',
         annotations=ToolAnnotations(
-            title='Ca Service Desk: Wait for Status Change',
+            title='CA Service Desk: Wait for Status Change',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -217,9 +217,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Ca Service Desk: Sync Ticket History',
+        title='CA Service Desk: Sync Ticket History',
         annotations=ToolAnnotations(
-            title='Ca Service Desk: Sync Ticket History',
+            title='CA Service Desk: Sync Ticket History',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -312,10 +312,10 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Ca Service Desk: Change Ticket Status',
+        title='CA Service Desk: Change Ticket Status',
         annotations=ToolAnnotations(
-            title='Ca Service Desk: Change Ticket Status',
-            read_only_hint=True,
+            title='CA Service Desk: Change Ticket Status',
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -403,9 +403,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Ca Service Desk: Ping',
+        title='CA Service Desk: Ping',
         annotations=ToolAnnotations(
-            title='Ca Service Desk: Ping',
+            title='CA Service Desk: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -492,9 +492,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Ca Service Desk: Add Comment',
+        title='CA Service Desk: Add Comment',
         annotations=ToolAnnotations(
-            title='Ca Service Desk: Add Comment',
+            title='CA Service Desk: Add Comment',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -583,9 +583,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Ca Service Desk: Close Ticket',
+        title='CA Service Desk: Close Ticket',
         annotations=ToolAnnotations(
-            title='Ca Service Desk: Close Ticket',
+            title='CA Service Desk: Close Ticket',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -674,9 +674,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Ca Service Desk: Assign to Group',
+        title='CA Service Desk: Assign to Group',
         annotations=ToolAnnotations(
-            title='Ca Service Desk: Assign to Group',
+            title='CA Service Desk: Assign to Group',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -765,9 +765,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Ca Service Desk: Search Tickets',
+        title='CA Service Desk: Search Tickets',
         annotations=ToolAnnotations(
-            title='Ca Service Desk: Search Tickets',
+            title='CA Service Desk: Search Tickets',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -864,9 +864,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Ca Service Desk: Assign Incident to User',
+        title='CA Service Desk: Assign Incident to User',
         annotations=ToolAnnotations(
-            title='Ca Service Desk: Assign Incident to User',
+            title='CA Service Desk: Assign Incident to User',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,

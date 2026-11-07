@@ -33,7 +33,7 @@ def register_tools(mcp: MCPServer):
         title='Mimecast: Advanced Archive Search',
         annotations=ToolAnnotations(
             title='Mimecast: Advanced Archive Search',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -222,7 +222,7 @@ dict: A dictionary containing the result of the action execution.
         annotations=ToolAnnotations(
             title='Mimecast: Reject Message',
             read_only_hint=False,
-            destructive_hint=True,
+            destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
         ),
@@ -597,7 +597,7 @@ dict: A dictionary containing the result of the action execution.
         title='Mimecast: Simple Archive Search',
         annotations=ToolAnnotations(
             title='Mimecast: Simple Archive Search',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

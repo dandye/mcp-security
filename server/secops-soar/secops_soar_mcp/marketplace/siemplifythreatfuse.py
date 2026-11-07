@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the SiemplifyThreatFuse integration.
 
     @mcp.tool(
-        title='Siemplify Threat Fuse: Get Related I Ps',
+        title='Siemplify Threat Fuse: Get Related IPs',
         annotations=ToolAnnotations(
-            title='Siemplify Threat Fuse: Get Related I Ps',
+            title='Siemplify Threat Fuse: Get Related IPs',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -884,9 +884,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Siemplify Threat Fuse: Get Related Ur Ls',
+        title='Siemplify Threat Fuse: Get Related URLs',
         annotations=ToolAnnotations(
-            title='Siemplify Threat Fuse: Get Related Ur Ls',
+            title='Siemplify Threat Fuse: Get Related URLs',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

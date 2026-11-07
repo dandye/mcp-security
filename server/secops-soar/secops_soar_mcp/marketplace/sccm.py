@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the SCCM integration.
 
     @mcp.tool(
-        title='Sccm: Ping',
+        title='SCCM: Ping',
         annotations=ToolAnnotations(
-            title='Sccm: Ping',
+            title='SCCM: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -119,9 +119,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Sccm: Enrich Entities',
+        title='SCCM: Enrich Entities',
         annotations=ToolAnnotations(
-            title='Sccm: Enrich Entities',
+            title='SCCM: Enrich Entities',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -208,9 +208,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Sccm: Run Wql Query',
+        title='SCCM: Run WQL Query',
         annotations=ToolAnnotations(
-            title='Sccm: Run Wql Query',
+            title='SCCM: Run WQL Query',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -302,9 +302,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Sccm: Get Computer Properties',
+        title='SCCM: Get Computer Properties',
         annotations=ToolAnnotations(
-            title='Sccm: Get Computer Properties',
+            title='SCCM: Get Computer Properties',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -391,9 +391,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Sccm: Get Login History',
+        title='SCCM: Get Login History',
         annotations=ToolAnnotations(
-            title='Sccm: Get Login History',
+            title='SCCM: Get Login History',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

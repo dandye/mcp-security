@@ -33,7 +33,7 @@ def register_tools(mcp: MCPServer):
         title='MX Tool Box: A Record Lookup',
         annotations=ToolAnnotations(
             title='MX Tool Box: A Record Lookup',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,
@@ -211,7 +211,7 @@ def register_tools(mcp: MCPServer):
         title='MX Tool Box: TCP Port Status',
         annotations=ToolAnnotations(
             title='MX Tool Box: TCP Port Status',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,
@@ -390,7 +390,7 @@ def register_tools(mcp: MCPServer):
         title='MX Tool Box: HTTPS Information Lookup',
         annotations=ToolAnnotations(
             title='MX Tool Box: HTTPS Information Lookup',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,
@@ -479,7 +479,7 @@ def register_tools(mcp: MCPServer):
         title='MX Tool Box: SPF Lookup',
         annotations=ToolAnnotations(
             title='MX Tool Box: SPF Lookup',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,
@@ -569,7 +569,7 @@ def register_tools(mcp: MCPServer):
         title='MX Tool Box: MX Record Lookup',
         annotations=ToolAnnotations(
             title='MX Tool Box: MX Record Lookup',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,
@@ -658,7 +658,7 @@ def register_tools(mcp: MCPServer):
         title='MX Tool Box: Blacklist Check',
         annotations=ToolAnnotations(
             title='MX Tool Box: Blacklist Check',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,

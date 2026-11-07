@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the PassiveTotal integration.
 
     @mcp.tool(
-        title='Passive Total: Who Is Scan Domain',
+        title='Passive Total: WHOIS Scan Domain',
         annotations=ToolAnnotations(
-            title='Passive Total: Who Is Scan Domain',
+            title='Passive Total: WHOIS Scan Domain',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -208,9 +208,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Passive Total: Who Is Address Reputation',
+        title='Passive Total: WHOIS Address Reputation',
         annotations=ToolAnnotations(
-            title='Passive Total: Who Is Address Reputation',
+            title='Passive Total: WHOIS Address Reputation',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -297,9 +297,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Passive Total: Who Is Scan Address',
+        title='Passive Total: WHOIS Scan Address',
         annotations=ToolAnnotations(
-            title='Passive Total: Who Is Scan Address',
+            title='Passive Total: WHOIS Scan Address',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

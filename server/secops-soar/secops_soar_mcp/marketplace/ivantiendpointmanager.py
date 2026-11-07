@@ -693,7 +693,7 @@ def register_tools(mcp: MCPServer):
             title='Ivanti Endpoint Manager: Scan Endpoints',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=False,
         ),
     )

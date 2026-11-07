@@ -219,9 +219,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Hashi Corp Vault: List Key Value Secret Keys',
+        title='Hashi Corp Vault: List Key-Value Secret Keys',
         annotations=ToolAnnotations(
-            title='Hashi Corp Vault: List Key Value Secret Keys',
+            title='Hashi Corp Vault: List Key-Value Secret Keys',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -407,9 +407,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Hashi Corp Vault: Read Key Value Secret',
+        title='Hashi Corp Vault: Read Key-Value Secret',
         annotations=ToolAnnotations(
-            title='Hashi Corp Vault: Read Key Value Secret',
+            title='Hashi Corp Vault: Read Key-Value Secret',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

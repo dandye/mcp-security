@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the UrlScanIo integration.
 
     @mcp.tool(
-        title='URL Scan Io: Search for Scans',
+        title='URL Scan IO: Search for Scans',
         annotations=ToolAnnotations(
-            title='URL Scan Io: Search for Scans',
+            title='URL Scan IO: Search for Scans',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -121,12 +121,12 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='URL Scan Io: URL Check',
+        title='URL Scan IO: URL Check',
         annotations=ToolAnnotations(
-            title='URL Scan Io: URL Check',
-            read_only_hint=True,
+            title='URL Scan IO: URL Check',
+            read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=True,
         ),
     )
@@ -220,9 +220,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='URL Scan Io: Ping',
+        title='URL Scan IO: Ping',
         annotations=ToolAnnotations(
-            title='URL Scan Io: Ping',
+            title='URL Scan IO: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -309,9 +309,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='URL Scan Io: Get Scan Full Details',
+        title='URL Scan IO: Get Scan Full Details',
         annotations=ToolAnnotations(
-            title='URL Scan Io: Get Scan Full Details',
+            title='URL Scan IO: Get Scan Full Details',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

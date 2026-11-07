@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the FireEyeCM integration.
 
     @mcp.tool(
-        title='Fire Eye Cm: Delete IOC Feed',
+        title='Fire Eye CM: Delete IOC Feed',
         annotations=ToolAnnotations(
-            title='Fire Eye Cm: Delete IOC Feed',
+            title='Fire Eye CM: Delete IOC Feed',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -120,9 +120,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Cm: Release Quarantined Email',
+        title='Fire Eye CM: Release Quarantined Email',
         annotations=ToolAnnotations(
-            title='Fire Eye Cm: Release Quarantined Email',
+            title='Fire Eye CM: Release Quarantined Email',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -212,9 +212,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Cm: Acknowledge Alert',
+        title='Fire Eye CM: Acknowledge Alert',
         annotations=ToolAnnotations(
-            title='Fire Eye Cm: Acknowledge Alert',
+            title='Fire Eye CM: Acknowledge Alert',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -303,9 +303,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Cm: Ping',
+        title='Fire Eye CM: Ping',
         annotations=ToolAnnotations(
-            title='Fire Eye Cm: Ping',
+            title='Fire Eye CM: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -392,9 +392,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Cm: Delete Quarantined Email',
+        title='Fire Eye CM: Delete Quarantined Email',
         annotations=ToolAnnotations(
-            title='Fire Eye Cm: Delete Quarantined Email',
+            title='Fire Eye CM: Delete Quarantined Email',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -484,9 +484,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Cm: Add Rule to Custom Rules File',
+        title='Fire Eye CM: Add Rule to Custom Rules File',
         annotations=ToolAnnotations(
-            title='Fire Eye Cm: Add Rule to Custom Rules File',
+            title='Fire Eye CM: Add Rule to Custom Rules File',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -576,9 +576,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Cm: Add IOC Feed',
+        title='Fire Eye CM: Add IOC Feed',
         annotations=ToolAnnotations(
-            title='Fire Eye Cm: Add IOC Feed',
+            title='Fire Eye CM: Add IOC Feed',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -669,10 +669,10 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Cm: Download Alert Artifacts',
+        title='Fire Eye CM: Download Alert Artifacts',
         annotations=ToolAnnotations(
-            title='Fire Eye Cm: Download Alert Artifacts',
-            read_only_hint=False,
+            title='Fire Eye CM: Download Alert Artifacts',
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -761,9 +761,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Cm: List IOC Feeds',
+        title='Fire Eye CM: List IOC Feeds',
         annotations=ToolAnnotations(
-            title='Fire Eye Cm: List IOC Feeds',
+            title='Fire Eye CM: List IOC Feeds',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -852,10 +852,10 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Cm: Download Custom Rules File',
+        title='Fire Eye CM: Download Custom Rules File',
         annotations=ToolAnnotations(
-            title='Fire Eye Cm: Download Custom Rules File',
-            read_only_hint=False,
+            title='Fire Eye CM: Download Custom Rules File',
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -945,10 +945,10 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Cm: Download Quarantined Email',
+        title='Fire Eye CM: Download Quarantined Email',
         annotations=ToolAnnotations(
-            title='Fire Eye Cm: Download Quarantined Email',
-            read_only_hint=False,
+            title='Fire Eye CM: Download Quarantined Email',
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -1039,9 +1039,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Cm: List Quarantined Emails',
+        title='Fire Eye CM: List Quarantined Emails',
         annotations=ToolAnnotations(
-            title='Fire Eye Cm: List Quarantined Emails',
+            title='Fire Eye CM: List Quarantined Emails',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

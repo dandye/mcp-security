@@ -128,7 +128,7 @@ dict: A dictionary containing the result of the action execution.
             title='V Sphere: Take Snapshot',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=False,
+            idempotent_hint=True,
             open_world_hint=False,
         ),
     )
@@ -308,7 +308,7 @@ dict: A dictionary containing the result of the action execution.
         annotations=ToolAnnotations(
             title='V Sphere: Revert to Snapshot',
             read_only_hint=False,
-            destructive_hint=True,
+            destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
         ),
@@ -677,7 +677,7 @@ dict: A dictionary containing the result of the action execution.
         annotations=ToolAnnotations(
             title='V Sphere: Power Off',
             read_only_hint=False,
-            destructive_hint=True,
+            destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
         ),

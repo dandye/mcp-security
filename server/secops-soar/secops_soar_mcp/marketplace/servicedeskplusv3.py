@@ -270,9 +270,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Service Desk Plus V3: Create Request Dropdown Lists',
+        title='Service Desk Plus V3: Create Request - Dropdown Lists',
         annotations=ToolAnnotations(
-            title='Service Desk Plus V3: Create Request Dropdown Lists',
+            title='Service Desk Plus V3: Create Request - Dropdown Lists',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -396,7 +396,7 @@ def register_tools(mcp: MCPServer):
             title='Service Desk Plus V3: Add Note and Wait for Reply',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=False,
         ),
     )
@@ -983,7 +983,7 @@ def register_tools(mcp: MCPServer):
             title='Service Desk Plus V3: Add Note',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=False,
         ),
     )

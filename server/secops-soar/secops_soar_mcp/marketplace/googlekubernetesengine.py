@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the GoogleGKE integration.
 
     @mcp.tool(
-        title='Google Gke: List Node Pools',
+        title='Google GKE: List Node Pools',
         annotations=ToolAnnotations(
-            title='Google Gke: List Node Pools',
+            title='Google GKE: List Node Pools',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -129,9 +129,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Gke: Set Cluster Addons',
+        title='Google GKE: Set Cluster Addons',
         annotations=ToolAnnotations(
-            title='Google Gke: Set Cluster Addons',
+            title='Google GKE: Set Cluster Addons',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -238,9 +238,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Gke: List Operations',
+        title='Google GKE: List Operations',
         annotations=ToolAnnotations(
-            title='Google Gke: List Operations',
+            title='Google GKE: List Operations',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -336,9 +336,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Gke: Set Node Pool Management',
+        title='Google GKE: Set Node Pool Management',
         annotations=ToolAnnotations(
-            title='Google Gke: Set Node Pool Management',
+            title='Google GKE: Set Node Pool Management',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -436,9 +436,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Gke: Ping',
+        title='Google GKE: Ping',
         annotations=ToolAnnotations(
-            title='Google Gke: Ping',
+            title='Google GKE: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -525,9 +525,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Gke: Set Cluster Labels',
+        title='Google GKE: Set Cluster Labels',
         annotations=ToolAnnotations(
-            title='Google Gke: Set Cluster Labels',
+            title='Google GKE: Set Cluster Labels',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -621,9 +621,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Gke: Get Operation Status',
+        title='Google GKE: Get Operation Status',
         annotations=ToolAnnotations(
-            title='Google Gke: Get Operation Status',
+            title='Google GKE: Get Operation Status',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -716,9 +716,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Gke: List Clusters',
+        title='Google GKE: List Clusters',
         annotations=ToolAnnotations(
-            title='Google Gke: List Clusters',
+            title='Google GKE: List Clusters',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -814,9 +814,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Gke: Set Node Autoscaling',
+        title='Google GKE: Set Node Autoscaling',
         annotations=ToolAnnotations(
-            title='Google Gke: Set Node Autoscaling',
+            title='Google GKE: Set Node Autoscaling',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -916,9 +916,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Gke: Set Node Count',
+        title='Google GKE: Set Node Count',
         annotations=ToolAnnotations(
-            title='Google Gke: Set Node Count',
+            title='Google GKE: Set Node Count',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,

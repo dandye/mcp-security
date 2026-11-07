@@ -119,9 +119,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='SCC Enterprise: Create SCC Enterprise Cloud Posture Ticket Type Snow',
+        title='SCC Enterprise: Create SCC Enterprise Cloud Posture Ticket Type SNOW',
         annotations=ToolAnnotations(
-            title='SCC Enterprise: Create SCC Enterprise Cloud Posture Ticket Type Snow',
+            title='SCC Enterprise: Create SCC Enterprise Cloud Posture Ticket Type SNOW',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -215,9 +215,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='SCC Enterprise: Set SCC Findings State Context Value',
+        title='SCC Enterprise: Set SCC-FINDINGS-STATE Context Value',
         annotations=ToolAnnotations(
-            title='SCC Enterprise: Set SCC Findings State Context Value',
+            title='SCC Enterprise: Set SCC-FINDINGS-STATE Context Value',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -307,7 +307,7 @@ def register_tools(mcp: MCPServer):
         title='SCC Enterprise: Cloud Entity Parser',
         annotations=ToolAnnotations(
             title='SCC Enterprise: Cloud Entity Parser',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -576,9 +576,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='SCC Enterprise: Add Scce Tags',
+        title='SCC Enterprise: Add SCCE Tags',
         annotations=ToolAnnotations(
-            title='SCC Enterprise: Add Scce Tags',
+            title='SCC Enterprise: Add SCCE Tags',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,

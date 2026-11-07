@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the JuniperVSRX integration.
 
     @mcp.tool(
-        title='Juniper Vsrx: Add IP to Address Set',
+        title='Juniper VSRX: Add IP to Address Set',
         annotations=ToolAnnotations(
-            title='Juniper Vsrx: Add IP to Address Set',
+            title='Juniper VSRX: Add IP to Address Set',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -122,9 +122,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Juniper Vsrx: Remove IP from Address Set',
+        title='Juniper VSRX: Remove IP from Address Set',
         annotations=ToolAnnotations(
-            title='Juniper Vsrx: Remove IP from Address Set',
+            title='Juniper VSRX: Remove IP from Address Set',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -214,9 +214,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Juniper Vsrx: Ping',
+        title='Juniper VSRX: Ping',
         annotations=ToolAnnotations(
-            title='Juniper Vsrx: Ping',
+            title='Juniper VSRX: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

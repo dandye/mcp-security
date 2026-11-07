@@ -33,7 +33,7 @@ def register_tools(mcp: MCPServer):
         title='Stellar Cyber Starlight: Simple Search',
         annotations=ToolAnnotations(
             title='Stellar Cyber Starlight: Simple Search',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -313,7 +313,7 @@ def register_tools(mcp: MCPServer):
         title='Stellar Cyber Starlight: Advanced Search',
         annotations=ToolAnnotations(
             title='Stellar Cyber Starlight: Advanced Search',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

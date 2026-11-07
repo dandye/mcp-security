@@ -313,9 +313,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='CB Cloud: Create a Reputation Override for Sha 256 Hash',
+        title='CB Cloud: Create a Reputation Override for SHA-256 Hash',
         annotations=ToolAnnotations(
-            title='CB Cloud: Create a Reputation Override for Sha 256 Hash',
+            title='CB Cloud: Create a Reputation Override for SHA-256 Hash',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -1046,11 +1046,11 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='CB Cloud: Dismiss V Mware Carbon Black Cloud Alert',
+        title='CB Cloud: Dismiss VMware Carbon Black Cloud Alert',
         annotations=ToolAnnotations(
-            title='CB Cloud: Dismiss V Mware Carbon Black Cloud Alert',
+            title='CB Cloud: Dismiss VMware Carbon Black Cloud Alert',
             read_only_hint=False,
-            destructive_hint=True,
+            destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
         ),

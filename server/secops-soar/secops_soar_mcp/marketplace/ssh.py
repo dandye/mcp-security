@@ -130,7 +130,7 @@ def register_tools(mcp: MCPServer):
             title='SSH: Reboot Machine',
             read_only_hint=False,
             destructive_hint=True,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=False,
         ),
     )
@@ -226,7 +226,7 @@ dict: A dictionary containing the result of the action execution.
         annotations=ToolAnnotations(
             title='SSH: Logoff User',
             read_only_hint=False,
-            destructive_hint=True,
+            destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
         ),

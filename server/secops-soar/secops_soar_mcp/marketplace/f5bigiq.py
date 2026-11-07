@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the F5BigIQ integration.
 
     @mcp.tool(
-        title='F5 Big Iq: Get Event Logs by Blocking ID',
+        title='F5 Big IQ: Get Event Logs by Blocking ID',
         annotations=ToolAnnotations(
-            title='F5 Big Iq: Get Event Logs by Blocking ID',
+            title='F5 Big IQ: Get Event Logs by Blocking ID',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -120,9 +120,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Big Iq: Ping',
+        title='F5 Big IQ: Ping',
         annotations=ToolAnnotations(
-            title='F5 Big Iq: Ping',
+            title='F5 Big IQ: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -209,9 +209,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Big Iq: Change Policy Enforcement Mode',
+        title='F5 Big IQ: Change Policy Enforcement Mode',
         annotations=ToolAnnotations(
-            title='F5 Big Iq: Change Policy Enforcement Mode',
+            title='F5 Big IQ: Change Policy Enforcement Mode',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,

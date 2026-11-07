@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the AWSS3 integration.
 
     @mcp.tool(
-        title='Awss3: List Bucket Objects',
+        title='AWSS3: List Bucket Objects',
         annotations=ToolAnnotations(
-            title='Awss3: List Bucket Objects',
+            title='AWSS3: List Bucket Objects',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -122,9 +122,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awss3: Ping',
+        title='AWSS3: Ping',
         annotations=ToolAnnotations(
-            title='Awss3: Ping',
+            title='AWSS3: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -211,9 +211,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awss3: List Buckets',
+        title='AWSS3: List Buckets',
         annotations=ToolAnnotations(
-            title='Awss3: List Buckets',
+            title='AWSS3: List Buckets',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -300,9 +300,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awss3: Set Bucket Policy',
+        title='AWSS3: Set Bucket Policy',
         annotations=ToolAnnotations(
-            title='Awss3: Set Bucket Policy',
+            title='AWSS3: Set Bucket Policy',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -391,10 +391,10 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awss3: Download File from Bucket',
+        title='AWSS3: Download File from Bucket',
         annotations=ToolAnnotations(
-            title='Awss3: Download File from Bucket',
-            read_only_hint=False,
+            title='AWSS3: Download File from Bucket',
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -482,9 +482,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awss3: Upload File to Bucket',
+        title='AWSS3: Upload File to Bucket',
         annotations=ToolAnnotations(
-            title='Awss3: Upload File to Bucket',
+            title='AWSS3: Upload File to Bucket',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -573,9 +573,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awss3: Get Bucket Policy',
+        title='AWSS3: Get Bucket Policy',
         annotations=ToolAnnotations(
-            title='Awss3: Get Bucket Policy',
+            title='AWSS3: Get Bucket Policy',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

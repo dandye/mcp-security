@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the McAfeeTIEDXL integration.
 
     @mcp.tool(
-        title='Mc Afee Tiedxl: Get File Reputation',
+        title='Mc Afee TIEDXL: Get File Reputation',
         annotations=ToolAnnotations(
-            title='Mc Afee Tiedxl: Get File Reputation',
+            title='Mc Afee TIEDXL: Get File Reputation',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -121,9 +121,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Tiedxl: Set File Reputation',
+        title='Mc Afee TIEDXL: Set File Reputation',
         annotations=ToolAnnotations(
-            title='Mc Afee Tiedxl: Set File Reputation',
+            title='Mc Afee TIEDXL: Set File Reputation',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -215,9 +215,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Tiedxl: Ping',
+        title='Mc Afee TIEDXL: Ping',
         annotations=ToolAnnotations(
-            title='Mc Afee Tiedxl: Ping',
+            title='Mc Afee TIEDXL: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -304,9 +304,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Tiedxl: Get File References',
+        title='Mc Afee TIEDXL: Get File References',
         annotations=ToolAnnotations(
-            title='Mc Afee Tiedxl: Get File References',
+            title='Mc Afee TIEDXL: Get File References',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

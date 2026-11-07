@@ -663,7 +663,7 @@ def register_tools(mcp: MCPServer):
         annotations=ToolAnnotations(
             title='Mc Afee Mvision EDR: Dismiss Threat',
             read_only_hint=False,
-            destructive_hint=True,
+            destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
         ),

@@ -879,7 +879,7 @@ dict: A dictionary containing the result of the action execution.
         title='Siemplify: Test Siemplify Proxy',
         annotations=ToolAnnotations(
             title='Siemplify: Test Siemplify Proxy',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -1462,7 +1462,7 @@ dict: A dictionary containing the result of the action execution.
             title='Siemplify: Open Web URL',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=False,
         ),
     )
@@ -2962,7 +2962,7 @@ dict: A dictionary containing the result of the action execution.
             title='Siemplify: Raise Incident',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=False,
+            idempotent_hint=True,
             open_world_hint=False,
         ),
     )

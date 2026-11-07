@@ -218,10 +218,10 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Q Radar: Q Radar AQL Search',
+        title='Q Radar: QRadar AQL Search',
         annotations=ToolAnnotations(
-            title='Q Radar: Q Radar AQL Search',
-            read_only_hint=True,
+            title='Q Radar: QRadar AQL Search',
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -311,7 +311,7 @@ def register_tools(mcp: MCPServer):
         title='Q Radar: Similar Events Query',
         annotations=ToolAnnotations(
             title='Q Radar: Similar Events Query',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -506,7 +506,7 @@ def register_tools(mcp: MCPServer):
             title='Q Radar: Add Offense Note',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=False,
         ),
     )
@@ -863,10 +863,10 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Q Radar: Q Radar Simple AQL Search',
+        title='Q Radar: QRadar Simple AQL Search',
         annotations=ToolAnnotations(
-            title='Q Radar: Q Radar Simple AQL Search',
-            read_only_hint=True,
+            title='Q Radar: QRadar Simple AQL Search',
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -972,7 +972,7 @@ def register_tools(mcp: MCPServer):
         title='Q Radar: Similar Flows Query',
         annotations=ToolAnnotations(
             title='Q Radar: Similar Flows Query',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -1067,9 +1067,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Q Radar: Get Rule Mitre Coverage',
+        title='Q Radar: Get Rule MITRE Coverage',
         annotations=ToolAnnotations(
-            title='Q Radar: Get Rule Mitre Coverage',
+            title='Q Radar: Get Rule MITRE Coverage',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

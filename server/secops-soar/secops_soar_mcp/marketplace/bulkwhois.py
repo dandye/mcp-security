@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the BulkWhoIs integration.
 
     @mcp.tool(
-        title='Bulk Who Is: Who Is Details',
+        title='Bulk Who Is: WHOIS Details',
         annotations=ToolAnnotations(
-            title='Bulk Who Is: Who Is Details',
+            title='Bulk Who Is: WHOIS Details',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

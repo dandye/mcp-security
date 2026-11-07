@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the TenableIO integration.
 
     @mcp.tool(
-        title='Tenable Io: Get Vulnerability Details',
+        title='Tenable IO: Get Vulnerability Details',
         annotations=ToolAnnotations(
-            title='Tenable Io: Get Vulnerability Details',
+            title='Tenable IO: Get Vulnerability Details',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -123,9 +123,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Tenable Io: List Policies',
+        title='Tenable IO: List Policies',
         annotations=ToolAnnotations(
-            title='Tenable Io: List Policies',
+            title='Tenable IO: List Policies',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -218,9 +218,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Tenable Io: List Endpoint Vulnerabilities',
+        title='Tenable IO: List Endpoint Vulnerabilities',
         annotations=ToolAnnotations(
-            title='Tenable Io: List Endpoint Vulnerabilities',
+            title='Tenable IO: List Endpoint Vulnerabilities',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -311,9 +311,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Tenable Io: List Scanners',
+        title='Tenable IO: List Scanners',
         annotations=ToolAnnotations(
-            title='Tenable Io: List Scanners',
+            title='Tenable IO: List Scanners',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -406,9 +406,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Tenable Io: Ping',
+        title='Tenable IO: Ping',
         annotations=ToolAnnotations(
-            title='Tenable Io: Ping',
+            title='Tenable IO: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -495,12 +495,12 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Tenable Io: Scan Endpoints',
+        title='Tenable IO: Scan Endpoints',
         annotations=ToolAnnotations(
-            title='Tenable Io: Scan Endpoints',
+            title='Tenable IO: Scan Endpoints',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=False,
         ),
     )
@@ -590,9 +590,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Tenable Io: List Plugin Families',
+        title='Tenable IO: List Plugin Families',
         annotations=ToolAnnotations(
-            title='Tenable Io: List Plugin Families',
+            title='Tenable IO: List Plugin Families',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -685,9 +685,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Tenable Io: Enrich Entities',
+        title='Tenable IO: Enrich Entities',
         annotations=ToolAnnotations(
-            title='Tenable Io: Enrich Entities',
+            title='Tenable IO: Enrich Entities',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

@@ -221,7 +221,7 @@ dict: A dictionary containing the result of the action execution.
         title='Qualys VM: Download VM Scan Results',
         annotations=ToolAnnotations(
             title='Qualys VM: Download VM Scan Results',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -414,7 +414,7 @@ dict: A dictionary containing the result of the action execution.
         title='Qualys VM: Download Report',
         annotations=ToolAnnotations(
             title='Qualys VM: Download Report',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -504,9 +504,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Qualys VM: List IPs',
+        title='Qualys VM: List IPS',
         annotations=ToolAnnotations(
-            title='Qualys VM: List IPs',
+            title='Qualys VM: List IPS',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

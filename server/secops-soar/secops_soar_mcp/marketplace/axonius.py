@@ -405,7 +405,7 @@ dict: A dictionary containing the result of the action execution.
             title='Axonius: Add Note',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=False,
         ),
     )

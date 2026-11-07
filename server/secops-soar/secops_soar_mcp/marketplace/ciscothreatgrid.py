@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the CiscoThreatGrid integration.
 
     @mcp.tool(
-        title='Cisco Threat Grid: Get Hash Associated I Ps',
+        title='Cisco Threat Grid: Get Hash Associated IPs',
         annotations=ToolAnnotations(
-            title='Cisco Threat Grid: Get Hash Associated I Ps',
+            title='Cisco Threat Grid: Get Hash Associated IPs',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

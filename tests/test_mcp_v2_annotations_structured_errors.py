@@ -212,8 +212,25 @@ async def test_all_294_soar_marketplace_modules_annotations_and_schema_budget(
 
     by_name = {tool.name: tool for tool in tools}
 
-    # Verify CamelCase splitting across all 2,123 marketplace tool titles
-    allowed_mixed_tokens = {"IPs", "IOCs", "URLs", "VMs", "NetBIOS", "OAuth", "QRadar"}
+    # Verify CamelCase splitting across all 2,123 marketplace tool titles while
+    # preserving legitimate brand names and compound standards.
+    allowed_mixed_tokens = {
+        "EasyVista",
+        "McAfee",
+        "NetWitness",
+        "OpenIOC",
+        "IPs",
+        "IOCs",
+        "URLs",
+        "ACLs",
+        "VMs",
+        "VMware",
+        "NetBIOS",
+        "OAuth",
+        "QRadar",
+        "iBoss",
+        "ePolicy",
+    }
     unsplit_titles: list[str] = []
     for tool in tools:
         assert tool.title is not None
@@ -223,6 +240,8 @@ async def test_all_294_soar_marketplace_modules_annotations_and_schema_budget(
                 break
     assert not unsplit_titles, f"Marketplace tools with unsplit CamelCase titles: {unsplit_titles[:20]}"
 
+    # Unsplit CamelCase action words must remain cleanly split
+    assert by_name["sep_get_report"].title == "SEP: Get Report"
     assert by_name["sep_quarantine_endpoint"].title == "SEP: Quarantine Endpoint"
     assert by_name["siemplify_test_siemplify_proxy"].title == "Siemplify: Test Siemplify Proxy"
     assert by_name["any_run_analyze_file"].title == "Any Run: Analyze File"
@@ -230,18 +249,83 @@ async def test_all_294_soar_marketplace_modules_annotations_and_schema_budget(
     assert by_name["email_v2_download_email_attachments"].title == "Email V2: Download Email Attachments"
     assert by_name["scc_enterprise_cloud_entity_parser"].title == "SCC Enterprise: Cloud Entity Parser"
 
-    # Verify destructive containment, block, disable, and password-set marketplace annotations
+    # Acronyms, plurals, brand names, and possessives must remain intact (unmangled)
+    assert by_name["crowd_strike_falcon_upload_io_cs"].title == "Crowd Strike Falcon: Upload IOCs"
+    assert (
+        by_name["cb_cloud_dismiss_v_mware_carbon_black_cloud_alert"].title
+        == "CB Cloud: Dismiss VMware Carbon Black Cloud Alert"
+    )
+    assert (
+        by_name["azure_security_center_get_o_auth_refresh_token"].title
+        == "Azure Security Center: Get OAuth Refresh Token"
+    )
+    assert by_name["awswaf_list_web_ac_ls"].title == "AWSWAF: List Web ACLs"
+    assert (
+        by_name["azure_active_directory_list_users_groups_membership"].title
+        == "Azure Active Directory: List User's Groups Membership"
+    )
+    assert by_name["awsec2_list_instances"].title == "AWSEC2: List Instances"
+    assert (
+        by_name["awsiam_access_analyzer_scan_resources"].title
+        == "AWSIAM Access Analyzer: Scan Resources"
+    )
+    assert by_name["vertex_ai_execute_prompt"].title == "Vertex AI: Execute Prompt"
+    assert by_name["google_gke_list_node_pools"].title == "Google GKE: List Node Pools"
+    assert (
+        by_name["service_now_get_cmdb_record_details"].title
+        == "Service Now: Get CMDB Record Details"
+    )
+
+    # Verify mutating / external-submission tools are not misclassified as read-only
+    for mutating_name in (
+        "ca_service_desk_change_ticket_status",
+        "scc_enterprise_cloud_entity_parser",
+    ):
+        ann = by_name[mutating_name].annotations
+        assert ann is not None
+        assert ann.read_only_hint is False, f"{mutating_name} must have read_only_hint=False"
+
+    url_scan_ann = by_name["url_scan_io_url_check"].annotations
+    assert url_scan_ann is not None
+    assert url_scan_ann.read_only_hint is False
+    assert url_scan_ann.idempotent_hint is False
+    assert url_scan_ann.open_world_hint is True
+
+    # Verify destructive containment, block, disable, email-mitigation, and password-set annotations
     for destructive_name in (
         "sep_quarantine_endpoint",
         "sep_disable_download_insight",
         "sep_disable_ntp",
         "sep_block_hash",
         "active_directory_set_user_password",
+        "trend_micro_cloud_app_security_mitigate_emails",
+        "trend_micro_cloud_app_security_mitigate_accounts",
+        "sentinel_one_v2_mitigate_threat",
     ):
         ann = by_name[destructive_name].annotations
         assert ann is not None
         assert ann.read_only_hint is False, f"{destructive_name} must not be read-only"
         assert ann.destructive_hint is True, f"{destructive_name} must be destructive_hint=True"
+
+    # Verify external file/payload submission tools are destructive + open-world
+    for external_submit_name in (
+        "virus_total_v3_submit_file",
+        "intezer_submit_alert",
+        "intezer_submit_suspicious_email",
+        "intezer_submit_file",
+    ):
+        ann = by_name[external_submit_name].annotations
+        assert ann is not None
+        assert ann.read_only_hint is False, f"{external_submit_name} must have read_only_hint=False"
+        assert ann.destructive_hint is True, f"{external_submit_name} must have destructive_hint=True"
+        assert ann.open_world_hint is True, f"{external_submit_name} must have open_world_hint=True"
+
+    # Verify remote machine reboot is destructive and non-idempotent
+    reboot_ann = by_name["ssh_reboot_machine"].annotations
+    assert reboot_ann is not None
+    assert reboot_ann.read_only_hint is False
+    assert reboot_ann.destructive_hint is True
+    assert reboot_ann.idempotent_hint is False
 
     # Verify read-only list/get/enrich/search marketplace annotations (including block_list nouns)
     for readonly_name in (
@@ -273,12 +357,33 @@ async def test_all_294_soar_marketplace_modules_annotations_and_schema_budget(
         assert ann.destructive_hint is False, f"{readonly_name} must have destructive_hint=False"
         assert ann.idempotent_hint is True, f"{readonly_name} must have idempotent_hint=True"
 
-    # Verify comment append action is non-idempotent
-    comment_ann = by_name["siemplify_case_comment"].annotations
-    assert comment_ann is not None
-    assert comment_ann.read_only_hint is False
-    assert comment_ann.destructive_hint is False
-    assert comment_ann.idempotent_hint is False
+    # Verify comment and note-appending actions are non-idempotent
+    for append_note_name in (
+        "siemplify_case_comment",
+        "axonius_add_note",
+        "bmc_remedy_itsm_add_work_note_to_incident",
+        "fire_eye_helix_add_note_to_alert",
+        "freshworks_freshservice_add_a_ticket_note",
+        "intsights_add_note",
+        "log_rhythm_add_note_to_case",
+        "q_radar_add_offense_note",
+        "recorded_future_add_analyst_note",
+        "rsa_net_witness_platform_add_note_to_incident",
+        "sentinel_one_v2_add_threat_note",
+        "service_desk_plus_add_note_and_wait_for_reply",
+        "service_desk_plus_add_note",
+        "service_desk_plus_v3_add_note_and_wait_for_reply",
+        "service_desk_plus_v3_add_note",
+    ):
+        note_ann = by_name[append_note_name].annotations
+        assert note_ann is not None
+        assert note_ann.read_only_hint is False, f"{append_note_name} must have read_only_hint=False"
+        assert (
+            note_ann.destructive_hint is False
+        ), f"{append_note_name} must have destructive_hint=False"
+        assert (
+            note_ann.idempotent_hint is False
+        ), f"{append_note_name} must have idempotent_hint=False"
 
 
 @pytest.mark.asyncio

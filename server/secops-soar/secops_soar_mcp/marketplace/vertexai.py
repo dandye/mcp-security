@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the VertexAI integration.
 
     @mcp.tool(
-        title='Vertex Ai: Execute Prompt',
+        title='Vertex AI: Execute Prompt',
         annotations=ToolAnnotations(
-            title='Vertex Ai: Execute Prompt',
+            title='Vertex AI: Execute Prompt',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -134,9 +134,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Vertex Ai: Describe Entity',
+        title='Vertex AI: Describe Entity',
         annotations=ToolAnnotations(
-            title='Vertex Ai: Describe Entity',
+            title='Vertex AI: Describe Entity',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -234,9 +234,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Vertex Ai: Ping',
+        title='Vertex AI: Ping',
         annotations=ToolAnnotations(
-            title='Vertex Ai: Ping',
+            title='Vertex AI: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -323,12 +323,12 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Vertex Ai: Analyze EML',
+        title='Vertex AI: Analyze EML',
         annotations=ToolAnnotations(
-            title='Vertex Ai: Analyze EML',
+            title='Vertex AI: Analyze EML',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=False,
         ),
     )
@@ -419,9 +419,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Vertex Ai: Transform Data',
+        title='Vertex AI: Transform Data',
         annotations=ToolAnnotations(
-            title='Vertex Ai: Transform Data',
+            title='Vertex AI: Transform Data',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,

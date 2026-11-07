@@ -123,7 +123,7 @@ def register_tools(mcp: MCPServer):
         annotations=ToolAnnotations(
             title='Trend Micro Cloud App Security: Mitigate Accounts',
             read_only_hint=False,
-            destructive_hint=False,
+            destructive_hint=True,
             idempotent_hint=True,
             open_world_hint=False,
         ),
@@ -303,7 +303,7 @@ def register_tools(mcp: MCPServer):
         annotations=ToolAnnotations(
             title='Trend Micro Cloud App Security: Mitigate Emails',
             read_only_hint=False,
-            destructive_hint=False,
+            destructive_hint=True,
             idempotent_hint=True,
             open_world_hint=False,
         ),
@@ -483,7 +483,7 @@ def register_tools(mcp: MCPServer):
         title='Trend Micro Cloud App Security: Entity Email Search',
         annotations=ToolAnnotations(
             title='Trend Micro Cloud App Security: Entity Email Search',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

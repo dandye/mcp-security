@@ -124,9 +124,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Intsights: Search Io Cs',
+        title='Intsights: Search IOCs',
         annotations=ToolAnnotations(
-            title='Intsights: Search Io Cs',
+            title='Intsights: Search IOCs',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -500,7 +500,7 @@ dict: A dictionary containing the result of the action execution.
         title='Intsights: Download Alert CSV',
         annotations=ToolAnnotations(
             title='Intsights: Download Alert CSV',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,
@@ -784,7 +784,7 @@ dict: A dictionary containing the result of the action execution.
             title='Intsights: Add Note',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=True,
         ),
     )

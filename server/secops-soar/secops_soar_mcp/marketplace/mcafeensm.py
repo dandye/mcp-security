@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the McAfeeNSM integration.
 
     @mcp.tool(
-        title='Mc Afee Nsm: Quarantine IP',
+        title='Mc Afee NSM: Quarantine IP',
         annotations=ToolAnnotations(
-            title='Mc Afee Nsm: Quarantine IP',
+            title='Mc Afee NSM: Quarantine IP',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -119,9 +119,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Nsm: Unblock IP',
+        title='Mc Afee NSM: Unblock IP',
         annotations=ToolAnnotations(
-            title='Mc Afee Nsm: Unblock IP',
+            title='Mc Afee NSM: Unblock IP',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -208,9 +208,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Nsm: Ping',
+        title='Mc Afee NSM: Ping',
         annotations=ToolAnnotations(
-            title='Mc Afee Nsm: Ping',
+            title='Mc Afee NSM: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -297,9 +297,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Nsm: Is IP Blocked',
+        title='Mc Afee NSM: Is IP Blocked',
         annotations=ToolAnnotations(
-            title='Mc Afee Nsm: Is IP Blocked',
+            title='Mc Afee NSM: Is IP Blocked',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -386,9 +386,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Nsm: Block IP',
+        title='Mc Afee NSM: Block IP',
         annotations=ToolAnnotations(
-            title='Mc Afee Nsm: Block IP',
+            title='Mc Afee NSM: Block IP',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -475,9 +475,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Nsm: Get Alert Info Data',
+        title='Mc Afee NSM: Get Alert Info Data',
         annotations=ToolAnnotations(
-            title='Mc Afee Nsm: Get Alert Info Data',
+            title='Mc Afee NSM: Get Alert Info Data',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

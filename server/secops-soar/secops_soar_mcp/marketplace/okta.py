@@ -1184,7 +1184,7 @@ dict: A dictionary containing the result of the action execution.
         annotations=ToolAnnotations(
             title='Okta: Set Password',
             read_only_hint=False,
-            destructive_hint=True,
+            destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
         ),

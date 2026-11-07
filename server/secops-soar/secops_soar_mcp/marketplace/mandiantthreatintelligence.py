@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the MandiantThreatIntelligence integration.
 
     @mcp.tool(
-        title='Mandiant Threat Intelligence: Enrich Io Cs',
+        title='Mandiant Threat Intelligence: Enrich IOCs',
         annotations=ToolAnnotations(
-            title='Mandiant Threat Intelligence: Enrich Io Cs',
+            title='Mandiant Threat Intelligence: Enrich IOCs',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

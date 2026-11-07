@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the StealthwatchV6-10 integration.
 
     @mcp.tool(
-        title='Stealthwatch V6 10: Search Events',
+        title='Stealthwatch V6-10: Search Events',
         annotations=ToolAnnotations(
-            title='Stealthwatch V6 10: Search Events',
+            title='Stealthwatch V6-10: Search Events',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -120,9 +120,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Stealthwatch V6 10: Ping',
+        title='Stealthwatch V6-10: Ping',
         annotations=ToolAnnotations(
-            title='Stealthwatch V6 10: Ping',
+            title='Stealthwatch V6-10: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -209,9 +209,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Stealthwatch V6 10: Search Flows',
+        title='Stealthwatch V6-10: Search Flows',
         annotations=ToolAnnotations(
-            title='Stealthwatch V6 10: Search Flows',
+            title='Stealthwatch V6-10: Search Flows',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

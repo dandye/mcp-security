@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the BMCRemedyITSM integration.
 
     @mcp.tool(
-        title='Bmc Remedy Itsm: Update Incident',
+        title='BMC Remedy ITSM: Update Incident',
         annotations=ToolAnnotations(
-            title='Bmc Remedy Itsm: Update Incident',
+            title='BMC Remedy ITSM: Update Incident',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -154,9 +154,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Remedy Itsm: Update Record',
+        title='BMC Remedy ITSM: Update Record',
         annotations=ToolAnnotations(
-            title='Bmc Remedy Itsm: Update Record',
+            title='BMC Remedy ITSM: Update Record',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -246,9 +246,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Remedy Itsm: Get Record Details',
+        title='BMC Remedy ITSM: Get Record Details',
         annotations=ToolAnnotations(
-            title='Bmc Remedy Itsm: Get Record Details',
+            title='BMC Remedy ITSM: Get Record Details',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -339,12 +339,12 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Remedy Itsm: Add Work Note to Incident',
+        title='BMC Remedy ITSM: Add Work Note to Incident',
         annotations=ToolAnnotations(
-            title='Bmc Remedy Itsm: Add Work Note to Incident',
+            title='BMC Remedy ITSM: Add Work Note to Incident',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=False,
         ),
     )
@@ -430,9 +430,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Remedy Itsm: Wait for Record Fields Update',
+        title='BMC Remedy ITSM: Wait for Record Fields Update',
         annotations=ToolAnnotations(
-            title='Bmc Remedy Itsm: Wait for Record Fields Update',
+            title='BMC Remedy ITSM: Wait for Record Fields Update',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -523,9 +523,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Remedy Itsm: Delete Incident',
+        title='BMC Remedy ITSM: Delete Incident',
         annotations=ToolAnnotations(
-            title='Bmc Remedy Itsm: Delete Incident',
+            title='BMC Remedy ITSM: Delete Incident',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -613,9 +613,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Remedy Itsm: Ping',
+        title='BMC Remedy ITSM: Ping',
         annotations=ToolAnnotations(
-            title='Bmc Remedy Itsm: Ping',
+            title='BMC Remedy ITSM: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -702,9 +702,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Remedy Itsm: Delete Record',
+        title='BMC Remedy ITSM: Delete Record',
         annotations=ToolAnnotations(
-            title='Bmc Remedy Itsm: Delete Record',
+            title='BMC Remedy ITSM: Delete Record',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -793,9 +793,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Remedy Itsm: Get Incident Details',
+        title='BMC Remedy ITSM: Get Incident Details',
         annotations=ToolAnnotations(
-            title='Bmc Remedy Itsm: Get Incident Details',
+            title='BMC Remedy ITSM: Get Incident Details',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -889,9 +889,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Remedy Itsm: Create Record',
+        title='BMC Remedy ITSM: Create Record',
         annotations=ToolAnnotations(
-            title='Bmc Remedy Itsm: Create Record',
+            title='BMC Remedy ITSM: Create Record',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -980,9 +980,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Remedy Itsm: Create Incident',
+        title='BMC Remedy ITSM: Create Incident',
         annotations=ToolAnnotations(
-            title='Bmc Remedy Itsm: Create Incident',
+            title='BMC Remedy ITSM: Create Incident',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -1107,9 +1107,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Remedy Itsm: Wait for Incident Fields Update',
+        title='BMC Remedy ITSM: Wait for Incident Fields Update',
         annotations=ToolAnnotations(
-            title='Bmc Remedy Itsm: Wait for Incident Fields Update',
+            title='BMC Remedy ITSM: Wait for Incident Fields Update',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,

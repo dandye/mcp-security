@@ -1428,7 +1428,7 @@ def register_tools(mcp: MCPServer):
         title='Microsoft Graph Mail Delegated: Download Attachments from Email',
         annotations=ToolAnnotations(
             title='Microsoft Graph Mail Delegated: Download Attachments from Email',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -1733,7 +1733,7 @@ def register_tools(mcp: MCPServer):
         title='Microsoft Graph Mail Delegated: Extract Data from Attached EML',
         annotations=ToolAnnotations(
             title='Microsoft Graph Mail Delegated: Extract Data from Attached EML',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the AWSEC2 integration.
 
     @mcp.tool(
-        title='Awsec2: Terminate Instance',
+        title='AWSEC2: Terminate Instance',
         annotations=ToolAnnotations(
-            title='Awsec2: Terminate Instance',
+            title='AWSEC2: Terminate Instance',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -120,9 +120,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsec2: List Instances',
+        title='AWSEC2: List Instances',
         annotations=ToolAnnotations(
-            title='Awsec2: List Instances',
+            title='AWSEC2: List Instances',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -215,12 +215,12 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsec2: Take Snapshot',
+        title='AWSEC2: Take Snapshot',
         annotations=ToolAnnotations(
-            title='Awsec2: Take Snapshot',
+            title='AWSEC2: Take Snapshot',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=False,
+            idempotent_hint=True,
             open_world_hint=False,
         ),
     )
@@ -307,9 +307,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsec2: Revoke Security Group Egress',
+        title='AWSEC2: Revoke Security Group Egress',
         annotations=ToolAnnotations(
-            title='Awsec2: Revoke Security Group Egress',
+            title='AWSEC2: Revoke Security Group Egress',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -407,9 +407,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsec2: Start Instance',
+        title='AWSEC2: Start Instance',
         annotations=ToolAnnotations(
-            title='Awsec2: Start Instance',
+            title='AWSEC2: Start Instance',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -497,9 +497,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsec2: Create Tags',
+        title='AWSEC2: Create Tags',
         annotations=ToolAnnotations(
-            title='Awsec2: Create Tags',
+            title='AWSEC2: Create Tags',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -588,9 +588,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsec2: Ping',
+        title='AWSEC2: Ping',
         annotations=ToolAnnotations(
-            title='Awsec2: Ping',
+            title='AWSEC2: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -677,9 +677,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsec2: List Security Groups',
+        title='AWSEC2: List Security Groups',
         annotations=ToolAnnotations(
-            title='Awsec2: List Security Groups',
+            title='AWSEC2: List Security Groups',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -774,9 +774,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsec2: Authorize Security Group Egress',
+        title='AWSEC2: Authorize Security Group Egress',
         annotations=ToolAnnotations(
-            title='Awsec2: Authorize Security Group Egress',
+            title='AWSEC2: Authorize Security Group Egress',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -874,9 +874,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsec2: Authorize Security Group Ingress',
+        title='AWSEC2: Authorize Security Group Ingress',
         annotations=ToolAnnotations(
-            title='Awsec2: Authorize Security Group Ingress',
+            title='AWSEC2: Authorize Security Group Ingress',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -974,9 +974,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsec2: Revoke Security Group Ingress',
+        title='AWSEC2: Revoke Security Group Ingress',
         annotations=ToolAnnotations(
-            title='Awsec2: Revoke Security Group Ingress',
+            title='AWSEC2: Revoke Security Group Ingress',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -1074,9 +1074,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Awsec2: Stop Instance',
+        title='AWSEC2: Stop Instance',
         annotations=ToolAnnotations(
-            title='Awsec2: Stop Instance',
+            title='AWSEC2: Stop Instance',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,

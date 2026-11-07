@@ -397,7 +397,7 @@ dict: A dictionary containing the result of the action execution.
         title='Domain Tools: Reverse Domain',
         annotations=ToolAnnotations(
             title='Domain Tools: Reverse Domain',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,
@@ -575,7 +575,7 @@ dict: A dictionary containing the result of the action execution.
         title='Domain Tools: Reverse Email',
         annotations=ToolAnnotations(
             title='Domain Tools: Reverse Email',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,
@@ -664,7 +664,7 @@ dict: A dictionary containing the result of the action execution.
         title='Domain Tools: Reverse IP',
         annotations=ToolAnnotations(
             title='Domain Tools: Reverse IP',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,

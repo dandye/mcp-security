@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the SymantecESCC integration.
 
     @mcp.tool(
-        title='Symantec Escc: Get Related Io Cs',
+        title='Symantec ESCC: Get Related IOCs',
         annotations=ToolAnnotations(
-            title='Symantec Escc: Get Related Io Cs',
+            title='Symantec ESCC: Get Related IOCs',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -121,9 +121,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Symantec Escc: Ping',
+        title='Symantec ESCC: Ping',
         annotations=ToolAnnotations(
-            title='Symantec Escc: Ping',
+            title='Symantec ESCC: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -210,9 +210,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Symantec Escc: Enrich Entities',
+        title='Symantec ESCC: Enrich Entities',
         annotations=ToolAnnotations(
-            title='Symantec Escc: Enrich Entities',
+            title='Symantec ESCC: Enrich Entities',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -304,9 +304,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Symantec Escc: List Device Groups',
+        title='Symantec ESCC: List Device Groups',
         annotations=ToolAnnotations(
-            title='Symantec Escc: List Device Groups',
+            title='Symantec ESCC: List Device Groups',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

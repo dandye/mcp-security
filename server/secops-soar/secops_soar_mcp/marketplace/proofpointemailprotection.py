@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the ProofPointPS integration.
 
     @mcp.tool(
-        title='Proof Point Ps: Ping',
+        title='Proof Point PS: Ping',
         annotations=ToolAnnotations(
-            title='Proof Point Ps: Ping',
+            title='Proof Point PS: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -119,9 +119,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Proof Point Ps: Enrich Entities',
+        title='Proof Point PS: Enrich Entities',
         annotations=ToolAnnotations(
-            title='Proof Point Ps: Enrich Entities',
+            title='Proof Point PS: Enrich Entities',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

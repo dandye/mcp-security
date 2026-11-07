@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the MISP integration.
 
     @mcp.tool(
-        title='MISP: Create Network Connection MISP Object',
+        title='MISP: Create Network-connection MISP Object',
         annotations=ToolAnnotations(
-            title='MISP: Create Network Connection MISP Object',
+            title='MISP: Create Network-connection MISP Object',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -836,7 +836,7 @@ dict: A dictionary containing the result of the action execution.
             title='MISP: Add Tag to an Event',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=True,
         ),
     )
@@ -1112,9 +1112,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='MISP: Create IP Port MISP Object',
+        title='MISP: Create IP-Port MISP Object',
         annotations=ToolAnnotations(
-            title='MISP: Create IP Port MISP Object',
+            title='MISP: Create IP-Port MISP Object',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -1221,9 +1221,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='MISP: Create Virustotal Report Object',
+        title='MISP: Create Virustotal-Report Object',
         annotations=ToolAnnotations(
-            title='MISP: Create Virustotal Report Object',
+            title='MISP: Create Virustotal-Report Object',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -1645,7 +1645,7 @@ dict: A dictionary containing the result of the action execution.
         title='MISP: Download File',
         annotations=ToolAnnotations(
             title='MISP: Download File',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=True,
@@ -1848,7 +1848,7 @@ dict: A dictionary containing the result of the action execution.
         annotations=ToolAnnotations(
             title='MISP: Upload File',
             read_only_hint=False,
-            destructive_hint=True,
+            destructive_hint=False,
             idempotent_hint=False,
             open_world_hint=True,
         ),

@@ -123,9 +123,9 @@ dict: A dictionary containing the result of the action execution.
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Iron Scales: Get Mitigations Per Mailbox',
+        title='Iron Scales: Get Mitigations per Mailbox',
         annotations=ToolAnnotations(
-            title='Iron Scales: Get Mitigations Per Mailbox',
+            title='Iron Scales: Get Mitigations per Mailbox',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

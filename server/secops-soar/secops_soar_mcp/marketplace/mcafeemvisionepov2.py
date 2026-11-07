@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the McAfeeMvisionEPOV2 integration.
 
     @mcp.tool(
-        title='Mc Afee Mvision Epov2: Enrich Endpoint',
+        title='Mc Afee Mvision EPOV2: Enrich Endpoint',
         annotations=ToolAnnotations(
-            title='Mc Afee Mvision Epov2: Enrich Endpoint',
+            title='Mc Afee Mvision EPOV2: Enrich Endpoint',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -119,9 +119,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Mvision Epov2: Ping',
+        title='Mc Afee Mvision EPOV2: Ping',
         annotations=ToolAnnotations(
-            title='Mc Afee Mvision Epov2: Ping',
+            title='Mc Afee Mvision EPOV2: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -208,9 +208,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Mvision Epov2: Add Tag to Device',
+        title='Mc Afee Mvision EPOV2: Add Tag to Device',
         annotations=ToolAnnotations(
-            title='Mc Afee Mvision Epov2: Add Tag to Device',
+            title='Mc Afee Mvision EPOV2: Add Tag to Device',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -298,9 +298,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Mvision Epov2: List Devices',
+        title='Mc Afee Mvision EPOV2: List Devices',
         annotations=ToolAnnotations(
-            title='Mc Afee Mvision Epov2: List Devices',
+            title='Mc Afee Mvision EPOV2: List Devices',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -389,9 +389,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Mvision Epov2: List Tags',
+        title='Mc Afee Mvision EPOV2: List Tags',
         annotations=ToolAnnotations(
-            title='Mc Afee Mvision Epov2: List Tags',
+            title='Mc Afee Mvision EPOV2: List Tags',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -480,9 +480,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Mvision Epov2: Remove Tag from Device',
+        title='Mc Afee Mvision EPOV2: Remove Tag from Device',
         annotations=ToolAnnotations(
-            title='Mc Afee Mvision Epov2: Remove Tag from Device',
+            title='Mc Afee Mvision EPOV2: Remove Tag from Device',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,

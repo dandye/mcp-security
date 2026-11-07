@@ -764,9 +764,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee EPO: Get Mc Afee EPO Agent Version',
+        title='Mc Afee EPO: Get McAfee EPO Agent Version',
         annotations=ToolAnnotations(
-            title='Mc Afee EPO: Get Mc Afee EPO Agent Version',
+            title='Mc Afee EPO: Get McAfee EPO Agent Version',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -942,9 +942,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee EPO: Get Host Network IPs Status',
+        title='Mc Afee EPO: Get Host Network IPS Status',
         annotations=ToolAnnotations(
-            title='Mc Afee EPO: Get Host Network IPs Status',
+            title='Mc Afee EPO: Get Host Network IPS Status',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1216,9 +1216,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee EPO: Compare Server and Agent Dat',
+        title='Mc Afee EPO: Compare Server and Agent DAT',
         annotations=ToolAnnotations(
-            title='Mc Afee EPO: Compare Server and Agent Dat',
+            title='Mc Afee EPO: Compare Server and Agent DAT',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1305,9 +1305,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee EPO: Get Host IPs Status',
+        title='Mc Afee EPO: Get Host IPS Status',
         annotations=ToolAnnotations(
-            title='Mc Afee EPO: Get Host IPs Status',
+            title='Mc Afee EPO: Get Host IPS Status',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

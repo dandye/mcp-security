@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the FireEyeNX integration.
 
     @mcp.tool(
-        title='Fire Eye Nx: Add IPs Policy Exception',
+        title='Fire Eye NX: Add IPS Policy Exception',
         annotations=ToolAnnotations(
-            title='Fire Eye Nx: Add IPs Policy Exception',
+            title='Fire Eye NX: Add IPS Policy Exception',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -124,9 +124,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Nx: Ping',
+        title='Fire Eye NX: Ping',
         annotations=ToolAnnotations(
-            title='Fire Eye Nx: Ping',
+            title='Fire Eye NX: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -213,10 +213,10 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Fire Eye Nx: Download Alert Artifacts',
+        title='Fire Eye NX: Download Alert Artifacts',
         annotations=ToolAnnotations(
-            title='Fire Eye Nx: Download Alert Artifacts',
-            read_only_hint=False,
+            title='Fire Eye NX: Download Alert Artifacts',
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

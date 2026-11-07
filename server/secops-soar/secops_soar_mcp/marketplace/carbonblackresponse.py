@@ -300,7 +300,7 @@ def register_tools(mcp: MCPServer):
         title='CB Response: Process Free Query',
         annotations=ToolAnnotations(
             title='CB Response: Process Free Query',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -837,7 +837,7 @@ def register_tools(mcp: MCPServer):
         title='CB Response: Resolve Alert',
         annotations=ToolAnnotations(
             title='CB Response: Resolve Alert',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -1285,7 +1285,7 @@ def register_tools(mcp: MCPServer):
         title='CB Response: Binary Free Query',
         annotations=ToolAnnotations(
             title='CB Response: Binary Free Query',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -1645,7 +1645,7 @@ def register_tools(mcp: MCPServer):
         title='CB Response: Download Binary',
         annotations=ToolAnnotations(
             title='CB Response: Download Binary',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

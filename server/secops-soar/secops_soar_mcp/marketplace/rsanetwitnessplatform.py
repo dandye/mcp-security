@@ -124,9 +124,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='RSA Net Witness Platform: Query Net Witness for Events Around IP',
+        title='RSA Net Witness Platform: Query NetWitness for Events Around IP',
         annotations=ToolAnnotations(
-            title='RSA Net Witness Platform: Query Net Witness for Events Around IP',
+            title='RSA Net Witness Platform: Query NetWitness for Events Around IP',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -217,9 +217,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='RSA Net Witness Platform: Query Net Witness for Events Around Host',
+        title='RSA Net Witness Platform: Query NetWitness for Events Around Host',
         annotations=ToolAnnotations(
-            title='RSA Net Witness Platform: Query Net Witness for Events Around Host',
+            title='RSA Net Witness Platform: Query NetWitness for Events Around Host',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -589,7 +589,7 @@ def register_tools(mcp: MCPServer):
             title='RSA Net Witness Platform: Add Note to Incident',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=False,
         ),
     )
@@ -676,9 +676,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='RSA Net Witness Platform: Query Net Witness for Events Around User',
+        title='RSA Net Witness Platform: Query NetWitness for Events Around User',
         annotations=ToolAnnotations(
-            title='RSA Net Witness Platform: Query Net Witness for Events Around User',
+            title='RSA Net Witness Platform: Query NetWitness for Events Around User',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

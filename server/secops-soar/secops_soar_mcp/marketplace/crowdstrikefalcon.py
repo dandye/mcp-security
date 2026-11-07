@@ -1435,7 +1435,7 @@ def register_tools(mcp: MCPServer):
         title='Crowd Strike Falcon: Download File',
         annotations=ToolAnnotations(
             title='Crowd Strike Falcon: Download File',
-            read_only_hint=False,
+            read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -1615,9 +1615,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Crowd Strike Falcon: Upload Io Cs',
+        title='Crowd Strike Falcon: Upload IOCs',
         annotations=ToolAnnotations(
-            title='Crowd Strike Falcon: Upload Io Cs',
+            title='Crowd Strike Falcon: Upload IOCs',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -1805,9 +1805,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Crowd Strike Falcon: On Demand Scan',
+        title='Crowd Strike Falcon: On-Demand Scan',
         annotations=ToolAnnotations(
-            title='Crowd Strike Falcon: On Demand Scan',
+            title='Crowd Strike Falcon: On-Demand Scan',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -2194,9 +2194,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Crowd Strike Falcon: List Uploaded Io Cs',
+        title='Crowd Strike Falcon: List Uploaded IOCs',
         annotations=ToolAnnotations(
-            title='Crowd Strike Falcon: List Uploaded Io Cs',
+            title='Crowd Strike Falcon: List Uploaded IOCs',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

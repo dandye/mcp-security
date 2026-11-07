@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the F5BIGIPAccessPolicyManager integration.
 
     @mcp.tool(
-        title='F5 Bigip Access Policy Manager: Ping',
+        title='F5 BIGIP Access Policy Manager: Ping',
         annotations=ToolAnnotations(
-            title='F5 Bigip Access Policy Manager: Ping',
+            title='F5 BIGIP Access Policy Manager: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -119,9 +119,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigip Access Policy Manager: List Active Sessions',
+        title='F5 BIGIP Access Policy Manager: List Active Sessions',
         annotations=ToolAnnotations(
-            title='F5 Bigip Access Policy Manager: List Active Sessions',
+            title='F5 BIGIP Access Policy Manager: List Active Sessions',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -210,9 +210,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='F5 Bigip Access Policy Manager: Disconnect Sessions',
+        title='F5 BIGIP Access Policy Manager: Disconnect Sessions',
         annotations=ToolAnnotations(
-            title='F5 Bigip Access Policy Manager: Disconnect Sessions',
+            title='F5 BIGIP Access Policy Manager: Disconnect Sessions',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,

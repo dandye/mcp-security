@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the CiscoISE integration.
 
     @mcp.tool(
-        title='Cisco Ise: Unquarantine Address',
+        title='Cisco ISE: Unquarantine Address',
         annotations=ToolAnnotations(
-            title='Cisco Ise: Unquarantine Address',
+            title='Cisco ISE: Unquarantine Address',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -119,9 +119,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Ise: Terminate Session',
+        title='Cisco ISE: Terminate Session',
         annotations=ToolAnnotations(
-            title='Cisco Ise: Terminate Session',
+            title='Cisco ISE: Terminate Session',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -212,9 +212,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Ise: Update Endpoint',
+        title='Cisco ISE: Update Endpoint',
         annotations=ToolAnnotations(
-            title='Cisco Ise: Update Endpoint',
+            title='Cisco ISE: Update Endpoint',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -337,9 +337,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Ise: List Endpoint Identity Group',
+        title='Cisco ISE: List Endpoint Identity Group',
         annotations=ToolAnnotations(
-            title='Cisco Ise: List Endpoint Identity Group',
+            title='Cisco ISE: List Endpoint Identity Group',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -434,9 +434,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Ise: Quarantine Address',
+        title='Cisco ISE: Quarantine Address',
         annotations=ToolAnnotations(
-            title='Cisco Ise: Quarantine Address',
+            title='Cisco ISE: Quarantine Address',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -524,9 +524,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Ise: Enrich Endpoint',
+        title='Cisco ISE: Enrich Endpoint',
         annotations=ToolAnnotations(
-            title='Cisco Ise: Enrich Endpoint',
+            title='Cisco ISE: Enrich Endpoint',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -613,9 +613,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Ise: Ping',
+        title='Cisco ISE: Ping',
         annotations=ToolAnnotations(
-            title='Cisco Ise: Ping',
+            title='Cisco ISE: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -702,9 +702,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Ise: Get Endpoints',
+        title='Cisco ISE: Get Endpoints',
         annotations=ToolAnnotations(
-            title='Cisco Ise: Get Endpoints',
+            title='Cisco ISE: Get Endpoints',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -791,9 +791,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Ise: Add Endpoint to Endpoint Identity Group',
+        title='Cisco ISE: Add Endpoint to Endpoint Identity Group',
         annotations=ToolAnnotations(
-            title='Cisco Ise: Add Endpoint to Endpoint Identity Group',
+            title='Cisco ISE: Add Endpoint to Endpoint Identity Group',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -881,9 +881,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Ise: Get Sessions',
+        title='Cisco ISE: Get Sessions',
         annotations=ToolAnnotations(
-            title='Cisco Ise: Get Sessions',
+            title='Cisco ISE: Get Sessions',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

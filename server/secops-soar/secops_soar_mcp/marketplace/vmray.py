@@ -34,8 +34,8 @@ def register_tools(mcp: MCPServer):
         annotations=ToolAnnotations(
             title='VM Ray: Scan Hash',
             read_only_hint=False,
-            destructive_hint=False,
-            idempotent_hint=True,
+            destructive_hint=True,
+            idempotent_hint=False,
             open_world_hint=True,
         ),
     )
@@ -408,8 +408,8 @@ def register_tools(mcp: MCPServer):
         annotations=ToolAnnotations(
             title='VM Ray: Scan URL',
             read_only_hint=False,
-            destructive_hint=False,
-            idempotent_hint=True,
+            destructive_hint=True,
+            idempotent_hint=False,
             open_world_hint=True,
         ),
     )

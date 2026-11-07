@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the BMCHelixRemedyForce integration.
 
     @mcp.tool(
-        title='Bmc Helix Remedy Force: Update Record',
+        title='BMC Helix Remedy Force: Update Record',
         annotations=ToolAnnotations(
-            title='Bmc Helix Remedy Force: Update Record',
+            title='BMC Helix Remedy Force: Update Record',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -122,9 +122,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Helix Remedy Force: Get Record Details',
+        title='BMC Helix Remedy Force: Get Record Details',
         annotations=ToolAnnotations(
-            title='Bmc Helix Remedy Force: Get Record Details',
+            title='BMC Helix Remedy Force: Get Record Details',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -215,9 +215,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Helix Remedy Force: List Record Types',
+        title='BMC Helix Remedy Force: List Record Types',
         annotations=ToolAnnotations(
-            title='Bmc Helix Remedy Force: List Record Types',
+            title='BMC Helix Remedy Force: List Record Types',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -310,9 +310,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Helix Remedy Force: Get O Auth Refresh Token',
+        title='BMC Helix Remedy Force: Get OAuth Refresh Token',
         annotations=ToolAnnotations(
-            title='Bmc Helix Remedy Force: Get O Auth Refresh Token',
+            title='BMC Helix Remedy Force: Get OAuth Refresh Token',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -401,9 +401,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Helix Remedy Force: Ping',
+        title='BMC Helix Remedy Force: Ping',
         annotations=ToolAnnotations(
-            title='Bmc Helix Remedy Force: Ping',
+            title='BMC Helix Remedy Force: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -490,9 +490,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Helix Remedy Force: Execute Simple Query',
+        title='BMC Helix Remedy Force: Execute Simple Query',
         annotations=ToolAnnotations(
-            title='Bmc Helix Remedy Force: Execute Simple Query',
+            title='BMC Helix Remedy Force: Execute Simple Query',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -596,9 +596,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Helix Remedy Force: Delete Record',
+        title='BMC Helix Remedy Force: Delete Record',
         annotations=ToolAnnotations(
-            title='Bmc Helix Remedy Force: Delete Record',
+            title='BMC Helix Remedy Force: Delete Record',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -687,9 +687,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Helix Remedy Force: Create Record',
+        title='BMC Helix Remedy Force: Create Record',
         annotations=ToolAnnotations(
-            title='Bmc Helix Remedy Force: Create Record',
+            title='BMC Helix Remedy Force: Create Record',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -778,9 +778,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Helix Remedy Force: Wait for Fields Update',
+        title='BMC Helix Remedy Force: Wait for Fields Update',
         annotations=ToolAnnotations(
-            title='Bmc Helix Remedy Force: Wait for Fields Update',
+            title='BMC Helix Remedy Force: Wait for Fields Update',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -871,9 +871,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Helix Remedy Force: Execute Custom Query',
+        title='BMC Helix Remedy Force: Execute Custom Query',
         annotations=ToolAnnotations(
-            title='Bmc Helix Remedy Force: Execute Custom Query',
+            title='BMC Helix Remedy Force: Execute Custom Query',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -961,9 +961,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Bmc Helix Remedy Force: Get O Auth Authorization Code',
+        title='BMC Helix Remedy Force: Get OAuth Authorization Code',
         annotations=ToolAnnotations(
-            title='Bmc Helix Remedy Force: Get O Auth Authorization Code',
+            title='BMC Helix Remedy Force: Get OAuth Authorization Code',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

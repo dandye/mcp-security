@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the McAfeeATD integration.
 
     @mcp.tool(
-        title='Mc Afee Atd: Get Report',
+        title='Mc Afee ATD: Get Report',
         annotations=ToolAnnotations(
-            title='Mc Afee Atd: Get Report',
+            title='Mc Afee ATD: Get Report',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -122,9 +122,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Atd: Ping',
+        title='Mc Afee ATD: Ping',
         annotations=ToolAnnotations(
-            title='Mc Afee Atd: Ping',
+            title='Mc Afee ATD: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -211,9 +211,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Atd: Submit URL',
+        title='Mc Afee ATD: Submit URL',
         annotations=ToolAnnotations(
-            title='Mc Afee Atd: Submit URL',
+            title='Mc Afee ATD: Submit URL',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -303,9 +303,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Atd: Check Hash',
+        title='Mc Afee ATD: Check Hash',
         annotations=ToolAnnotations(
-            title='Mc Afee Atd: Check Hash',
+            title='Mc Afee ATD: Check Hash',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -392,9 +392,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Atd: Get Analyzer Profiles',
+        title='Mc Afee ATD: Get Analyzer Profiles',
         annotations=ToolAnnotations(
-            title='Mc Afee Atd: Get Analyzer Profiles',
+            title='Mc Afee ATD: Get Analyzer Profiles',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -481,9 +481,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Mc Afee Atd: Submit File',
+        title='Mc Afee ATD: Submit File',
         annotations=ToolAnnotations(
-            title='Mc Afee Atd: Submit File',
+            title='Mc Afee ATD: Submit File',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,

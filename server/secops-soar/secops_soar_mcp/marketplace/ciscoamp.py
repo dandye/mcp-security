@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the CiscoAMP integration.
 
     @mcp.tool(
-        title='Cisco Amp: Get Computers by Network Activity (url)',
+        title='Cisco AMP: Get Computers by Network Activity (URL)',
         annotations=ToolAnnotations(
-            title='Cisco Amp: Get Computers by Network Activity (url)',
+            title='Cisco AMP: Get Computers by Network Activity (URL)',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -119,9 +119,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Amp: Get Computers by Network Activity (ip)',
+        title='Cisco AMP: Get Computers by Network Activity (IP)',
         annotations=ToolAnnotations(
-            title='Cisco Amp: Get Computers by Network Activity (ip)',
+            title='Cisco AMP: Get Computers by Network Activity (IP)',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -208,9 +208,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Amp: Add File to File List',
+        title='Cisco AMP: Add File to File List',
         annotations=ToolAnnotations(
-            title='Cisco Amp: Add File to File List',
+            title='Cisco AMP: Add File to File List',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -299,9 +299,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Amp: Unisolate Machine',
+        title='Cisco AMP: Unisolate Machine',
         annotations=ToolAnnotations(
-            title='Cisco Amp: Unisolate Machine',
+            title='Cisco AMP: Unisolate Machine',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -388,9 +388,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Amp: Get Groups',
+        title='Cisco AMP: Get Groups',
         annotations=ToolAnnotations(
-            title='Cisco Amp: Get Groups',
+            title='Cisco AMP: Get Groups',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -477,9 +477,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Amp: Get Computers by File Hash',
+        title='Cisco AMP: Get Computers by File Hash',
         annotations=ToolAnnotations(
-            title='Cisco Amp: Get Computers by File Hash',
+            title='Cisco AMP: Get Computers by File Hash',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -566,9 +566,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Amp: Get File Lists by Policy',
+        title='Cisco AMP: Get File Lists by Policy',
         annotations=ToolAnnotations(
-            title='Cisco Amp: Get File Lists by Policy',
+            title='Cisco AMP: Get File Lists by Policy',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -656,9 +656,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Amp: Create Group',
+        title='Cisco AMP: Create Group',
         annotations=ToolAnnotations(
-            title='Cisco Amp: Create Group',
+            title='Cisco AMP: Create Group',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -747,9 +747,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Amp: Get Computers by File Name',
+        title='Cisco AMP: Get Computers by File Name',
         annotations=ToolAnnotations(
-            title='Cisco Amp: Get Computers by File Name',
+            title='Cisco AMP: Get Computers by File Name',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -836,9 +836,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Amp: Ping',
+        title='Cisco AMP: Ping',
         annotations=ToolAnnotations(
-            title='Cisco Amp: Ping',
+            title='Cisco AMP: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -925,9 +925,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Amp: Get File List Items',
+        title='Cisco AMP: Get File List Items',
         annotations=ToolAnnotations(
-            title='Cisco Amp: Get File List Items',
+            title='Cisco AMP: Get File List Items',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1015,9 +1015,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Amp: Get Policies',
+        title='Cisco AMP: Get Policies',
         annotations=ToolAnnotations(
-            title='Cisco Amp: Get Policies',
+            title='Cisco AMP: Get Policies',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1104,9 +1104,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Amp: Get Computer Info',
+        title='Cisco AMP: Get Computer Info',
         annotations=ToolAnnotations(
-            title='Cisco Amp: Get Computer Info',
+            title='Cisco AMP: Get Computer Info',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -1193,9 +1193,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Cisco Amp: Isolate Machine',
+        title='Cisco AMP: Isolate Machine',
         annotations=ToolAnnotations(
-            title='Cisco Amp: Isolate Machine',
+            title='Cisco AMP: Isolate Machine',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,

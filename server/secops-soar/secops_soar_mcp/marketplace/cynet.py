@@ -122,7 +122,7 @@ def register_tools(mcp: MCPServer):
         title='Cynet: Hash Query',
         annotations=ToolAnnotations(
             title='Cynet: Hash Query',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -211,7 +211,7 @@ def register_tools(mcp: MCPServer):
         title='Cynet: Remediation Status',
         annotations=ToolAnnotations(
             title='Cynet: Remediation Status',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,

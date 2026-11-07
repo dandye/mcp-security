@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the GoogleGRR integration.
 
     @mcp.tool(
-        title='Google Grr: List Hunts',
+        title='Google GRR: List Hunts',
         annotations=ToolAnnotations(
-            title='Google Grr: List Hunts',
+            title='Google GRR: List Hunts',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -125,9 +125,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Grr: List Launched Flows',
+        title='Google GRR: List Launched Flows',
         annotations=ToolAnnotations(
-            title='Google Grr: List Launched Flows',
+            title='Google GRR: List Launched Flows',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -218,9 +218,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Grr: Get Hunt Details',
+        title='Google GRR: Get Hunt Details',
         annotations=ToolAnnotations(
-            title='Google Grr: Get Hunt Details',
+            title='Google GRR: Get Hunt Details',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -308,9 +308,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Grr: Ping',
+        title='Google GRR: Ping',
         annotations=ToolAnnotations(
-            title='Google Grr: Ping',
+            title='Google GRR: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -397,9 +397,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Grr: Get Client Details',
+        title='Google GRR: Get Client Details',
         annotations=ToolAnnotations(
-            title='Google Grr: Get Client Details',
+            title='Google GRR: Get Client Details',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -487,9 +487,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Grr: Stop a Hunt',
+        title='Google GRR: Stop a Hunt',
         annotations=ToolAnnotations(
-            title='Google Grr: Stop a Hunt',
+            title='Google GRR: Stop a Hunt',
             read_only_hint=False,
             destructive_hint=True,
             idempotent_hint=True,
@@ -577,9 +577,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Grr: Start a Hunt',
+        title='Google GRR: Start a Hunt',
         annotations=ToolAnnotations(
-            title='Google Grr: Start a Hunt',
+            title='Google GRR: Start a Hunt',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
@@ -667,9 +667,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Google Grr: List Clients',
+        title='Google GRR: List Clients',
         annotations=ToolAnnotations(
-            title='Google Grr: List Clients',
+            title='Google GRR: List Clients',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,

@@ -30,9 +30,9 @@ def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the TrendMicroDDAN integration.
 
     @mcp.tool(
-        title='Trend Micro Ddan: Submit File URL',
+        title='Trend Micro DDAN: Submit File URL',
         annotations=ToolAnnotations(
-            title='Trend Micro Ddan: Submit File URL',
+            title='Trend Micro DDAN: Submit File URL',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,
@@ -132,9 +132,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Trend Micro Ddan: Ping',
+        title='Trend Micro DDAN: Ping',
         annotations=ToolAnnotations(
-            title='Trend Micro Ddan: Ping',
+            title='Trend Micro DDAN: Ping',
             read_only_hint=True,
             destructive_hint=False,
             idempotent_hint=True,
@@ -221,9 +221,9 @@ def register_tools(mcp: MCPServer):
             return marketplace_error_result("No active instance found.")
 
     @mcp.tool(
-        title='Trend Micro Ddan: Submit File',
+        title='Trend Micro DDAN: Submit File',
         annotations=ToolAnnotations(
-            title='Trend Micro Ddan: Submit File',
+            title='Trend Micro DDAN: Submit File',
             read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=False,

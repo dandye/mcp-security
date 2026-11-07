@@ -33,7 +33,7 @@ def register_tools(mcp: MCPServer):
         title='Fire Eye Helix: Index Search',
         annotations=ToolAnnotations(
             title='Fire Eye Helix: Index Search',
-            read_only_hint=True,
+            read_only_hint=False,
             destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
@@ -772,7 +772,7 @@ def register_tools(mcp: MCPServer):
         annotations=ToolAnnotations(
             title='Fire Eye Helix: Suppress Alert',
             read_only_hint=False,
-            destructive_hint=True,
+            destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=False,
         ),
@@ -969,7 +969,7 @@ def register_tools(mcp: MCPServer):
             title='Fire Eye Helix: Add Note to Alert',
             read_only_hint=False,
             destructive_hint=False,
-            idempotent_hint=True,
+            idempotent_hint=False,
             open_world_hint=False,
         ),
     )

@@ -866,7 +866,7 @@ dict: A dictionary containing the result of the action execution.
         annotations=ToolAnnotations(
             title='Intezer: Submit Alert',
             read_only_hint=False,
-            destructive_hint=False,
+            destructive_hint=True,
             idempotent_hint=False,
             open_world_hint=True,
         ),
@@ -958,7 +958,7 @@ dict: A dictionary containing the result of the action execution.
         annotations=ToolAnnotations(
             title='Intezer: Submit Suspicious Email',
             read_only_hint=False,
-            destructive_hint=False,
+            destructive_hint=True,
             idempotent_hint=False,
             open_world_hint=True,
         ),
@@ -1048,7 +1048,7 @@ dict: A dictionary containing the result of the action execution.
         annotations=ToolAnnotations(
             title='Intezer: Submit File',
             read_only_hint=False,
-            destructive_hint=False,
+            destructive_hint=True,
             idempotent_hint=False,
             open_world_hint=True,
         ),
@@ -1138,7 +1138,7 @@ dict: A dictionary containing the result of the action execution.
         annotations=ToolAnnotations(
             title='Intezer: Submit Hash',
             read_only_hint=False,
-            destructive_hint=False,
+            destructive_hint=True,
             idempotent_hint=False,
             open_world_hint=True,
         ),
