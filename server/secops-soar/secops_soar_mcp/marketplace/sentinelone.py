@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the SentinelOne integration.
 
-    @mcp.tool()
-    async def sentinel_one_get_system_status(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sentinel One: Get System Status',
+        annotations=ToolAnnotations(
+            title='Sentinel One: Get System Status',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sentinel_one_get_system_status(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Get SentinelOne system health status
 
@@ -104,8 +114,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for SentinelOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sentinel_one_disconnect_agent_from_network(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sentinel One: Disconnect Agent from Network',
+        annotations=ToolAnnotations(
+            title='Sentinel One: Disconnect Agent from Network',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sentinel_one_disconnect_agent_from_network(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Disconnect agent from network connection
 
@@ -181,8 +200,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for SentinelOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sentinel_one_get_events_for_endpoint_by_time(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hours_back: Annotated[str, Field(..., description="How match time back fetch events from.")], events_amount_limit: Annotated[str, Field(..., description="Events amount limit.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sentinel One: Get Events for Endpoint by Time',
+        annotations=ToolAnnotations(
+            title='Sentinel One: Get Events for Endpoint by Time',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sentinel_one_get_events_for_endpoint_by_time(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hours_back: Annotated[str, Field(..., description="How match time back fetch events from.")], events_amount_limit: Annotated[str, Field(..., description="Events amount limit.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Get all events related to an endpoint
 
@@ -260,8 +288,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for SentinelOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sentinel_one_enrich_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sentinel One: Enrich Endpoint',
+        annotations=ToolAnnotations(
+            title='Sentinel One: Enrich Endpoint',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sentinel_one_enrich_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Enrich endpoint entity with its system information
 
@@ -337,8 +374,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for SentinelOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sentinel_one_initiate_full_scan(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sentinel One: Initiate Full Scan',
+        annotations=ToolAnnotations(
+            title='Sentinel One: Initiate Full Scan',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def sentinel_one_initiate_full_scan(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Initiate full disk scan on an endpoint
 
@@ -414,8 +460,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for SentinelOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sentinel_one_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sentinel One: Ping',
+        annotations=ToolAnnotations(
+            title='Sentinel One: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sentinel_one_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Test Connectivity
 
@@ -491,8 +546,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for SentinelOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sentinel_one_get_system_version(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sentinel One: Get System Version',
+        annotations=ToolAnnotations(
+            title='Sentinel One: Get System Version',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sentinel_one_get_system_version(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Get SentinelOne system version
 
@@ -568,8 +632,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for SentinelOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sentinel_one_get_agent_status(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sentinel One: Get Agent Status',
+        annotations=ToolAnnotations(
+            title='Sentinel One: Get Agent Status',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sentinel_one_get_agent_status(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Get agent's current status (active/inactive)
 
@@ -645,8 +718,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for SentinelOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sentinel_one_get_process_list_for_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sentinel One: Get Process List for Endpoint',
+        annotations=ToolAnnotations(
+            title='Sentinel One: Get Process List for Endpoint',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sentinel_one_get_process_list_for_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Get process list by an endpoint
 
@@ -722,8 +804,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for SentinelOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sentinel_one_reconnect_agent_to_the_network(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sentinel One: Reconnect Agent to the Network',
+        annotations=ToolAnnotations(
+            title='Sentinel One: Reconnect Agent to the Network',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sentinel_one_reconnect_agent_to_the_network(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Reconnect a disconnected agent to the network
 
@@ -799,8 +890,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for SentinelOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sentinel_one_get_application_list_for_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sentinel One: Get Application List for Endpoint',
+        annotations=ToolAnnotations(
+            title='Sentinel One: Get Application List for Endpoint',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sentinel_one_get_application_list_for_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Get a list of applications by endpoint (host or IP address)
 
@@ -876,8 +976,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for SentinelOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sentinel_one_get_hash_reputation(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sentinel One: Get Hash Reputation',
+        annotations=ToolAnnotations(
+            title='Sentinel One: Get Hash Reputation',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sentinel_one_get_hash_reputation(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Get hash reputation by SHA1
 
@@ -953,8 +1062,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for SentinelOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sentinel_one_update_exclusion_list_add_path(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], list_name: Annotated[str, Field(..., description="Exclusion list name.")], path: Annotated[str, Field(..., description="Path to add to the list.")], operation_system: Annotated[str, Field(..., description="Operation system, can be: windows, osx, linux or android.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sentinel One: Update Exclusion List Add Path',
+        annotations=ToolAnnotations(
+            title='Sentinel One: Update Exclusion List Add Path',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sentinel_one_update_exclusion_list_add_path(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], list_name: Annotated[str, Field(..., description="Exclusion list name.")], path: Annotated[str, Field(..., description="Path to add to the list.")], operation_system: Annotated[str, Field(..., description="Operation system, can be: windows, osx, linux or android.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add a path to an existing exclusion list (Note - OS can be: Windows, OSX, Linux or Android)
 
         Returns:

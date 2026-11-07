@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the McAfeeMvisionEPOV2 integration.
 
-    @mcp.tool()
-    async def mc_afee_mvision_epov2_enrich_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Mc Afee Mvision EPOV2: Enrich Endpoint',
+        annotations=ToolAnnotations(
+            title='Mc Afee Mvision EPOV2: Enrich Endpoint',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def mc_afee_mvision_epov2_enrich_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Fetch device's system information by its hostname or IP address.
 
         Returns:
@@ -101,8 +111,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for McAfeeMvisionEPOV2")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def mc_afee_mvision_epov2_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Mc Afee Mvision EPOV2: Ping',
+        annotations=ToolAnnotations(
+            title='Mc Afee Mvision EPOV2: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def mc_afee_mvision_epov2_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test Connectivity
 
         Returns:
@@ -175,8 +194,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for McAfeeMvisionEPOV2")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def mc_afee_mvision_epov2_add_tag_to_device(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], tag_name: Annotated[str, Field(..., description="Specify what tag you want to add to endpoint.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Mc Afee Mvision EPOV2: Add Tag to Device',
+        annotations=ToolAnnotations(
+            title='Mc Afee Mvision EPOV2: Add Tag to Device',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def mc_afee_mvision_epov2_add_tag_to_device(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], tag_name: Annotated[str, Field(..., description="Specify what tag you want to add to endpoint.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add tag to the device in McAfee Mvision ePO V2.
 
         Returns:
@@ -250,8 +278,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for McAfeeMvisionEPOV2")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def mc_afee_mvision_epov2_list_devices(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_devices_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many devices to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Mc Afee Mvision EPOV2: List Devices',
+        annotations=ToolAnnotations(
+            title='Mc Afee Mvision EPOV2: List Devices',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def mc_afee_mvision_epov2_list_devices(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_devices_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many devices to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List devices that are available in McAfee Mvision ePO V2.
 
         Returns:
@@ -326,8 +363,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for McAfeeMvisionEPOV2")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def mc_afee_mvision_epov2_list_tags(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_tags_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many tags to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Mc Afee Mvision EPOV2: List Tags',
+        annotations=ToolAnnotations(
+            title='Mc Afee Mvision EPOV2: List Tags',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def mc_afee_mvision_epov2_list_tags(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_tags_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many tags to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List tags that are available in McAfee Mvision ePO V2.
 
         Returns:
@@ -402,8 +448,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for McAfeeMvisionEPOV2")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def mc_afee_mvision_epov2_remove_tag_from_device(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], tag_name: Annotated[str, Field(..., description="Specify what tag  you want to remove from endpoint.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Mc Afee Mvision EPOV2: Remove Tag from Device',
+        annotations=ToolAnnotations(
+            title='Mc Afee Mvision EPOV2: Remove Tag from Device',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def mc_afee_mvision_epov2_remove_tag_from_device(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], tag_name: Annotated[str, Field(..., description="Specify what tag  you want to remove from endpoint.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove tag from the device in McAfee Mvision ePO V2.
 
         Returns:

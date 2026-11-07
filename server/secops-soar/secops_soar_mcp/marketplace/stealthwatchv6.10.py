@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the StealthwatchV6-10 integration.
 
-    @mcp.tool()
-    async def stealthwatch_v6_10_search_events(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], timeframe: Annotated[str, Field(..., description="Time frame in hours.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Stealthwatch V6-10: Search Events',
+        annotations=ToolAnnotations(
+            title='Stealthwatch V6-10: Search Events',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def stealthwatch_v6_10_search_events(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], timeframe: Annotated[str, Field(..., description="Time frame in hours.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get a host's security events for a given time frame
 
         Returns:
@@ -102,8 +112,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for StealthwatchV6-10")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def stealthwatch_v6_10_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Stealthwatch V6-10: Ping',
+        annotations=ToolAnnotations(
+            title='Stealthwatch V6-10: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def stealthwatch_v6_10_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test Connectivity
 
         Returns:
@@ -176,8 +195,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for StealthwatchV6-10")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def stealthwatch_v6_10_search_flows(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], timeframe: Annotated[str, Field(..., description="Time frame in hours(e.g: 3).")], limit: Annotated[str, Field(..., description="The limit of the recieved flow.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Stealthwatch V6-10: Search Flows',
+        annotations=ToolAnnotations(
+            title='Stealthwatch V6-10: Search Flows',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def stealthwatch_v6_10_search_flows(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], timeframe: Annotated[str, Field(..., description="Time frame in hours(e.g: 3).")], limit: Annotated[str, Field(..., description="The limit of the recieved flow.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get flows by IP address for a given time frame
 
         Returns:

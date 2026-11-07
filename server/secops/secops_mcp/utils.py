@@ -1,7 +1,21 @@
 """Utility functions for SecOps MCP."""
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple
+import json
+from typing import Any, Optional, Tuple
+
+from mcp.types import CallToolResult, TextContent
+
+
+def tool_error_result(error: str, **details: Any) -> CallToolResult:
+    """Build an MCP CallToolResult with is_error=True and JSON error details."""
+    payload: dict[str, Any] = {"error": error, **details}
+    return CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(payload))],
+        structured_content=payload,
+        is_error=True,
+    )
+
 
 def parse_time_range(
     start_time: Optional[str], 

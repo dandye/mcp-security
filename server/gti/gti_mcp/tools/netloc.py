@@ -11,9 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import typing
 
 from mcp.server.mcpserver import Context
+from mcp.types import ToolAnnotations as _ToolAnnotations
 
 from .. import utils
 from ..server import server, vt_client
@@ -88,8 +90,17 @@ IP_KEY_RELATIONSHIPS = [
 ]
 
 
-@server.tool()
-async def get_domain_report(domain: str, ctx: Context) -> typing.Dict[str, typing.Any]:
+@server.tool(
+    title="Get Domain Threat Report",
+    annotations=_ToolAnnotations(
+        title="Get Domain Threat Report",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
+async def get_domain_report(domain: str, ctx: Context) -> dict[str, typing.Any]:
   """Get a comprehensive domain analysis report from Google Threat Intelligence.
 
   Args:
@@ -105,10 +116,21 @@ async def get_domain_report(domain: str, ctx: Context) -> typing.Dict[str, typin
         domain,
         relationships=DOMAIN_KEY_RELATIONSHIPS,
         params={"exclude_attributes": "last_analysis_results"})
+  if utils.is_error_dict(res):
+    return utils.tool_error_result_from_dict(res)  # type: ignore[return-value]
   return utils.sanitize_response(res)
 
 
-@server.tool()
+@server.tool(
+    title="Get Entities Related to Domain",
+    annotations=_ToolAnnotations(
+        title="Get Entities Related to Domain",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def get_entities_related_to_a_domain(
     domain: str, relationship_name: str, descriptors_only: bool, ctx: Context, limit: int = 10
 ) -> list[dict[str, typing.Any]]:
@@ -158,24 +180,38 @@ async def get_entities_related_to_a_domain(
     Returns:
       List of entities related to the domain.
   """
-  if not relationship_name in DOMAIN_RELATIONSHIPS:
-    return {
-       "error": f"Relationship {relationship_name} does not exist. "
-                f"Available relationships are: {','.join(DOMAIN_RELATIONSHIPS)}"
-    }
+  if relationship_name not in DOMAIN_RELATIONSHIPS:
+    return utils.tool_error_result(  # type: ignore[return-value]
+        f"Relationship {relationship_name} does not exist. "
+        f"Available relationships are: {','.join(DOMAIN_RELATIONSHIPS)}"
+    )
 
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object_relationships(
-        client, 
-        "domains", domain, 
-        relationships=[relationship_name],
-        descriptors_only=descriptors_only,
-        limit=limit)
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object_relationships(
+          client,
+          "domains",
+          domain,
+          relationships=[relationship_name],
+          descriptors_only=descriptors_only,
+          limit=limit)
+  except Exception as e:
+    logging.exception("Error fetching relationships for domain %s: %s", domain, e)
+    return utils.tool_error_result(f"Failed to fetch domain relationships: {e}")  # type: ignore[return-value]
   return utils.sanitize_response(res.get(relationship_name, []))
 
 
-@server.tool()
-async def get_ip_address_report(ip_address: str, ctx: Context) -> typing.Dict[str, typing.Any]:
+@server.tool(
+    title="Get IP Address Threat Report",
+    annotations=_ToolAnnotations(
+        title="Get IP Address Threat Report",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
+async def get_ip_address_report(ip_address: str, ctx: Context) -> dict[str, typing.Any]:
   """Get a comprehensive IP Address analysis report from Google Threat Intelligence.
 
   Args:
@@ -187,13 +223,25 @@ async def get_ip_address_report(ip_address: str, ctx: Context) -> typing.Dict[st
     res = await utils.fetch_object(
         client,
         "ip_addresses",
-        "ip", ip_address,
+        "ip",
+        ip_address,
         relationships=IP_KEY_RELATIONSHIPS,
         params={"exclude_attributes": "last_analysis_results"})
+  if utils.is_error_dict(res):
+    return utils.tool_error_result_from_dict(res)  # type: ignore[return-value]
   return utils.sanitize_response(res)
 
 
-@server.tool()
+@server.tool(
+    title="Get Entities Related to IP Address",
+    annotations=_ToolAnnotations(
+        title="Get Entities Related to IP Address",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def get_entities_related_to_an_ip_address(
     ip_address: str, relationship_name: str, descriptors_only: bool, ctx: Context, limit: int = 10
 ) -> list[dict[str, typing.Any]]:
@@ -234,18 +282,22 @@ async def get_entities_related_to_an_ip_address(
     Returns:
       List of entities related to the IP Address.
   """
-  if not relationship_name in IP_RELATIONSHIPS:
-    return {
-       "error": f"Relationship {relationship_name} does not exist. "
-                f"Available relationships are: {','.join(IP_RELATIONSHIPS)}"
-    }
+  if relationship_name not in IP_RELATIONSHIPS:
+    return utils.tool_error_result(  # type: ignore[return-value]
+        f"Relationship {relationship_name} does not exist. "
+        f"Available relationships are: {','.join(IP_RELATIONSHIPS)}"
+    )
 
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object_relationships(
-        client, 
-        "ip_addresses",
-        ip_address,
-        relationships=[relationship_name],
-        descriptors_only=descriptors_only,
-        limit=limit)
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object_relationships(
+          client,
+          "ip_addresses",
+          ip_address,
+          relationships=[relationship_name],
+          descriptors_only=descriptors_only,
+          limit=limit)
+  except Exception as e:
+    logging.exception("Error fetching relationships for IP %s: %s", ip_address, e)
+    return utils.tool_error_result(f"Failed to fetch IP relationships: {e}")  # type: ignore[return-value]
   return utils.sanitize_response(res.get(relationship_name, []))

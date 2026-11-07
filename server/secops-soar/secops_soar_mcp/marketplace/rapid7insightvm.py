@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the Rapid7InsightVm integration.
 
-    @mcp.tool()
-    async def rapid7_insight_vm_list_scans(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], days_backwards: Annotated[str, Field(..., description="Number of days backwards to fetch scans from.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Rapid7 Insight VM: List Scans',
+        annotations=ToolAnnotations(
+            title='Rapid7 Insight VM: List Scans',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rapid7_insight_vm_list_scans(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], days_backwards: Annotated[str, Field(..., description="Number of days backwards to fetch scans from.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List scans
 
         Returns:
@@ -102,8 +112,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Rapid7InsightVm")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rapid7_insight_vm_get_scan_results(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], scan_id: Annotated[str, Field(..., description="The ID of the scan.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Rapid7 Insight VM: Get Scan Results',
+        annotations=ToolAnnotations(
+            title='Rapid7 Insight VM: Get Scan Results',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rapid7_insight_vm_get_scan_results(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], scan_id: Annotated[str, Field(..., description="The ID of the scan.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get scan results by ID
 
         Returns:
@@ -177,8 +196,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Rapid7InsightVm")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rapid7_insight_vm_launch_scan(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], scan_engine: Annotated[str, Field(..., description="The name of the engine to use in the scan.")], scan_template: Annotated[str, Field(..., description="The name of the template to use in the scan.")], site_name: Annotated[str, Field(..., description="The name of the site to run the scan on.")], scan_name: Annotated[Optional[str], Field(default=None, description="The scan name.")], fetch_results: Annotated[Optional[bool], Field(default=None, description="Whether to wait for the scan to complete and get its results or not.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Rapid7 Insight VM: Launch Scan',
+        annotations=ToolAnnotations(
+            title='Rapid7 Insight VM: Launch Scan',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def rapid7_insight_vm_launch_scan(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], scan_engine: Annotated[str, Field(..., description="The name of the engine to use in the scan.")], scan_template: Annotated[str, Field(..., description="The name of the template to use in the scan.")], site_name: Annotated[str, Field(..., description="The name of the site to run the scan on.")], scan_name: Annotated[Optional[str], Field(default=None, description="The scan name.")], fetch_results: Annotated[Optional[bool], Field(default=None, description="Whether to wait for the scan to complete and get its results or not.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Start a scan for a specific site.
 
         Returns:
@@ -258,8 +286,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Rapid7InsightVm")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rapid7_insight_vm_enrich_asset(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Rapid7 Insight VM: Enrich Asset',
+        annotations=ToolAnnotations(
+            title='Rapid7 Insight VM: Enrich Asset',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rapid7_insight_vm_enrich_asset(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enrich an asset.
 
         Returns:
@@ -332,8 +369,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Rapid7InsightVm")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rapid7_insight_vm_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Rapid7 Insight VM: Ping',
+        annotations=ToolAnnotations(
+            title='Rapid7 Insight VM: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rapid7_insight_vm_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test Connectivity
 
         Returns:

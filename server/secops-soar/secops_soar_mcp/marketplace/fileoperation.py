@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the FileOperation integration.
 
-    @mcp.tool()
-    async def file_operation_transfer_file_linux_to_windows(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source_linux_file_path: Annotated[str, Field(..., description="The remote server folder with the relevant files. Full path")], source_linux_ip: Annotated[str, Field(..., description="x.x.x.x")], source_linux_username: Annotated[str, Field(..., description="")], source_linux_password: Annotated[str, Field(..., description="")], dest_win_path: Annotated[str, Field(..., description="The server folder to put the files into")], keep_file: Annotated[bool, Field(..., description="Indicates weather to keep the file in source or remove it")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='File Operation: Transfer File Linux to Windows',
+        annotations=ToolAnnotations(
+            title='File Operation: Transfer File Linux to Windows',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def file_operation_transfer_file_linux_to_windows(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source_linux_file_path: Annotated[str, Field(..., description="The remote server folder with the relevant files. Full path")], source_linux_ip: Annotated[str, Field(..., description="x.x.x.x")], source_linux_username: Annotated[str, Field(..., description="")], source_linux_password: Annotated[str, Field(..., description="")], dest_win_path: Annotated[str, Field(..., description="The server folder to put the files into")], keep_file: Annotated[bool, Field(..., description="Indicates weather to keep the file in source or remove it")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Transfer file from windows share to remote Linux host
 
@@ -110,8 +120,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for FileOperation")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def file_operation_transfer_file_linux_to_linux(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source_linux_file_path: Annotated[str, Field(..., description="The remote server folder with the relevant files. Full path")], source_linux_ip: Annotated[str, Field(..., description="x.x.x.x")], source_linux_username: Annotated[str, Field(..., description="")], source_linux_password: Annotated[str, Field(..., description="")], dest_linux_path: Annotated[str, Field(..., description="The remote server folder to put the files into")], dest_linux_ip: Annotated[str, Field(..., description="x.x.x.x")], dest_linux_username: Annotated[str, Field(..., description="")], dest_linux_password: Annotated[str, Field(..., description="")], keep_file: Annotated[bool, Field(..., description="Indicates weather to keep the file in source or remove it")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='File Operation: Transfer File Linux to Linux',
+        annotations=ToolAnnotations(
+            title='File Operation: Transfer File Linux to Linux',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def file_operation_transfer_file_linux_to_linux(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source_linux_file_path: Annotated[str, Field(..., description="The remote server folder with the relevant files. Full path")], source_linux_ip: Annotated[str, Field(..., description="x.x.x.x")], source_linux_username: Annotated[str, Field(..., description="")], source_linux_password: Annotated[str, Field(..., description="")], dest_linux_path: Annotated[str, Field(..., description="The remote server folder to put the files into")], dest_linux_ip: Annotated[str, Field(..., description="x.x.x.x")], dest_linux_username: Annotated[str, Field(..., description="")], dest_linux_password: Annotated[str, Field(..., description="")], keep_file: Annotated[bool, Field(..., description="Indicates weather to keep the file in source or remove it")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Transfer file from remote linux host to another remote linux host
 
@@ -196,8 +215,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for FileOperation")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def file_operation_transfer_file_windows_to_linux(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source_win_file_path: Annotated[str, Field(..., description="The server folder with the relevant files. Full path")], dest_linux_path: Annotated[str, Field(..., description="The remote server folder to put the files into")], dest_linux_ip: Annotated[str, Field(..., description="x.x.x.x")], dest_linux_username: Annotated[str, Field(..., description="")], dest_linux_password: Annotated[str, Field(..., description="")], keep_file: Annotated[bool, Field(..., description="Indicates weather to keep the file in source or remove it")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='File Operation: Transfer File Windows to Linux',
+        annotations=ToolAnnotations(
+            title='File Operation: Transfer File Windows to Linux',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def file_operation_transfer_file_windows_to_linux(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source_win_file_path: Annotated[str, Field(..., description="The server folder with the relevant files. Full path")], dest_linux_path: Annotated[str, Field(..., description="The remote server folder to put the files into")], dest_linux_ip: Annotated[str, Field(..., description="x.x.x.x")], dest_linux_username: Annotated[str, Field(..., description="")], dest_linux_password: Annotated[str, Field(..., description="")], keep_file: Annotated[bool, Field(..., description="Indicates weather to keep the file in source or remove it")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Transfer file from windows share to a remote Linux host
 
@@ -279,8 +307,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for FileOperation")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def file_operation_zip_files_linux(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], server_ip: Annotated[str, Field(..., description="x.x.x.x")], username: Annotated[str, Field(..., description="")], password: Annotated[str, Field(..., description="")], source_folder: Annotated[str, Field(..., description="The remote server folder with the relevant files")], file_filter: Annotated[str, Field(..., description="files extension to include in zip file {ex: *.txt}")], output_folder: Annotated[str, Field(..., description="The remote server folder to put the zip file into")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='File Operation: Zip Files Linux',
+        annotations=ToolAnnotations(
+            title='File Operation: Zip Files Linux',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def file_operation_zip_files_linux(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], server_ip: Annotated[str, Field(..., description="x.x.x.x")], username: Annotated[str, Field(..., description="")], password: Annotated[str, Field(..., description="")], source_folder: Annotated[str, Field(..., description="The remote server folder with the relevant files")], file_filter: Annotated[str, Field(..., description="files extension to include in zip file {ex: *.txt}")], output_folder: Annotated[str, Field(..., description="The remote server folder to put the zip file into")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Create a zip file from source folder files in a remote Linux host
 
@@ -362,8 +399,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for FileOperation")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def file_operation_tarzip_files_windows(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source_folder: Annotated[Optional[str], Field(default=None, description="The full path to the folder with the relevant files")], file_filter: Annotated[Optional[str], Field(default=None, description="iles extension to include in targzip file {ex: *.txt}")], output_folder: Annotated[Optional[str], Field(default=None, description="The path to the folder to put the zip file into")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='File Operation: Tarzip Files Windows',
+        annotations=ToolAnnotations(
+            title='File Operation: Tarzip Files Windows',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def file_operation_tarzip_files_windows(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source_folder: Annotated[Optional[str], Field(default=None, description="The full path to the folder with the relevant files")], file_filter: Annotated[Optional[str], Field(default=None, description="iles extension to include in targzip file {ex: *.txt}")], output_folder: Annotated[Optional[str], Field(default=None, description="The path to the folder to put the zip file into")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Compress a tarzip file on windows share
 
@@ -445,8 +491,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for FileOperation")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def file_operation_tarzip_files_linux(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], server_ip: Annotated[str, Field(..., description="x.x.x.x")], username: Annotated[str, Field(..., description="")], password: Annotated[str, Field(..., description="")], source_folder: Annotated[str, Field(..., description="The remote server folder with the relevant files. Full path")], file_filter: Annotated[str, Field(..., description="files extension to include in zip file {ex: *.txt}")], output_folder: Annotated[str, Field(..., description="The remote server folder to put the zip file into")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='File Operation: Tarzip Files Linux',
+        annotations=ToolAnnotations(
+            title='File Operation: Tarzip Files Linux',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def file_operation_tarzip_files_linux(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], server_ip: Annotated[str, Field(..., description="x.x.x.x")], username: Annotated[str, Field(..., description="")], password: Annotated[str, Field(..., description="")], source_folder: Annotated[str, Field(..., description="The remote server folder with the relevant files. Full path")], file_filter: Annotated[str, Field(..., description="files extension to include in zip file {ex: *.txt}")], output_folder: Annotated[str, Field(..., description="The remote server folder to put the zip file into")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Create zip file on a remote Linux host
 
@@ -528,8 +583,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for FileOperation")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def file_operation_transfer_file_windows_to_windows(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source_win_file_path: Annotated[str, Field(..., description="The folder with the relevant files. Full path")], dest_win_path: Annotated[str, Field(..., description="The folder to put the files into")], keep_file: Annotated[str, Field(..., description="Indicates weather to keep the file in source or remove it")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='File Operation: Transfer File Windows to Windows',
+        annotations=ToolAnnotations(
+            title='File Operation: Transfer File Windows to Windows',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def file_operation_transfer_file_windows_to_windows(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source_win_file_path: Annotated[str, Field(..., description="The folder with the relevant files. Full path")], dest_win_path: Annotated[str, Field(..., description="The folder to put the files into")], keep_file: Annotated[str, Field(..., description="Indicates weather to keep the file in source or remove it")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Transfer file between two windows shares
 
@@ -608,8 +672,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for FileOperation")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def file_operation_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='File Operation: Ping',
+        annotations=ToolAnnotations(
+            title='File Operation: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def file_operation_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test Connectivity
 
         Returns:
@@ -682,8 +755,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for FileOperation")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def file_operation_zip_files_windows(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source_folder: Annotated[str, Field(..., description="The folder with the relevant files")], file_filter: Annotated[str, Field(..., description="files extension to include in zip file {ex: *.txt}")], output_folder: Annotated[str, Field(..., description="The folder to put the zip file into")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='File Operation: Zip Files Windows',
+        annotations=ToolAnnotations(
+            title='File Operation: Zip Files Windows',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def file_operation_zip_files_windows(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source_folder: Annotated[str, Field(..., description="The folder with the relevant files")], file_filter: Annotated[str, Field(..., description="files extension to include in zip file {ex: *.txt}")], output_folder: Annotated[str, Field(..., description="The folder to put the zip file into")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create a zip file from source windows share files
 
         Returns:

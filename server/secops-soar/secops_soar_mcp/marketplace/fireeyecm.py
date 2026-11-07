@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the FireEyeCM integration.
 
-    @mcp.tool()
-    async def fire_eye_cm_delete_ioc_feed(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], feed_name: Annotated[str, Field(..., description="Specify the name of the feed that needs to be deleted.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Fire Eye CM: Delete IOC Feed',
+        annotations=ToolAnnotations(
+            title='Fire Eye CM: Delete IOC Feed',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def fire_eye_cm_delete_ioc_feed(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], feed_name: Annotated[str, Field(..., description="Specify the name of the feed that needs to be deleted.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete IOC feed in FireEye CM.
 
         Returns:
@@ -102,8 +112,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for FireEyeCM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def fire_eye_cm_release_quarantined_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], queue_id: Annotated[str, Field(..., description="Specify the queue id of the email that needs to be released.")], sensor_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the sensor, where you want to release a quarantined email. If nothing is specified here, action will try to find the sensor automatically")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Fire Eye CM: Release Quarantined Email',
+        annotations=ToolAnnotations(
+            title='Fire Eye CM: Release Quarantined Email',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def fire_eye_cm_release_quarantined_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], queue_id: Annotated[str, Field(..., description="Specify the queue id of the email that needs to be released.")], sensor_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the sensor, where you want to release a quarantined email. If nothing is specified here, action will try to find the sensor automatically")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Releases quarantined email. Requires FireEye EX connected to FireEye CM.
 
         Returns:
@@ -179,8 +198,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for FireEyeCM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def fire_eye_cm_acknowledge_alert(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_uuid: Annotated[str, Field(..., description="Specify the alert uuid, which needs to be acknowledged.")], annotation: Annotated[str, Field(..., description="Specify the annotation that explains the reason for acknowledgment.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Fire Eye CM: Acknowledge Alert',
+        annotations=ToolAnnotations(
+            title='Fire Eye CM: Acknowledge Alert',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def fire_eye_cm_acknowledge_alert(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_uuid: Annotated[str, Field(..., description="Specify the alert uuid, which needs to be acknowledged.")], annotation: Annotated[str, Field(..., description="Specify the annotation that explains the reason for acknowledgment.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Acknowledge alert in FireEye CM.
 
         Returns:
@@ -255,8 +283,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for FireEyeCM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def fire_eye_cm_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Fire Eye CM: Ping',
+        annotations=ToolAnnotations(
+            title='Fire Eye CM: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def fire_eye_cm_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the FireEye CM with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -329,8 +366,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for FireEyeCM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def fire_eye_cm_delete_quarantined_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], queue_id: Annotated[str, Field(..., description="Specify the queue id of the email that needs to be deleted.")], sensor_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the sensor, where you want to delete a quarantined email. If nothing is specified here, action will try to find the sensor automatically.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Fire Eye CM: Delete Quarantined Email',
+        annotations=ToolAnnotations(
+            title='Fire Eye CM: Delete Quarantined Email',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def fire_eye_cm_delete_quarantined_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], queue_id: Annotated[str, Field(..., description="Specify the queue id of the email that needs to be deleted.")], sensor_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the sensor, where you want to delete a quarantined email. If nothing is specified here, action will try to find the sensor automatically.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete quarantined email. Requires FireEye EX connected to FireEye CM.
 
         Returns:
@@ -406,8 +452,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for FireEyeCM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def fire_eye_cm_add_rule_to_custom_rules_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule: Annotated[str, Field(..., description="Specify the rule that needs to be added to the custom rules file.")], sensor_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the sensor, where you want to add a new rule. If nothing is specified here, action will try to find the sensor automatically.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Fire Eye CM: Add Rule to Custom Rules File',
+        annotations=ToolAnnotations(
+            title='Fire Eye CM: Add Rule to Custom Rules File',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def fire_eye_cm_add_rule_to_custom_rules_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule: Annotated[str, Field(..., description="Specify the rule that needs to be added to the custom rules file.")], sensor_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the sensor, where you want to add a new rule. If nothing is specified here, action will try to find the sensor automatically.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add new rule to custom rule file in FireEye CM. Note: The custom rules file should exist already.
 
         Returns:
@@ -483,8 +538,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for FireEyeCM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def fire_eye_cm_add_ioc_feed(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], action: Annotated[List[str], Field(..., description="Specify what should be the action for the new feed.")], extract_domain: Annotated[bool, Field(..., description="If enabled, action will extract the domain part out of the URL and use it to create IOC feed.")], comment: Annotated[Optional[str], Field(default=None, description="Specify additional comments for the feed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Fire Eye CM: Add IOC Feed',
+        annotations=ToolAnnotations(
+            title='Fire Eye CM: Add IOC Feed',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def fire_eye_cm_add_ioc_feed(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], action: Annotated[List[str], Field(..., description="Specify what should be the action for the new feed.")], extract_domain: Annotated[bool, Field(..., description="If enabled, action will extract the domain part out of the URL and use it to create IOC feed.")], comment: Annotated[Optional[str], Field(default=None, description="Specify additional comments for the feed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add IOC feed in FireEye CM based on entities. Only MD5 and SHA256 hashes are supported.
 
         Returns:
@@ -561,8 +625,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for FireEyeCM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def fire_eye_cm_download_alert_artifacts(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_uuid: Annotated[str, Field(..., description="Specify the alert uuid from where we need to download artifacts.")], download_folder_path: Annotated[str, Field(..., description="Specify the absolute path to the folder where the acion should save the files.")], overwrite: Annotated[bool, Field(..., description="If enabled, action will overwrite the existing file with the same path.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Fire Eye CM: Download Alert Artifacts',
+        annotations=ToolAnnotations(
+            title='Fire Eye CM: Download Alert Artifacts',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def fire_eye_cm_download_alert_artifacts(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_uuid: Annotated[str, Field(..., description="Specify the alert uuid from where we need to download artifacts.")], download_folder_path: Annotated[str, Field(..., description="Specify the absolute path to the folder where the acion should save the files.")], overwrite: Annotated[bool, Field(..., description="If enabled, action will overwrite the existing file with the same path.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Download alert artifacts from FireEye CM.
 
         Returns:
@@ -638,8 +711,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for FireEyeCM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def fire_eye_cm_list_ioc_feeds(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_ioc_feeds_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many IOC feeds to return. Default is 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Fire Eye CM: List IOC Feeds',
+        annotations=ToolAnnotations(
+            title='Fire Eye CM: List IOC Feeds',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def fire_eye_cm_list_ioc_feeds(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_ioc_feeds_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many IOC feeds to return. Default is 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List available IOC feeds in FireEye CM.
 
         Returns:
@@ -714,8 +796,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for FireEyeCM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def fire_eye_cm_download_custom_rules_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], download_folder_path: Annotated[str, Field(..., description="Specify the absolute path to the folder, where the file should be downloaded to.")], overwrite: Annotated[bool, Field(..., description="If enabled, action will overwrite the existing file with the same path.")], sensor_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the sensor, where you want to download the custom rules file from. If nothing is specified here, action will try to find the sensor automatically.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Fire Eye CM: Download Custom Rules File',
+        annotations=ToolAnnotations(
+            title='Fire Eye CM: Download Custom Rules File',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def fire_eye_cm_download_custom_rules_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], download_folder_path: Annotated[str, Field(..., description="Specify the absolute path to the folder, where the file should be downloaded to.")], overwrite: Annotated[bool, Field(..., description="If enabled, action will overwrite the existing file with the same path.")], sensor_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the sensor, where you want to download the custom rules file from. If nothing is specified here, action will try to find the sensor automatically.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Download custom rules file from FireEye CM.
 
         Returns:
@@ -792,8 +883,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for FireEyeCM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def fire_eye_cm_download_quarantined_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], queue_id: Annotated[str, Field(..., description="Specify the queue id of the email that needs to be downloaded.")], download_folder_path: Annotated[str, Field(..., description="Specify the absolute path to the folder where the action should save the files.")], overwrite: Annotated[bool, Field(..., description="If enabled, action will overwrite the existing file with the same path.")], sensor_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the sensor, where you want to download a quarantined email. If nothing is specified here, action will try to find the sensor automatically")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Fire Eye CM: Download Quarantined Email',
+        annotations=ToolAnnotations(
+            title='Fire Eye CM: Download Quarantined Email',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def fire_eye_cm_download_quarantined_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], queue_id: Annotated[str, Field(..., description="Specify the queue id of the email that needs to be downloaded.")], download_folder_path: Annotated[str, Field(..., description="Specify the absolute path to the folder where the action should save the files.")], overwrite: Annotated[bool, Field(..., description="If enabled, action will overwrite the existing file with the same path.")], sensor_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the sensor, where you want to download a quarantined email. If nothing is specified here, action will try to find the sensor automatically")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Download quarantined email. Requires FireEye EX connected to FireEye CM.
 
         Returns:
@@ -871,8 +971,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for FireEyeCM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def fire_eye_cm_list_quarantined_emails(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], start_time: Annotated[Optional[str], Field(default=None, description="If specified, only emails that were created after start time will be returned. If Start Time and End Time are not specified, action returns quarantined emails from the last 24 hours. Format: YYYY-MM-DD'T'HH:MM:SS.SSS-HHMM")], end_time: Annotated[Optional[str], Field(default=None, description="If specified, only emails that were created before end time will be returned.  If Start Time and End Time are not specified, action returns quarantined emails from the last 24 hours. Format: YYYY-MM-DD'T'HH:MM:SS.SSS-HHMM")], sender_filter: Annotated[Optional[str], Field(default=None, description="If specified, returns all of the quarantined emails only from this sender.")], subject_filter: Annotated[Optional[str], Field(default=None, description="If specified, returns all of the quarantined emails only with this subject.")], max_emails_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many emails to return. Limit is 10000. This is FireEye CM limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Fire Eye CM: List Quarantined Emails',
+        annotations=ToolAnnotations(
+            title='Fire Eye CM: List Quarantined Emails',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def fire_eye_cm_list_quarantined_emails(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], start_time: Annotated[Optional[str], Field(default=None, description="If specified, only emails that were created after start time will be returned. If Start Time and End Time are not specified, action returns quarantined emails from the last 24 hours. Format: YYYY-MM-DD'T'HH:MM:SS.SSS-HHMM")], end_time: Annotated[Optional[str], Field(default=None, description="If specified, only emails that were created before end time will be returned.  If Start Time and End Time are not specified, action returns quarantined emails from the last 24 hours. Format: YYYY-MM-DD'T'HH:MM:SS.SSS-HHMM")], sender_filter: Annotated[Optional[str], Field(default=None, description="If specified, returns all of the quarantined emails only from this sender.")], subject_filter: Annotated[Optional[str], Field(default=None, description="If specified, returns all of the quarantined emails only with this subject.")], max_emails_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many emails to return. Limit is 10000. This is FireEye CM limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List quarantined emails. Requires FireEye EX connected to FireEye CM.
 
         Returns:

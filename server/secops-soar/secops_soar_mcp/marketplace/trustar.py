@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the TruSTAR integration.
 
-    @mcp.tool()
-    async def tru_star_get_related_io_cs(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_io_cs_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many IOCs to return. Default: 50. Maximum: 1000.")], enclave_filter: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of enclave names that should be used during the enrichment.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Tru STAR: Get Related IOCs',
+        annotations=ToolAnnotations(
+            title='Tru STAR: Get Related IOCs',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def tru_star_get_related_io_cs(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_io_cs_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many IOCs to return. Default: 50. Maximum: 1000.")], enclave_filter: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of enclave names that should be used during the enrichment.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Get information about IOCs that are related to the provided entities. Supported entities: All.
 
@@ -108,8 +118,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for TruSTAR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def tru_star_get_related_reports(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight containing information about reports related to the entities.")], include_report_body_in_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, insight will contain information about the report body. Note: report body can be very big in size.")], enclave_filter: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of enclave names that should be used during the enrichment.")], max_reports_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many reports to return. Default: 10. Maximum: 25.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Tru STAR: Get Related Reports',
+        annotations=ToolAnnotations(
+            title='Tru STAR: Get Related Reports',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def tru_star_get_related_reports(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight containing information about reports related to the entities.")], include_report_body_in_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, insight will contain information about the report body. Note: report body can be very big in size.")], enclave_filter: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of enclave names that should be used during the enrichment.")], max_reports_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many reports to return. Default: 10. Maximum: 25.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Get information about reports related to the entities. Supported entities: All.
 
@@ -193,8 +212,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for TruSTAR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def tru_star_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Tru STAR: Ping',
+        annotations=ToolAnnotations(
+            title='Tru STAR: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def tru_star_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the TruSTAR with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -267,8 +295,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for TruSTAR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def tru_star_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], security_level_threshold: Annotated[List[str], Field(..., description="Specify what should be the lowest security level for the entity to be marked as suspicious.")], enclave_filter: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of enclave names that should be used during the enrichment.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Tru STAR: Enrich Entities',
+        annotations=ToolAnnotations(
+            title='Tru STAR: Enrich Entities',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def tru_star_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], security_level_threshold: Annotated[List[str], Field(..., description="Specify what should be the lowest security level for the entity to be marked as suspicious.")], enclave_filter: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of enclave names that should be used during the enrichment.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Enrich entities using information from TruSTAR. Supported entities: All.
 
@@ -347,8 +384,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for TruSTAR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def tru_star_list_enclaves(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter.")], max_enclaves_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many enclaves to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Tru STAR: List Enclaves',
+        annotations=ToolAnnotations(
+            title='Tru STAR: List Enclaves',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def tru_star_list_enclaves(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter.")], max_enclaves_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many enclaves to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List available enclaves in TruSTAR.
 
         Returns:

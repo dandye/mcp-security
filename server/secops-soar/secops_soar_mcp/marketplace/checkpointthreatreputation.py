@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the CheckPointThreatReputation integration.
 
-    @mcp.tool()
-    async def check_point_threat_reputation_get_ip_reputation(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], threshold: Annotated[str, Field(..., description="Mark entity as suspicious if the returned risk value for entity is above a given threshold.")], create_insight: Annotated[Optional[bool], Field(default=None, description="Specify whether the Siemplify Insight should be created based on the action result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Check Point Threat Reputation: Get IP Reputation',
+        annotations=ToolAnnotations(
+            title='Check Point Threat Reputation: Get IP Reputation',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def check_point_threat_reputation_get_ip_reputation(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], threshold: Annotated[str, Field(..., description="Mark entity as suspicious if the returned risk value for entity is above a given threshold.")], create_insight: Annotated[Optional[bool], Field(default=None, description="Specify whether the Siemplify Insight should be created based on the action result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enrich Siemplify IP entity based on the information from the CheckPoint Threat Reputation service.
 
         Returns:
@@ -104,8 +114,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CheckPointThreatReputation")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def check_point_threat_reputation_get_host_reputation(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], threshold: Annotated[str, Field(..., description="Mark entity as suspicious if the returned risk value for entity is above a given threshold.")], create_insight: Annotated[Optional[bool], Field(default=None, description="Specify whether the Siemplify Insight should be created based on the action result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Check Point Threat Reputation: Get Host Reputation',
+        annotations=ToolAnnotations(
+            title='Check Point Threat Reputation: Get Host Reputation',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def check_point_threat_reputation_get_host_reputation(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], threshold: Annotated[str, Field(..., description="Mark entity as suspicious if the returned risk value for entity is above a given threshold.")], create_insight: Annotated[Optional[bool], Field(default=None, description="Specify whether the Siemplify Insight should be created based on the action result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enrich the Siemplify Host entity based on the information from the CheckPoint Threat Reputation service.
 
         Returns:
@@ -181,8 +200,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CheckPointThreatReputation")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def check_point_threat_reputation_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Check Point Threat Reputation: Ping',
+        annotations=ToolAnnotations(
+            title='Check Point Threat Reputation: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def check_point_threat_reputation_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the CheckPoint Threat Reputation service with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -255,8 +283,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CheckPointThreatReputation")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def check_point_threat_reputation_get_file_hash_reputation(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], threshold: Annotated[str, Field(..., description="Mark entity as suspicious if the returned risk value for entity is above a given threshold.")], create_insight: Annotated[Optional[bool], Field(default=None, description="Specify whether the Siemplify Insight should be created based on the action result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Check Point Threat Reputation: Get File Hash Reputation',
+        annotations=ToolAnnotations(
+            title='Check Point Threat Reputation: Get File Hash Reputation',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def check_point_threat_reputation_get_file_hash_reputation(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], threshold: Annotated[str, Field(..., description="Mark entity as suspicious if the returned risk value for entity is above a given threshold.")], create_insight: Annotated[Optional[bool], Field(default=None, description="Specify whether the Siemplify Insight should be created based on the action result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enrich Siemplify File hash entity based on the information from the CheckPoint Threat Reputation service. Action accepts file hashes in md5, sha1 and sha256 formats.
 
         Returns:

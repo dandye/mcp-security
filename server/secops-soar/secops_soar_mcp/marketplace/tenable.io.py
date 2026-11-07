@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the TenableIO integration.
 
-    @mcp.tool()
-    async def tenable_io_get_vulnerability_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], plugin_i_ds: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of plugin IDs for which you want to return details.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight containing information about all of the processed plugin ids.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Tenable IO: Get Vulnerability Details',
+        annotations=ToolAnnotations(
+            title='Tenable IO: Get Vulnerability Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def tenable_io_get_vulnerability_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], plugin_i_ds: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of plugin IDs for which you want to return details.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight containing information about all of the processed plugin ids.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Retrieve vulnerability details from Tenable.io.
 
         Returns:
@@ -105,8 +115,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for TenableIO")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def tenable_io_list_policies(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among record types and if \"Contains\" is selected, action will try to find items that contain that substring. If nothing is provided in this parameter, the filter will not be applied.")], max_policies_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many policies to return. Default: 50. Max: 100.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Tenable IO: List Policies',
+        annotations=ToolAnnotations(
+            title='Tenable IO: List Policies',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def tenable_io_list_policies(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among record types and if \"Contains\" is selected, action will try to find items that contain that substring. If nothing is provided in this parameter, the filter will not be applied.")], max_policies_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many policies to return. Default: 50. Max: 100.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List available policies in Tenable.io.
 
         Returns:
@@ -185,8 +204,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for TenableIO")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def tenable_io_list_endpoint_vulnerabilities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], lowest_severity_to_fetch: Annotated[Optional[List[str]], Field(default=None, description="Specify the lowest severity that will be used to fetch vulnerabilities.")], max_vulnerabilities_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many vulnerabilities to return per entity. Default: 50. Maximum: 200.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Tenable IO: List Endpoint Vulnerabilities',
+        annotations=ToolAnnotations(
+            title='Tenable IO: List Endpoint Vulnerabilities',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def tenable_io_list_endpoint_vulnerabilities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], lowest_severity_to_fetch: Annotated[Optional[List[str]], Field(default=None, description="Specify the lowest severity that will be used to fetch vulnerabilities.")], max_vulnerabilities_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many vulnerabilities to return per entity. Default: 50. Maximum: 200.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List endpoint vulnerabilities in Tenable.io. Supported entities: IP Address, Hostname.
 
         Returns:
@@ -263,8 +291,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for TenableIO")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def tenable_io_list_scanners(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among record types and if \"Contains\" is selected, action will try to find items that contain that substring. If nothing is provided in this parameter, the filter will not be applied.")], max_scanners_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many scanners to return. Default: 50. Max: 100.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Tenable IO: List Scanners',
+        annotations=ToolAnnotations(
+            title='Tenable IO: List Scanners',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def tenable_io_list_scanners(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among record types and if \"Contains\" is selected, action will try to find items that contain that substring. If nothing is provided in this parameter, the filter will not be applied.")], max_scanners_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many scanners to return. Default: 50. Max: 100.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List available scanners in Tenable.io.
 
         Returns:
@@ -343,8 +380,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for TenableIO")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def tenable_io_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Tenable IO: Ping',
+        annotations=ToolAnnotations(
+            title='Tenable IO: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def tenable_io_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Tenable.io with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -417,8 +463,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for TenableIO")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def tenable_io_scan_endpoints(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], scan_name: Annotated[str, Field(..., description="Specify the name of the scan.")], policy_name: Annotated[str, Field(..., description="Specify the name of the policy that needs to be used for scanning.")], scanner_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the scanner that should be used. If nothing is provided, action will use the default scanner from configuration.")], send_report_to: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of email addresses that need to receive the scan report.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Tenable IO: Scan Endpoints',
+        annotations=ToolAnnotations(
+            title='Tenable IO: Scan Endpoints',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def tenable_io_scan_endpoints(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], scan_name: Annotated[str, Field(..., description="Specify the name of the scan.")], policy_name: Annotated[str, Field(..., description="Specify the name of the policy that needs to be used for scanning.")], scanner_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the scanner that should be used. If nothing is provided, action will use the default scanner from configuration.")], send_report_to: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of email addresses that need to receive the scan report.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Initiate a scan on endpoints in Tenable.io. Supported entities: IP Address, Hostname. Note: Action is running as async, please adjust script timeout value in Siemplify IDE for action as needed.
 
         Returns:
@@ -497,8 +552,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for TenableIO")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def tenable_io_list_plugin_families(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \u201cEqual\u201c is selected, action will try to find the exact match among record types and if \u201cContains\u201c is selected, action will try to find items that contain that substring. If nothing is provided in this parameter, the filter will not be applied.")], max_plugin_families_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many plugin families to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Tenable IO: List Plugin Families',
+        annotations=ToolAnnotations(
+            title='Tenable IO: List Plugin Families',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def tenable_io_list_plugin_families(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \u201cEqual\u201c is selected, action will try to find the exact match among record types and if \u201cContains\u201c is selected, action will try to find items that contain that substring. If nothing is provided in this parameter, the filter will not be applied.")], max_plugin_families_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many plugin families to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List available plugin families from Tenable.io.
 
         Returns:
@@ -577,8 +641,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for TenableIO")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def tenable_io_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight containing all of the retrieved information about the entity.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Tenable IO: Enrich Entities',
+        annotations=ToolAnnotations(
+            title='Tenable IO: Enrich Entities',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def tenable_io_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight containing all of the retrieved information about the entity.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enrich entities using information from Tenable.io. Supported entities: IP Address, Hostname.
 
         Returns:

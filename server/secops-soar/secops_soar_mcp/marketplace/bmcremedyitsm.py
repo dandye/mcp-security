@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the BMCRemedyITSM integration.
 
-    @mcp.tool()
-    async def bmc_remedy_itsm_update_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="Specify the id of the  incident that needs to be updated.")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify the status for the incident. Note: if status is \"Pending\" or \"Resolved\", then you also need to provide \"Status Reason\" value.")], status_reason: Annotated[Optional[str], Field(default=None, description="Specify the status reason for the incident.")], impact: Annotated[Optional[List[str]], Field(default=None, description="Specify the impact for the incident.")], urgency: Annotated[Optional[List[str]], Field(default=None, description="Specify the urgency for the incident.")], description: Annotated[Optional[str], Field(default=None, description="Specify the description of the incident")], incident_type: Annotated[Optional[List[str]], Field(default=None, description="Specify the incident type for the incident.")], assigned_group: Annotated[Optional[str], Field(default=None, description="Specify the assigned group for the incident")], assignee: Annotated[Optional[str], Field(default=None, description="Specify the assignee for the incident")], resolution: Annotated[Optional[str], Field(default=None, description="Specify the resolution for the incident.")], resolution_category_tier_1: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 1 for the incident.")], resolution_category_tier_2: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 2 for the incident.")], resolution_category_tier_3: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 3 for the incident.")], resolution_product_category_tier_1: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 1 for the incident.")], resolution_product_category_tier_2: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 2 for the incident.")], resolution_product_category_tier_3: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 3 for the incident.")], reported_source: Annotated[Optional[List[str]], Field(default=None, description="Specify the reported source.")], custom_fields: Annotated[Optional[str], Field(default=None, description="Specify a JSON object containing all of the needed fields and  values that need to be updated. Note: this parameter will overwrite other provided parameters.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='BMC Remedy ITSM: Update Incident',
+        annotations=ToolAnnotations(
+            title='BMC Remedy ITSM: Update Incident',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def bmc_remedy_itsm_update_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="Specify the id of the  incident that needs to be updated.")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify the status for the incident. Note: if status is \"Pending\" or \"Resolved\", then you also need to provide \"Status Reason\" value.")], status_reason: Annotated[Optional[str], Field(default=None, description="Specify the status reason for the incident.")], impact: Annotated[Optional[List[str]], Field(default=None, description="Specify the impact for the incident.")], urgency: Annotated[Optional[List[str]], Field(default=None, description="Specify the urgency for the incident.")], description: Annotated[Optional[str], Field(default=None, description="Specify the description of the incident")], incident_type: Annotated[Optional[List[str]], Field(default=None, description="Specify the incident type for the incident.")], assigned_group: Annotated[Optional[str], Field(default=None, description="Specify the assigned group for the incident")], assignee: Annotated[Optional[str], Field(default=None, description="Specify the assignee for the incident")], resolution: Annotated[Optional[str], Field(default=None, description="Specify the resolution for the incident.")], resolution_category_tier_1: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 1 for the incident.")], resolution_category_tier_2: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 2 for the incident.")], resolution_category_tier_3: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 3 for the incident.")], resolution_product_category_tier_1: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 1 for the incident.")], resolution_product_category_tier_2: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 2 for the incident.")], resolution_product_category_tier_3: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 3 for the incident.")], reported_source: Annotated[Optional[List[str]], Field(default=None, description="Specify the reported source.")], custom_fields: Annotated[Optional[str], Field(default=None, description="Specify a JSON object containing all of the needed fields and  values that need to be updated. Note: this parameter will overwrite other provided parameters.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update an incident in BMC Remedy ITSM.
 
         Returns:
@@ -136,8 +146,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for BMCRemedyITSM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def bmc_remedy_itsm_update_record(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], record_type: Annotated[str, Field(..., description="Specify the type of the record that needs to be updated.")], record_id: Annotated[str, Field(..., description="Specify the id of the  record that needs to be updated.")], record_payload: Annotated[str, Field(..., description="Specify a JSON object containing all of the needed fields and values that need to be updated.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='BMC Remedy ITSM: Update Record',
+        annotations=ToolAnnotations(
+            title='BMC Remedy ITSM: Update Record',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def bmc_remedy_itsm_update_record(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], record_type: Annotated[str, Field(..., description="Specify the type of the record that needs to be updated.")], record_id: Annotated[str, Field(..., description="Specify the id of the  record that needs to be updated.")], record_payload: Annotated[str, Field(..., description="Specify a JSON object containing all of the needed fields and values that need to be updated.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update a record in BMC Remedy ITSM.
 
         Returns:
@@ -213,8 +232,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for BMCRemedyITSM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def bmc_remedy_itsm_get_record_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], record_type: Annotated[str, Field(..., description="Specify the type of the record for which you want to retrieve details.")], record_i_ds: Annotated[str, Field(..., description="Specify the ids of records for which you want to return details.")], fields_to_return: Annotated[Optional[str], Field(default=None, description="Specify what fields to return. If invalid fields are provided, action will fail. If nothing is provided, action will return all fields.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='BMC Remedy ITSM: Get Record Details',
+        annotations=ToolAnnotations(
+            title='BMC Remedy ITSM: Get Record Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def bmc_remedy_itsm_get_record_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], record_type: Annotated[str, Field(..., description="Specify the type of the record for which you want to retrieve details.")], record_i_ds: Annotated[str, Field(..., description="Specify the ids of records for which you want to return details.")], fields_to_return: Annotated[Optional[str], Field(default=None, description="Specify what fields to return. If invalid fields are provided, action will fail. If nothing is provided, action will return all fields.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get detailed information about the record from BMC Remedy ITSM.
 
         Returns:
@@ -291,8 +319,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for BMCRemedyITSM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def bmc_remedy_itsm_add_work_note_to_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="Specify the id of the incident to which you want to add a work note.")], work_note_text: Annotated[str, Field(..., description="Specify the text for the work note.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='BMC Remedy ITSM: Add Work Note to Incident',
+        annotations=ToolAnnotations(
+            title='BMC Remedy ITSM: Add Work Note to Incident',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def bmc_remedy_itsm_add_work_note_to_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="Specify the id of the incident to which you want to add a work note.")], work_note_text: Annotated[str, Field(..., description="Specify the text for the work note.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add a work note to incidents in BMC Remedy ITSM.
 
         Returns:
@@ -367,8 +404,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for BMCRemedyITSM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def bmc_remedy_itsm_wait_for_record_fields_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], record_type: Annotated[str, Field(..., description="Specify the type of the record for which you are waiting an update.")], record_id: Annotated[str, Field(..., description="Specify the ID of the record that needs to be updated.")], fields_to_check: Annotated[str, Field(..., description="Specify a JSON object containing all of the needed fields and values.")], fail_if_timeout: Annotated[bool, Field(..., description="If enabled, action will be failed, if not all of the fields were updated.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='BMC Remedy ITSM: Wait for Record Fields Update',
+        annotations=ToolAnnotations(
+            title='BMC Remedy ITSM: Wait for Record Fields Update',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def bmc_remedy_itsm_wait_for_record_fields_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], record_type: Annotated[str, Field(..., description="Specify the type of the record for which you are waiting an update.")], record_id: Annotated[str, Field(..., description="Specify the ID of the record that needs to be updated.")], fields_to_check: Annotated[str, Field(..., description="Specify a JSON object containing all of the needed fields and values.")], fail_if_timeout: Annotated[bool, Field(..., description="If enabled, action will be failed, if not all of the fields were updated.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Wait for record fields update in BMC Remedy ITSM.
 
         Returns:
@@ -445,8 +491,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for BMCRemedyITSM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def bmc_remedy_itsm_delete_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="Specify the id of the incident that needs to be deleted.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='BMC Remedy ITSM: Delete Incident',
+        annotations=ToolAnnotations(
+            title='BMC Remedy ITSM: Delete Incident',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def bmc_remedy_itsm_delete_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="Specify the id of the incident that needs to be deleted.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete an incident in BMC Remedy ITSM.
 
         Returns:
@@ -520,8 +575,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for BMCRemedyITSM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def bmc_remedy_itsm_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='BMC Remedy ITSM: Ping',
+        annotations=ToolAnnotations(
+            title='BMC Remedy ITSM: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def bmc_remedy_itsm_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the BMC Remedy ITSM with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -594,8 +658,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for BMCRemedyITSM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def bmc_remedy_itsm_delete_record(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], record_type: Annotated[str, Field(..., description="Specify the type of the record that needs to be deleted.")], record_id: Annotated[str, Field(..., description="Specify the id of the record that needs to be deleted.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='BMC Remedy ITSM: Delete Record',
+        annotations=ToolAnnotations(
+            title='BMC Remedy ITSM: Delete Record',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def bmc_remedy_itsm_delete_record(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], record_type: Annotated[str, Field(..., description="Specify the type of the record that needs to be deleted.")], record_id: Annotated[str, Field(..., description="Specify the id of the record that needs to be deleted.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete a record in BMC Remedy ITSM.
 
         Returns:
@@ -670,8 +743,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for BMCRemedyITSM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def bmc_remedy_itsm_get_incident_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_i_ds: Annotated[str, Field(..., description="Specify the ids of incidents for which you want to return details.")], fields_to_return: Annotated[Optional[str], Field(default=None, description="Specify what fields to return. If invalid fields are provided, action will fail. If nothing is provided, action will return all fields.")], fetch_work_notes: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return work notes related to the incident.")], max_work_notes_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many Work Notes to return. If nothing is provided, action will return 50 Work Notes.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='BMC Remedy ITSM: Get Incident Details',
+        annotations=ToolAnnotations(
+            title='BMC Remedy ITSM: Get Incident Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def bmc_remedy_itsm_get_incident_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_i_ds: Annotated[str, Field(..., description="Specify the ids of incidents for which you want to return details.")], fields_to_return: Annotated[Optional[str], Field(default=None, description="Specify what fields to return. If invalid fields are provided, action will fail. If nothing is provided, action will return all fields.")], fetch_work_notes: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return work notes related to the incident.")], max_work_notes_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many Work Notes to return. If nothing is provided, action will return 50 Work Notes.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get detailed information about the incidents from BMC Remedy ITSM.
 
         Returns:
@@ -751,8 +833,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for BMCRemedyITSM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def bmc_remedy_itsm_create_record(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], record_type: Annotated[str, Field(..., description="Specify the type of the record that needs to be created.")], record_payload: Annotated[str, Field(..., description="Specify a JSON object containing all of the needed fields and  values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='BMC Remedy ITSM: Create Record',
+        annotations=ToolAnnotations(
+            title='BMC Remedy ITSM: Create Record',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def bmc_remedy_itsm_create_record(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], record_type: Annotated[str, Field(..., description="Specify the type of the record that needs to be created.")], record_payload: Annotated[str, Field(..., description="Specify a JSON object containing all of the needed fields and  values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create a record in BMC Remedy ITSM.
 
         Returns:
@@ -827,8 +918,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for BMCRemedyITSM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def bmc_remedy_itsm_create_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify the status for the incident.")], impact: Annotated[Optional[List[str]], Field(default=None, description="Specify the impact for the incident.")], urgency: Annotated[Optional[List[str]], Field(default=None, description="Specify the urgency for the incident.")], description: Annotated[Optional[str], Field(default=None, description="Specify the description of the incident")], company: Annotated[Optional[str], Field(default=None, description="Specify the company for the incident")], customer: Annotated[Optional[str], Field(default=None, description="Specify the customer for the incident. Note: Customer needs to be provide in the format \"{Last Name} {First Name}\". Example: Allbrook Allen.")], template_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the template for the incident. Note: action will try to find the ID of the template in the background. For better precision you can provide the template ID directly via Custom Fields.")], incident_type: Annotated[Optional[List[str]], Field(default=None, description="Specify the incident type for the incident.")], assigned_group: Annotated[Optional[str], Field(default=None, description="Specify the assigned group for the incident")], assignee: Annotated[Optional[str], Field(default=None, description="Specify the assignee for the incident")], resolution: Annotated[Optional[str], Field(default=None, description="Specify the resolution for the incident.")], resolution_category_tier_1: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 1 for the incident.")], resolution_category_tier_2: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 2 for the incident.")], resolution_category_tier_3: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 3 for the incident.")], resolution_product_category_tier_1: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 1 for the incident.")], resolution_product_category_tier_2: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 2 for the incident.")], resolution_product_category_tier_3: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 3 for the incident.")], reported_source: Annotated[Optional[List[str]], Field(default=None, description="Specify the reported source")], custom_fields: Annotated[Optional[str], Field(default=None, description="Specify a JSON object containing all of the needed fields and  values that need to be used during the creation. Note: this parameter will overwrite other provided parameters.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='BMC Remedy ITSM: Create Incident',
+        annotations=ToolAnnotations(
+            title='BMC Remedy ITSM: Create Incident',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def bmc_remedy_itsm_create_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify the status for the incident.")], impact: Annotated[Optional[List[str]], Field(default=None, description="Specify the impact for the incident.")], urgency: Annotated[Optional[List[str]], Field(default=None, description="Specify the urgency for the incident.")], description: Annotated[Optional[str], Field(default=None, description="Specify the description of the incident")], company: Annotated[Optional[str], Field(default=None, description="Specify the company for the incident")], customer: Annotated[Optional[str], Field(default=None, description="Specify the customer for the incident. Note: Customer needs to be provide in the format \"{Last Name} {First Name}\". Example: Allbrook Allen.")], template_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the template for the incident. Note: action will try to find the ID of the template in the background. For better precision you can provide the template ID directly via Custom Fields.")], incident_type: Annotated[Optional[List[str]], Field(default=None, description="Specify the incident type for the incident.")], assigned_group: Annotated[Optional[str], Field(default=None, description="Specify the assigned group for the incident")], assignee: Annotated[Optional[str], Field(default=None, description="Specify the assignee for the incident")], resolution: Annotated[Optional[str], Field(default=None, description="Specify the resolution for the incident.")], resolution_category_tier_1: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 1 for the incident.")], resolution_category_tier_2: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 2 for the incident.")], resolution_category_tier_3: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 3 for the incident.")], resolution_product_category_tier_1: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 1 for the incident.")], resolution_product_category_tier_2: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 2 for the incident.")], resolution_product_category_tier_3: Annotated[Optional[str], Field(default=None, description="Specify the resolution category tier 3 for the incident.")], reported_source: Annotated[Optional[List[str]], Field(default=None, description="Specify the reported source")], custom_fields: Annotated[Optional[str], Field(default=None, description="Specify a JSON object containing all of the needed fields and  values that need to be used during the creation. Note: this parameter will overwrite other provided parameters.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create an incident in BMC Remedy ITSM.
 
         Returns:
@@ -939,8 +1039,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for BMCRemedyITSM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def bmc_remedy_itsm_wait_for_incident_fields_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="Specify the ID of the incident that needs to be updated.")], fail_if_timeout: Annotated[bool, Field(..., description="If enabled, action will be failed, if not all of the fields were updated.")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify what is the expected status for the incident.")], fields_to_check: Annotated[Optional[str], Field(default=None, description="Specify a JSON object containing all of the needed fields and values. Note: this parameter has priority over \"Status\" field.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='BMC Remedy ITSM: Wait for Incident Fields Update',
+        annotations=ToolAnnotations(
+            title='BMC Remedy ITSM: Wait for Incident Fields Update',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def bmc_remedy_itsm_wait_for_incident_fields_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="Specify the ID of the incident that needs to be updated.")], fail_if_timeout: Annotated[bool, Field(..., description="If enabled, action will be failed, if not all of the fields were updated.")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify what is the expected status for the incident.")], fields_to_check: Annotated[Optional[str], Field(default=None, description="Specify a JSON object containing all of the needed fields and values. Note: this parameter has priority over \"Status\" field.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Wait for incident fields update in BMC Remedy ITSM.
 
         Returns:

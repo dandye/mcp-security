@@ -16,15 +16,27 @@
 import json
 import logging
 from datetime import datetime, timedelta, timezone
-
 from typing import Any, Dict, Optional
+
+from mcp.types import ToolAnnotations as _ToolAnnotations
 from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.utils import tool_error_result as _tool_error_result
 
 
 # Configure logging
 logger = logging.getLogger('secops-mcp')
 
-@server.tool()
+
+@server.tool(
+    title="Get Chronicle Security Alerts",
+    annotations=_ToolAnnotations(
+        title="Get Chronicle Security Alerts",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_security_alerts(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
@@ -32,7 +44,7 @@ async def get_security_alerts(
     max_alerts: int = 10,
     status_filter: str = 'feedback_summary.status != "CLOSED"',
     region: Optional[str] = None,
-) -> str:
+) -> dict[str, Any]:
     """Get security alerts directly from Chronicle SIEM.
 
     Retrieves a list of recent security alerts generated within Chronicle, based on
@@ -100,7 +112,11 @@ async def get_security_alerts(
             alert_list = alert_response if isinstance(alert_response, list) else []
 
         if not alert_list:
-            return 'No security alerts found for the specified time range.'
+            return {
+                'summary': 'No security alerts found for the specified time range.',
+                'count': 0,
+                'alerts': [],
+            }
 
         result = f'Found {len(alert_list)} security alerts:\n\n'
 
@@ -149,18 +165,37 @@ async def get_security_alerts(
 
             result += '\n'
 
-        return json.dumps(result)
+        return {
+            'summary': result,
+            'count': len(alert_list),
+            'alerts': alert_list,
+        }
     except Exception as e:
-        return f'Error retrieving security alerts: {str(e)}'
+        logger.error('Error retrieving security alerts: %s', e, exc_info=True)
+        return _tool_error_result(
+            f'Error retrieving security alerts: {e}',
+            count=0,
+            alerts=[],
+        )
 
-@server.tool()
+
+@server.tool(
+    title="Get Chronicle Security Alert by ID",
+    annotations=_ToolAnnotations(
+        title="Get Chronicle Security Alert by ID",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_security_alert_by_id(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
     alert_id: Optional[str] = None,
     include_detections: bool = True
-) -> str:
+) -> dict[str, Any]:
     """Get security alert by ID directly from Chronicle SIEM.
 
     Gets an alert by ID
@@ -201,14 +236,36 @@ async def get_security_alert_by_id(
     """
 
     try:
+        if not alert_id:
+            return _tool_error_result('alert_id parameter is required and cannot be empty')
         chronicle = get_chronicle_client(project_id, customer_id, region)
         response = chronicle.get_alert(alert_id, include_detections)
+        if not response:
+            return _tool_error_result(
+                f'Security alert {alert_id} not found',
+                alert_id=alert_id,
+            )
+        if isinstance(response, dict):
+            return {'alert_id': alert_id, 'alert': response}
+        return {'alert_id': alert_id, 'alert': {'raw': response}}
     except Exception as e:
-        return f'Error retrieving security alert for {alert_id}: {str(e)}'
+        logger.error('Error retrieving security alert for %s: %s', alert_id, e, exc_info=True)
+        return _tool_error_result(
+            f'Error retrieving security alert for {alert_id}: {e}',
+            alert_id=alert_id,
+        )
 
-    return json.dumps(response)
 
-@server.tool()
+@server.tool(
+    title="Update Chronicle Security Alert",
+    annotations=_ToolAnnotations(
+        title="Update Chronicle Security Alert",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def do_update_security_alert(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
@@ -221,7 +278,7 @@ async def do_update_security_alert(
     severity: Optional[int] = None,
     comment: Optional[str] = None,
     root_cause: Optional[str] = None
-) -> str:
+) -> dict[str, Any]:
     """
         Update security alert attributes directly in Chronicle SIEM.
 
@@ -285,9 +342,27 @@ Next Steps (using MCP-enabled tools):
     - Communicate significant updates (e.g., confirmed breach, critical false positive) to relevant teams or stakeholders as per incident response procedures.
     """
     try:
+        if not alert_id:
+            return _tool_error_result('alert_id parameter is required and cannot be empty')
         chronicle = get_chronicle_client(project_id, customer_id, region)
-        response = chronicle.update_alert(alert_id, reason=reason, status=status, verdict=verdict, comment=comment, root_cause=root_cause, priority=priority, severity=severity)
+        response = chronicle.update_alert(
+            alert_id,
+            reason=reason,
+            status=status,
+            verdict=verdict,
+            comment=comment,
+            root_cause=root_cause,
+            priority=priority,
+            severity=severity,
+        )
+        return {
+            'status': 'success',
+            'alert_id': alert_id,
+            'alert': response if isinstance(response, dict) else {'raw': response},
+        }
     except Exception as e:
-        return f'Error retrieving security alert for {alert_id}: {str(e)}'
-
-    return json.dumps(response)
+        logger.error('Error updating security alert for %s: %s', alert_id, e, exc_info=True)
+        return _tool_error_result(
+            f'Error updating security alert for {alert_id}: {e}',
+            alert_id=alert_id,
+        )

@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the GoogleCloudAssetInventory integration.
 
-    @mcp.tool()
-    async def google_cloud_asset_inventory_get_resource_snapshot(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], resource_names: Annotated[str, Field(..., description="Specify a comma-separated list of resources for which you want to fetch details.")], fields_to_return: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of fields to return. Note: every field should be in format with \"assets.{field}\" Example of values:\nassets.asset.name, assets.asset.assetType,assets.asset.resource.data.\nNote: assets.asset.name will always be returned.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google Cloud Asset Inventory: Get Resource Snapshot',
+        annotations=ToolAnnotations(
+            title='Google Cloud Asset Inventory: Get Resource Snapshot',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_cloud_asset_inventory_get_resource_snapshot(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], resource_names: Annotated[str, Field(..., description="Specify a comma-separated list of resources for which you want to fetch details.")], fields_to_return: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of fields to return. Note: every field should be in format with \"assets.{field}\" Example of values:\nassets.asset.name, assets.asset.assetType,assets.asset.resource.data.\nNote: assets.asset.name will always be returned.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get information about the resource using Google Cloud Asset Inventory.
 
         Returns:
@@ -104,8 +114,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GoogleCloudAssetInventory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def google_cloud_asset_inventory_enrich_resource(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], resource_names: Annotated[str, Field(..., description="Specify a comma-separated list of resources for which you want to fetch details.")], fields_to_return: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of fields to return. Example of values:assetType,project,folders,organization,displayName,description,location,labels,networkTags,kmsKeys,createTime,updateTime,state,additionalAttributes, parentFullResourceName, parentAssetType. Note: name will always be returned. There is also an option to provide more advanced filters. For example, if you want to return a specific key from the \"additionalAttributes\" you can provide \"additionalAttributes.{key}\". Also, if you want to exclude a specific key from \"additionalAttributes\",then you can provide \"-additionalAttributes.{key}\".")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google Cloud Asset Inventory: Enrich Resource',
+        annotations=ToolAnnotations(
+            title='Google Cloud Asset Inventory: Enrich Resource',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_cloud_asset_inventory_enrich_resource(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], resource_names: Annotated[str, Field(..., description="Specify a comma-separated list of resources for which you want to fetch details.")], fields_to_return: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of fields to return. Example of values:assetType,project,folders,organization,displayName,description,location,labels,networkTags,kmsKeys,createTime,updateTime,state,additionalAttributes, parentFullResourceName, parentAssetType. Note: name will always be returned. There is also an option to provide more advanced filters. For example, if you want to return a specific key from the \"additionalAttributes\" you can provide \"additionalAttributes.{key}\". Also, if you want to exclude a specific key from \"additionalAttributes\",then you can provide \"-additionalAttributes.{key}\".")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enrich information about a Google Cloud resource using Google Cloud Asset Inventory.
 
         Returns:
@@ -181,8 +200,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GoogleCloudAssetInventory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def google_cloud_asset_inventory_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google Cloud Asset Inventory: Ping',
+        annotations=ToolAnnotations(
+            title='Google Cloud Asset Inventory: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_cloud_asset_inventory_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Google Cloud Asset Inventory with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -255,8 +283,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GoogleCloudAssetInventory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def google_cloud_asset_inventory_list_service_account_roles(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], service_accounts: Annotated[str, Field(..., description="Specify a comma-separated list of service accounts for which you want to fetch details.")], max_roles_to_return: Annotated[str, Field(..., description="Specify how many roles related to the service account to return.")], max_permissions_to_return: Annotated[str, Field(..., description="Specify how many permissions related to the service account to return.")], check_roles: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of roles that you want to check in relation to the service account. Example: roles/cloudasset.owner")], check_permissions: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of permission that you want to check in relation to the service account. Example: cloudasset.assets.listResource.")], expand_permissions: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return information about all of the unique permissions related to the resource.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google Cloud Asset Inventory: List Service Account Roles',
+        annotations=ToolAnnotations(
+            title='Google Cloud Asset Inventory: List Service Account Roles',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_cloud_asset_inventory_list_service_account_roles(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], service_accounts: Annotated[str, Field(..., description="Specify a comma-separated list of service accounts for which you want to fetch details.")], max_roles_to_return: Annotated[str, Field(..., description="Specify how many roles related to the service account to return.")], max_permissions_to_return: Annotated[str, Field(..., description="Specify how many permissions related to the service account to return.")], check_roles: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of roles that you want to check in relation to the service account. Example: roles/cloudasset.owner")], check_permissions: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of permission that you want to check in relation to the service account. Example: cloudasset.assets.listResource.")], expand_permissions: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return information about all of the unique permissions related to the resource.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List roles related to the Google Cloud service account using Google Cloud Asset Inventory.
 
         Returns:

@@ -804,10 +804,12 @@ async def test_get_collections_commonalities(
         result = await client.call_tool(tool_name, arguments=tool_arguments)
         assert isinstance(result, mcp.types.CallToolResult)
         assert result.is_error == False
+        assert isinstance(result.structured_content, dict)
+        assert result.structured_content["summary"] == expected
         assert len(result.content) == 1
         assert isinstance(result.content[0], mcp.types.TextContent)
-        assert isinstance(result.content[0].text, str)
-        assert result.content[0].text == expected
+        payload = json.loads(result.content[0].text)
+        assert payload["summary"] == expected
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -979,7 +981,9 @@ async def test_add_iocs_in_collection_success(
     async with Client(server) as client:
         result = await client.call_tool("update_iocs_in_collection", arguments=tool_arguments)
         assert not result.is_error
-        assert result.content[0].text == "Sucesssfully updated collection"
+        assert isinstance(result.structured_content, dict)
+        assert result.structured_content["status"] == "success"
+        assert result.structured_content["message"] == "Successfully updated collection"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -1007,7 +1011,9 @@ async def test_remove_iocs_from_collection_success(
     async with Client(server) as client:
         result = await client.call_tool("update_iocs_in_collection", arguments=tool_arguments)
         assert not result.is_error
-        assert result.content[0].text == "Sucesssfully updated collection"
+        assert isinstance(result.structured_content, dict)
+        assert result.structured_content["status"] == "success"
+        assert result.structured_content["message"] == "Successfully updated collection"
 
 
 # Invalid Local Argument Handling
@@ -1031,8 +1037,8 @@ async def test_update_iocs_in_collection_invalid_args(tool_arguments, expected_e
     """Test `update_iocs_in_collection` for invalid local arguments."""
     async with Client(server) as client:
         result = await client.call_tool("update_iocs_in_collection", arguments=tool_arguments)
-        assert not result.is_error
-        assert result.content[0].text == expected_error
+        assert result.is_error is True
+        assert json.loads(result.content[0].text)["error"] == expected_error
 
 @pytest.mark.asyncio(loop_scope="session")
 @pytest.mark.parametrize(
@@ -1153,7 +1159,7 @@ async def test_search_digital_threat_monitoring_errors(
                 "search_digital_threat_monitoring", arguments={"query": "test"}
             )
             assert isinstance(result, mcp.types.CallToolResult)
-            assert result.is_error == False # The tool call itself doesn't fail
+            assert result.is_error is True
             assert len(result.content) == 1
             content = json.loads(result.content[0].text)
             assert "error" in content
@@ -1434,7 +1440,10 @@ async def test_get_collection_rules_api_error():
     
     with patch("gti_mcp.tools.collections.vt_client", return_value=mock_vt_client):
         result = await collections.get_collection_rules(collection_id="test_id", ctx=mock_ctx)
-    assert result == []
+    assert isinstance(result, mcp.types.CallToolResult)
+    assert result.is_error is True
+    assert isinstance(result.structured_content, dict)
+    assert "API Error" in result.structured_content["error"]
 
 @pytest.mark.asyncio
 async def test_get_collection_rules_partial_error():

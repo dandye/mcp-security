@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the Snowflake integration.
 
-    @mcp.tool()
-    async def snowflake_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Snowflake: Ping',
+        annotations=ToolAnnotations(
+            title='Snowflake: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def snowflake_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Snowflake with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -101,8 +111,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Snowflake")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def snowflake_execute_simple_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], database: Annotated[str, Field(..., description="Specify the name of the database in which you want to execute the query.")], table: Annotated[str, Field(..., description="Specify the name of the table in which you want to execute the query.")], schema: Annotated[Optional[str], Field(default=None, description="Specify the name of the schema in which you want to execute the query.")], where_filter: Annotated[Optional[str], Field(default=None, description="Specify the WHERE filter for the query  that needs to be executed. Note: you don't need to limit and sort. Also, you don\u2019t need to provide WHERE string in the payload. Only single quotes are supported in the query.")], fields_to_return: Annotated[Optional[str], Field(default=None, description="Specify what fields to return. If nothing is provided action will return all fields. Wildcard character is supported.")], sort_field: Annotated[Optional[str], Field(default=None, description="Specify what parameter should be used for sorting.")], sort_order: Annotated[Optional[List[str]], Field(default=None, description="Specify the order of sorting.")], max_results_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many results to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Snowflake: Execute Simple Query',
+        annotations=ToolAnnotations(
+            title='Snowflake: Execute Simple Query',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def snowflake_execute_simple_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], database: Annotated[str, Field(..., description="Specify the name of the database in which you want to execute the query.")], table: Annotated[str, Field(..., description="Specify the name of the table in which you want to execute the query.")], schema: Annotated[Optional[str], Field(default=None, description="Specify the name of the schema in which you want to execute the query.")], where_filter: Annotated[Optional[str], Field(default=None, description="Specify the WHERE filter for the query  that needs to be executed. Note: you don't need to limit and sort. Also, you don\u2019t need to provide WHERE string in the payload. Only single quotes are supported in the query.")], fields_to_return: Annotated[Optional[str], Field(default=None, description="Specify what fields to return. If nothing is provided action will return all fields. Wildcard character is supported.")], sort_field: Annotated[Optional[str], Field(default=None, description="Specify what parameter should be used for sorting.")], sort_order: Annotated[Optional[List[str]], Field(default=None, description="Specify the order of sorting.")], max_results_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many results to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Execute a query based on parameters in Snowflake. Note: Action is running as async, please adjust script timeout value in Siemplify IDE for action as needed.
 
@@ -192,8 +211,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Snowflake")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def snowflake_execute_custom_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[str, Field(..., description="Specify the query that needs to be executed in Snowflake. Note: query shouldn't contain LIMIT keyword, because it\u2019s added automatically. Only single quotes are supported in the query.")], database: Annotated[str, Field(..., description="Specify the name of the database in which you want to execute the query.")], schema: Annotated[Optional[str], Field(default=None, description="Specify the name of the schema in which you want to execute the query.")], max_results_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many results to return for the query. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Snowflake: Execute Custom Query',
+        annotations=ToolAnnotations(
+            title='Snowflake: Execute Custom Query',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def snowflake_execute_custom_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[str, Field(..., description="Specify the query that needs to be executed in Snowflake. Note: query shouldn't contain LIMIT keyword, because it\u2019s added automatically. Only single quotes are supported in the query.")], database: Annotated[str, Field(..., description="Specify the name of the database in which you want to execute the query.")], schema: Annotated[Optional[str], Field(default=None, description="Specify the name of the schema in which you want to execute the query.")], max_results_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many results to return for the query. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Execute a custom query in Snowflake. Note: Action is running as async, please adjust script timeout value in Siemplify IDE for action as needed.
 

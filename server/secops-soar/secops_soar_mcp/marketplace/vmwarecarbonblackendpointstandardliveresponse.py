@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the CBLiveResponse integration.
 
-    @mcp.tool()
-    async def cb_live_response_create_memdump(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], file_name: Annotated[Optional[str], Field(default=None, description="Specify the file name for memdump creation. File name is case insensitive. File Name can be specified as a \"full path\" having both path and a file name, in that case Remote Directory Path parameter will not be used.")], remote_directory_path: Annotated[Optional[str], Field(default=None, description="Specify the directory file path to store the memdump. Example: C:\\TMP\\")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='CB Live Response: Create Memdump',
+        annotations=ToolAnnotations(
+            title='CB Live Response: Create Memdump',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def cb_live_response_create_memdump(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], file_name: Annotated[Optional[str], Field(default=None, description="Specify the file name for memdump creation. File name is case insensitive. File Name can be specified as a \"full path\" having both path and a file name, in that case Remote Directory Path parameter will not be used.")], remote_directory_path: Annotated[Optional[str], Field(default=None, description="Specify the directory file path to store the memdump. Example: C:\\TMP\\")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create memdump on a host running VMware CB Cloud Agent based on the Siemplify Host or IP entity. Note: The File name for the memdump to create can be provided either as a Siemplify File entity (artifact) or as an action input parameter. If the File name is passed to action both as an entity and input parameter - action will be executed on the input parameter. File name is case insensitive. File name will be appended to Remote Directory Path to get the resulting file paths that CB Cloud API accepts. Additionally, note that VMware CB API does not provide an error message if an unvalid Remote Directory Path is provided for the created memory dump.  File Name also can be specified as a "full path" having both path and a file name, or having file name and file path as separate parameters
 
         Returns:
@@ -106,8 +116,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CBLiveResponse")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def cb_live_response_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='CB Live Response: Ping',
+        annotations=ToolAnnotations(
+            title='CB Live Response: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cb_live_response_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the VMware Carbon Black Endpoint Standard Live Response with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -180,8 +199,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CBLiveResponse")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def cb_live_response_execute_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], file_name: Annotated[Optional[str], Field(default=None, description="Specify the file name to execute. File name is case insensitive. File Name can be specified as a \"full path\" having both path and a file name, in that case Remote Directory Path parameter will not be used.")], remote_directory_path: Annotated[Optional[str], Field(default=None, description="Specify the remote directory path for the file to execute. Example: C:\\TMP\\")], output_log_file_on_remote_host: Annotated[Optional[str], Field(default=None, description="Specify the output log file action should save the redirected output to. Example: C:\\TMP\\cmdoutput.log")], command_arguments_to_pass_to_file: Annotated[Optional[str], Field(default=None, description="Specify the command arguments to pass for executing the file. Example, here we specify \"/C whoami\" to execute whoami command with cmd: C:\\Windows\\system32\\cmd.exe /C whoami")], wait_for_the_result: Annotated[Optional[bool], Field(default=None, description="If enabled, action will wait for the command to complete.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='CB Live Response: Execute File',
+        annotations=ToolAnnotations(
+            title='CB Live Response: Execute File',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def cb_live_response_execute_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], file_name: Annotated[Optional[str], Field(default=None, description="Specify the file name to execute. File name is case insensitive. File Name can be specified as a \"full path\" having both path and a file name, in that case Remote Directory Path parameter will not be used.")], remote_directory_path: Annotated[Optional[str], Field(default=None, description="Specify the remote directory path for the file to execute. Example: C:\\TMP\\")], output_log_file_on_remote_host: Annotated[Optional[str], Field(default=None, description="Specify the output log file action should save the redirected output to. Example: C:\\TMP\\cmdoutput.log")], command_arguments_to_pass_to_file: Annotated[Optional[str], Field(default=None, description="Specify the command arguments to pass for executing the file. Example, here we specify \"/C whoami\" to execute whoami command with cmd: C:\\Windows\\system32\\cmd.exe /C whoami")], wait_for_the_result: Annotated[Optional[bool], Field(default=None, description="If enabled, action will wait for the command to complete.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Execute file on a host running VMware CB Cloud Agent based on the Siemplify Host or IP entity. Note: The File name can be provided either as a Siemplify File entity (artifact) or as an action input parameter. If the File name is passed to action both as an entity and input parameter - action will be executed on the input parameter. File name is case insensitive. File name will be appended to Remote Directory Path to get the resulting file paths that CB Cloud API accepts. File Name also can be specified as a "full path" having both path and a file name, or having file name and file path as separate parameters
 
         Returns:
@@ -265,8 +293,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CBLiveResponse")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def cb_live_response_list_processes(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], process_name: Annotated[Optional[str], Field(default=None, description="Process name to search for on the host.")], how_many_records_to_return: Annotated[Optional[str], Field(default=None, description="How many records per entity action should return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='CB Live Response: List Processes',
+        annotations=ToolAnnotations(
+            title='CB Live Response: List Processes',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cb_live_response_list_processes(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], process_name: Annotated[Optional[str], Field(default=None, description="Process name to search for on the host.")], how_many_records_to_return: Annotated[Optional[str], Field(default=None, description="How many records per entity action should return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List processes running on endpoint based on the provided Siemplify Host or IP entity.
 
         Returns:
@@ -344,8 +381,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CBLiveResponse")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def cb_live_response_kill_process(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], process_name: Annotated[Optional[str], Field(default=None, description="Process name to search PID for.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='CB Live Response: Kill Process',
+        annotations=ToolAnnotations(
+            title='CB Live Response: Kill Process',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cb_live_response_kill_process(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], process_name: Annotated[Optional[str], Field(default=None, description="Process name to search PID for.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Kill process on a host based on the Siemplify Host or IP entity. Note: The Process name can be provided either as a Siemplify entity (artifact) or as an action input parameter. If the Process name is passed to action both as an entity (process) and input parameter - action will be executed on the input parameter.
 
         Returns:
@@ -421,8 +467,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CBLiveResponse")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def cb_live_response_list_files(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], remote_directory_path: Annotated[str, Field(..., description="Specify the target directory path action should list. Example: C:\\TMP\\ or /tmp/")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], max_rows_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many rows action should return.")], start_from_row: Annotated[Optional[str], Field(default=None, description="Specify from which row action should start to return data.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='CB Live Response: List Files',
+        annotations=ToolAnnotations(
+            title='CB Live Response: List Files',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cb_live_response_list_files(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], remote_directory_path: Annotated[str, Field(..., description="Specify the target directory path action should list. Example: C:\\TMP\\ or /tmp/")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], max_rows_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many rows action should return.")], start_from_row: Annotated[Optional[str], Field(default=None, description="Specify from which row action should start to return data.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List files on a host running VMware CB Cloud Agent based on the Siemplify Host or IP entity.
 
         Returns:
@@ -501,8 +556,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CBLiveResponse")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def cb_live_response_download_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], local_directory_path: Annotated[str, Field(..., description="Specify the local directory path action should save the file to. Example: /tmp/")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], file_name: Annotated[Optional[str], Field(default=None, description="Specify the file name to download. File name is case insensitive. File Name can be specified as a \"full path\" having both path and a file name, in that case Remote Directory Path parameter will not be used.")], remote_directory_path: Annotated[Optional[str], Field(default=None, description="Specify the remote directory path action should take to download the file. Example: C:\\TMP\\")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='CB Live Response: Download File',
+        annotations=ToolAnnotations(
+            title='CB Live Response: Download File',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cb_live_response_download_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], local_directory_path: Annotated[str, Field(..., description="Specify the local directory path action should save the file to. Example: /tmp/")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], file_name: Annotated[Optional[str], Field(default=None, description="Specify the file name to download. File name is case insensitive. File Name can be specified as a \"full path\" having both path and a file name, in that case Remote Directory Path parameter will not be used.")], remote_directory_path: Annotated[Optional[str], Field(default=None, description="Specify the remote directory path action should take to download the file. Example: C:\\TMP\\")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Download a file from a host running VMware CB Cloud Agent based on the Siemplify Host or IP entity. Note: The File name can be provided either as a Siemplify File entity (artifact) or as an action input parameter. If the File name is passed to action both as an entity and input parameter - action will be executed on the input parameter. File name is case insensitive. File name will be appended to both Local Directory Path and Remote Directory Path to get the resulting file paths that CB Cloud API accepts. If action is executed against multiple Host or IP entities, to not overwrite the file downloaded from multiple entities, the downloaded file name is appended with Hostname or IP address, example format: hostname_filename. File Name also can be specified as a "full path" having both path and a file name, or having file name and file path as separate parameters
 
         Returns:
@@ -581,8 +645,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CBLiveResponse")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def cb_live_response_list_files_in_cloud_storage(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], max_rows_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many rows action should return.")], start_from_row: Annotated[Optional[str], Field(default=None, description="Specify from which row action should start to return data.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='CB Live Response: List Files in Cloud Storage',
+        annotations=ToolAnnotations(
+            title='CB Live Response: List Files in Cloud Storage',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cb_live_response_list_files_in_cloud_storage(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], max_rows_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many rows action should return.")], start_from_row: Annotated[Optional[str], Field(default=None, description="Specify from which row action should start to return data.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List files in the VMware Carbon Black Cloud file storage for an existing live response session based on the Siemplify Host or IP entity.
 
         Returns:
@@ -660,8 +733,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CBLiveResponse")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def cb_live_response_put_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], destination_directory_path: Annotated[str, Field(..., description="Specify the target directory path action should upload the file to. Example: C:\\TMP\\")], file_name: Annotated[Optional[str], Field(default=None, description="Specify the file name to upload. File name is case insensitive. File Name can be specified as a \"full path\" having both path and a file name, in that case Source Directory Path parameter will not be used.")], source_directory_path: Annotated[Optional[str], Field(default=None, description="Specify the source directory path action should take to get the file to upload. Example: /tmp/")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='CB Live Response: Put File',
+        annotations=ToolAnnotations(
+            title='CB Live Response: Put File',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cb_live_response_put_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], destination_directory_path: Annotated[str, Field(..., description="Specify the target directory path action should upload the file to. Example: C:\\TMP\\")], file_name: Annotated[Optional[str], Field(default=None, description="Specify the file name to upload. File name is case insensitive. File Name can be specified as a \"full path\" having both path and a file name, in that case Source Directory Path parameter will not be used.")], source_directory_path: Annotated[Optional[str], Field(default=None, description="Specify the source directory path action should take to get the file to upload. Example: /tmp/")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Put a file on a host running VMware CB Cloud Agent based on the Siemplify Host or IP entity. Note: The File name can be provided either as a Siemplify File entity (artifact) or as an action input parameter. If the File name is passed to action both as an entity and input parameter - action will be executed on the input parameter. File name is case insensitive. File name will be appended to both Source Directory Path and Destination Directory Path to get the resulting file paths that CB Cloud API accepts. File Name also can be specified as a "full path" having both path and a file name, or having file name and file path as separate parameters
 
         Returns:
@@ -740,8 +822,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CBLiveResponse")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def cb_live_response_delete_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], remote_directory_path: Annotated[Optional[str], Field(default=None, description="Specify the remote directory path to file to delete. Example: C:\\TMP\\")], file_name: Annotated[Optional[str], Field(default=None, description="Specify the file name to delete. File name is case insensitive. File Name can be specified as a \"full path\" having both path and a file name, in that case Remote Directory Path parameter will not be used.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='CB Live Response: Delete File',
+        annotations=ToolAnnotations(
+            title='CB Live Response: Delete File',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cb_live_response_delete_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], remote_directory_path: Annotated[Optional[str], Field(default=None, description="Specify the remote directory path to file to delete. Example: C:\\TMP\\")], file_name: Annotated[Optional[str], Field(default=None, description="Specify the file name to delete. File name is case insensitive. File Name can be specified as a \"full path\" having both path and a file name, in that case Remote Directory Path parameter will not be used.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete a file from a host running VMware CB Cloud Agent based on the Siemplify Host or IP entity. Note: The File name can be provided either as a Siemplify File entity (artifact) or as an action input parameter. If the File name is passed to action both as an entity and input parameter - action will be executed on the input parameter. File name is case insensitive. File name will be appended to Remote Directory Path to get the resulting file paths that CB Cloud API accepts. File Name also can be specified as a "full path" having both path and a file name, or having file name and file path as separate parameters
 
         Returns:
@@ -819,8 +910,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CBLiveResponse")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def cb_live_response_delete_file_from_cloud_storage(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], file_name: Annotated[Optional[str], Field(default=None, description="Specify the file name to delete. File name is case insensitive.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='CB Live Response: Delete File from Cloud Storage',
+        annotations=ToolAnnotations(
+            title='CB Live Response: Delete File from Cloud Storage',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cb_live_response_delete_file_from_cloud_storage(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], check_for_active_session_x_times: Annotated[str, Field(..., description="How many attempts action should make to get active session for the entity. Check is made every 2 seconds.")], file_name: Annotated[Optional[str], Field(default=None, description="Specify the file name to delete. File name is case insensitive.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete a file from the VMware Carbon Black Cloud file storage for an existing live response session based on the Siemplify Host or IP entity. Note: This action is not supported in Carbon Black Live Response API v3, API v6 should be used to run this action. The File name can be provided either as a Siemplify File entity (artifact) or as an action input parameter. If the File name is passed to action both as an entity and input parameter - action will be executed on the input parameter. File name is case insensitive.
 
         Returns:

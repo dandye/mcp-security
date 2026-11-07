@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the Lastline integration.
 
-    @mcp.tool()
-    async def lastline_search_analysis_history(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_in_last_x_scans: Annotated[str, Field(..., description="Search for report in last x analyses executed in Lastline.")], submission_name: Annotated[Optional[str], Field(default=None, description="Submission name to search for. Can be either URL or Filehash in a format of MD5 and SHA1.")], submission_type: Annotated[Optional[List[str]], Field(default=None, description="Optionally specify a submission type to search for, either URL or FileHash.")], max_hours_backwards: Annotated[Optional[str], Field(default=None, description="Time frame for which to search for completed analysis tasks.")], skip_first_x_scans: Annotated[Optional[str], Field(default=None, description="Skip first x scans returned by Lastline API.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Lastline: Search Analysis History',
+        annotations=ToolAnnotations(
+            title='Lastline: Search Analysis History',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def lastline_search_analysis_history(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_in_last_x_scans: Annotated[str, Field(..., description="Search for report in last x analyses executed in Lastline.")], submission_name: Annotated[Optional[str], Field(default=None, description="Submission name to search for. Can be either URL or Filehash in a format of MD5 and SHA1.")], submission_type: Annotated[Optional[List[str]], Field(default=None, description="Optionally specify a submission type to search for, either URL or FileHash.")], max_hours_backwards: Annotated[Optional[str], Field(default=None, description="Time frame for which to search for completed analysis tasks.")], skip_first_x_scans: Annotated[Optional[str], Field(default=None, description="Skip first x scans returned by Lastline API.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Search Lastline completed analysis tasks history. For submission either URL or Filehash in a format of md5 or sha1 can be provided. Note: Action is not working with Siemplify entities, only action input parameters are used.
 
@@ -113,8 +123,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Lastline")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def lastline_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Lastline: Ping',
+        annotations=ToolAnnotations(
+            title='Lastline: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def lastline_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Lastline service with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -187,8 +206,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Lastline")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def lastline_get_analysis_results(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], threshold: Annotated[str, Field(..., description="Mark entity as suspicious if the score value for the entity is above the specified threshold.")], search_in_last_x_scans: Annotated[str, Field(..., description="Search for report for provided entity in last x analyses executed in Lastline.")], create_insight: Annotated[Optional[bool], Field(default=None, description="Specify whether to create insight based on the report data.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Lastline: Get Analysis Results',
+        annotations=ToolAnnotations(
+            title='Lastline: Get Analysis Results',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def lastline_get_analysis_results(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], threshold: Annotated[str, Field(..., description="Mark entity as suspicious if the score value for the entity is above the specified threshold.")], search_in_last_x_scans: Annotated[str, Field(..., description="Search for report for provided entity in last x analyses executed in Lastline.")], create_insight: Annotated[Optional[bool], Field(default=None, description="Specify whether to create insight based on the report data.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enrich Siemplify FileHash or URL entities with the previously completed analysis tasks results. Note: Action supports filehash entity in md-5 and sha-1 formats. Note 2: Action always fetches the latest analysis available for the provided entity in Lastline.
 
         Returns:
@@ -265,8 +293,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Lastline")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def lastline_submit_url(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], url_for_analysis: Annotated[str, Field(..., description="Specify URL to analyze.")], wait_for_the_report: Annotated[Optional[bool], Field(default=None, description="Specify whether the action should wait for the report creation. Report also can be obtained later with Get Analysis Results action once scan is completed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Lastline: Submit URL',
+        annotations=ToolAnnotations(
+            title='Lastline: Submit URL',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def lastline_submit_url(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], url_for_analysis: Annotated[str, Field(..., description="Specify URL to analyze.")], wait_for_the_report: Annotated[Optional[bool], Field(default=None, description="Specify whether the action should wait for the report creation. Report also can be obtained later with Get Analysis Results action once scan is completed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Submit analysis task for the provided URL. Note: Action is not working with Siemplify entities, URL to analyze should be provided as action input parameter.
 
@@ -345,8 +382,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Lastline")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def lastline_submit_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_path: Annotated[str, Field(..., description="Specify full path to file to analyze.")], wait_for_the_report: Annotated[Optional[bool], Field(default=None, description="Specify whether the action should wait for the report creation. Report also can be obtained later with Get Analysis Results action once scan is completed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Lastline: Submit File',
+        annotations=ToolAnnotations(
+            title='Lastline: Submit File',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def lastline_submit_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_path: Annotated[str, Field(..., description="Specify full path to file to analyze.")], wait_for_the_report: Annotated[Optional[bool], Field(default=None, description="Specify whether the action should wait for the report creation. Report also can be obtained later with Get Analysis Results action once scan is completed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Submit analysis task for the provided URL. Note: Action is not working with Siemplify entities, full path to file to analyze should be provided as action input parameter.
 

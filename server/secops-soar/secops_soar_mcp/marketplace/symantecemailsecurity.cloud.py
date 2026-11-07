@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the SymantecEmailSecurityCloud integration.
 
-    @mcp.tool()
-    async def symantec_email_security_cloud_block_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], description: Annotated[str, Field(..., description="Specify a description that should be added to the blocked entities.")], remediation_action: Annotated[Optional[List[str]], Field(default=None, description="Specify the remediation action for the entities.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Symantec Email Security Cloud: Block Entities',
+        annotations=ToolAnnotations(
+            title='Symantec Email Security Cloud: Block Entities',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def symantec_email_security_cloud_block_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], description: Annotated[str, Field(..., description="Specify a description that should be added to the blocked entities.")], remediation_action: Annotated[Optional[List[str]], Field(default=None, description="Specify the remediation action for the entities.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Block entities in Symantec Email Security.Cloud. Supported entities: Hostname, IP address, URL, Filehash, Email Subject, Email Address (user entity that matches email regex). Note: only MD5 and SHA256 hashes are supported. All of the entities are treated as "sender IOCs" during blocking.
 
         Returns:
@@ -104,8 +114,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SymantecEmailSecurityCloud")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def symantec_email_security_cloud_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Symantec Email Security Cloud: Ping',
+        annotations=ToolAnnotations(
+            title='Symantec Email Security Cloud: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def symantec_email_security_cloud_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Symantec Email Security.Cloud with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:

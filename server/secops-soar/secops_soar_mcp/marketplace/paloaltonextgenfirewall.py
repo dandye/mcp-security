@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the PaloAltoNGFW integration.
 
-    @mcp.tool()
-    async def palo_alto_ngfw_edit_blocked_applications(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="The device name in which the group is located. The default device name of NGFW is localhost.localdomain. In case configured differently, please refer to https://<NGFWIP>/php/rest/browse.php/config::devices for the list of all the device names and select the relevant device.")], vsys_name: Annotated[str, Field(..., description="The vsys in which the group is located. The default vsys name of NGFW is vsys1. In case configured differently, please refer to https://<NGFW IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE NAME>']::vsys for the list of all the vsys names of the device and select the relevant vsys.")], policy_name: Annotated[str, Field(..., description="Policy name value.")], applications_to_block: Annotated[Optional[str], Field(default=None, description="List of applications to block, comma separated, e.g: apple-siri,app2.")], applications_to_un_block: Annotated[Optional[str], Field(default=None, description="List of applications to unblock, comma separated, e.g: apple-siri,app2.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto NGFW: Edit Blocked Applications',
+        annotations=ToolAnnotations(
+            title='Palo Alto NGFW: Edit Blocked Applications',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_ngfw_edit_blocked_applications(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="The device name in which the group is located. The default device name of NGFW is localhost.localdomain. In case configured differently, please refer to https://<NGFWIP>/php/rest/browse.php/config::devices for the list of all the device names and select the relevant device.")], vsys_name: Annotated[str, Field(..., description="The vsys in which the group is located. The default vsys name of NGFW is vsys1. In case configured differently, please refer to https://<NGFW IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE NAME>']::vsys for the list of all the vsys names of the device and select the relevant vsys.")], policy_name: Annotated[str, Field(..., description="Policy name value.")], applications_to_block: Annotated[Optional[str], Field(default=None, description="List of applications to block, comma separated, e.g: apple-siri,app2.")], applications_to_un_block: Annotated[Optional[str], Field(default=None, description="List of applications to unblock, comma separated, e.g: apple-siri,app2.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Block and unblock applications. Each application is added to or removed from a given policy.
 
         Returns:
@@ -108,8 +118,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_ngfw_block_ips_in_policy(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="The device name in which the group is located. The default device name of NGFW is localhost.localdomain. In case configured differently, please refer to https://<NGFWIP>/php/rest/browse.php/config::devices for the list of all the device names and select the relevant device.")], vsys_name: Annotated[str, Field(..., description="The vsys in which the group is located. The default vsys name of NGFW is vsys1. In case configured differently, please refer to https://<NGFW IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE NAME>']::vsys for the list of all the vsys names of the device and select the relevant vsys.")], policy_name: Annotated[str, Field(..., description="Policy name value.")], target: Annotated[str, Field(..., description="Has to be source or destination.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto NGFW: Block IPS in Policy',
+        annotations=ToolAnnotations(
+            title='Palo Alto NGFW: Block IPS in Policy',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_ngfw_block_ips_in_policy(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="The device name in which the group is located. The default device name of NGFW is localhost.localdomain. In case configured differently, please refer to https://<NGFWIP>/php/rest/browse.php/config::devices for the list of all the device names and select the relevant device.")], vsys_name: Annotated[str, Field(..., description="The vsys in which the group is located. The default vsys name of NGFW is vsys1. In case configured differently, please refer to https://<NGFW IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE NAME>']::vsys for the list of all the vsys names of the device and select the relevant vsys.")], policy_name: Annotated[str, Field(..., description="Policy name value.")], target: Annotated[str, Field(..., description="Has to be source or destination.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Block IP addresses in a policy (each IP is added individually to the policy)
 
         Returns:
@@ -186,8 +205,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_ngfw_add_ips_to_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], address_group_name: Annotated[str, Field(..., description="Group name value.")], device_name: Annotated[Optional[str], Field(default=None, description="The device name in which the group is located. The default device name of NGFW is localhost.localdomain. In case configured differently, please refer to https://<NGFWIP>/php/rest/browse.php/config::devices for the list of all the device names and select the relevant device.")], vsys_name: Annotated[Optional[str], Field(default=None, description="The vsys in which the group is located. The default vsys name of NGFW is vsys1. In case configured differently, please refer to https://<NGFW IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE NAME>']::vsys for the list of all the vsys names of the device and select the relevant vsys.")], use_shared_objects: Annotated[Optional[bool], Field(default=None, description="If enabled, action will use shared objects instead of vsys. Note: action will not create a shared address group, if it doesn't exist.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto NGFW: Add IPS to Group',
+        annotations=ToolAnnotations(
+            title='Palo Alto NGFW: Add IPS to Group',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_ngfw_add_ips_to_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], address_group_name: Annotated[str, Field(..., description="Group name value.")], device_name: Annotated[Optional[str], Field(default=None, description="The device name in which the group is located. The default device name of NGFW is localhost.localdomain. In case configured differently, please refer to https://<NGFWIP>/php/rest/browse.php/config::devices for the list of all the device names and select the relevant device.")], vsys_name: Annotated[Optional[str], Field(default=None, description="The vsys in which the group is located. The default vsys name of NGFW is vsys1. In case configured differently, please refer to https://<NGFW IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE NAME>']::vsys for the list of all the vsys names of the device and select the relevant vsys.")], use_shared_objects: Annotated[Optional[bool], Field(default=None, description="If enabled, action will use shared objects instead of vsys. Note: action will not create a shared address group, if it doesn't exist.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add IP addresses to an address group
 
         Returns:
@@ -267,8 +295,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_ngfw_commit_changes(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], only_my_changes: Annotated[bool, Field(..., description="Commit only the configured use changes.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto NGFW: Commit Changes',
+        annotations=ToolAnnotations(
+            title='Palo Alto NGFW: Commit Changes',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_ngfw_commit_changes(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], only_my_changes: Annotated[bool, Field(..., description="Commit only the configured use changes.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Commit changes in Palo Alto NGFW. NOTICE! For using Only My Changes option, the user must be an admin.
 
         Returns:
@@ -342,8 +379,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_ngfw_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto NGFW: Ping',
+        annotations=ToolAnnotations(
+            title='Palo Alto NGFW: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_ngfw_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to Panorama
 
         Returns:
@@ -416,8 +462,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_ngfw_unblock_urls(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], url_category_name: Annotated[str, Field(..., description="")], device_name: Annotated[Optional[str], Field(default=None, description="The device name in which the group is located. The default device name of NGFW is localhost.localdomain. In case configured differently, please refer to https://<NGFWIP>/php/rest/browse.php/config::devices for the list of all the device names and select the relevant device.")], vsys_name: Annotated[Optional[str], Field(default=None, description="The vsys in which the group is located. The default vsys name of NGFW is vsys1. In case configured differently, please refer to https://<NGFW IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE NAME>']::vsys for the list of all the vsys names of the device and select the relevant vsys.")], use_shared_objects: Annotated[Optional[bool], Field(default=None, description="If enabled, action will use shared objects instead of vsys.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto NGFW: Unblock URLs',
+        annotations=ToolAnnotations(
+            title='Palo Alto NGFW: Unblock URLs',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_ngfw_unblock_urls(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], url_category_name: Annotated[str, Field(..., description="")], device_name: Annotated[Optional[str], Field(default=None, description="The device name in which the group is located. The default device name of NGFW is localhost.localdomain. In case configured differently, please refer to https://<NGFWIP>/php/rest/browse.php/config::devices for the list of all the device names and select the relevant device.")], vsys_name: Annotated[Optional[str], Field(default=None, description="The vsys in which the group is located. The default vsys name of NGFW is vsys1. In case configured differently, please refer to https://<NGFW IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE NAME>']::vsys for the list of all the vsys names of the device and select the relevant vsys.")], use_shared_objects: Annotated[Optional[bool], Field(default=None, description="If enabled, action will use shared objects instead of vsys.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove URLs from a given URL category
 
         Returns:
@@ -497,8 +552,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_ngfw_block_urls(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], url_category_name: Annotated[str, Field(..., description="Policy name value.")], device_name: Annotated[Optional[str], Field(default=None, description="The device name in which the group is located. The default device name of NGFW is localhost.localdomain. In case configured differently, please refer to https://<NGFWIP>/php/rest/browse.php/config::devices for the list of all the device names and select the relevant device.")], vsys_name: Annotated[Optional[str], Field(default=None, description="The vsys in which the group is located. The default vsys name of NGFW is vsys1. In case configured differently, please refer to https://<NGFW IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE NAME>']::vsys for the list of all the vsys names of the device and select the relevant vsys.")], use_shared_objects: Annotated[Optional[bool], Field(default=None, description="If enabled, action will use shared objects instead of vsys.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto NGFW: Block URLs',
+        annotations=ToolAnnotations(
+            title='Palo Alto NGFW: Block URLs',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_ngfw_block_urls(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], url_category_name: Annotated[str, Field(..., description="Policy name value.")], device_name: Annotated[Optional[str], Field(default=None, description="The device name in which the group is located. The default device name of NGFW is localhost.localdomain. In case configured differently, please refer to https://<NGFWIP>/php/rest/browse.php/config::devices for the list of all the device names and select the relevant device.")], vsys_name: Annotated[Optional[str], Field(default=None, description="The vsys in which the group is located. The default vsys name of NGFW is vsys1. In case configured differently, please refer to https://<NGFW IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE NAME>']::vsys for the list of all the vsys names of the device and select the relevant vsys.")], use_shared_objects: Annotated[Optional[bool], Field(default=None, description="If enabled, action will use shared objects instead of vsys.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add URLs to a given URL category (NOTE- To actually block the URL, create a policy and add the desired URL category to it.). Note: the length of URL can't exceed 255 characters.
 
         Returns:
@@ -578,8 +642,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_ngfw_remove_ips_from_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], address_group_name: Annotated[str, Field(..., description="The name of the required address group.")], device_name: Annotated[Optional[str], Field(default=None, description="The device name in which the group is located. The default device name of NGFW is localhost.localdomain. In case configured differently, please refer to https://<NGFWIP>/php/rest/browse.php/config::devices for the list of all the device names and select the relevant device.")], vsys_name: Annotated[Optional[str], Field(default=None, description="The vsys in which the group is located. The default vsys name of NGFW is vsys1. In case configured differently, please refer to https://<NGFW IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE NAME>']::vsys for the list of all the vsys names of the device and select the relevant vsys.")], use_shared_objects: Annotated[Optional[bool], Field(default=None, description="If enabled, action will use shared objects instead of vsys. Note: action will not create a shared address group, if it doesn't exist.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto NGFW: Remove IPS from Group',
+        annotations=ToolAnnotations(
+            title='Palo Alto NGFW: Remove IPS from Group',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_ngfw_remove_ips_from_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], address_group_name: Annotated[str, Field(..., description="The name of the required address group.")], device_name: Annotated[Optional[str], Field(default=None, description="The device name in which the group is located. The default device name of NGFW is localhost.localdomain. In case configured differently, please refer to https://<NGFWIP>/php/rest/browse.php/config::devices for the list of all the device names and select the relevant device.")], vsys_name: Annotated[Optional[str], Field(default=None, description="The vsys in which the group is located. The default vsys name of NGFW is vsys1. In case configured differently, please refer to https://<NGFW IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE NAME>']::vsys for the list of all the vsys names of the device and select the relevant vsys.")], use_shared_objects: Annotated[Optional[bool], Field(default=None, description="If enabled, action will use shared objects instead of vsys. Note: action will not create a shared address group, if it doesn't exist.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove IP addresses from an address group
 
         Returns:
@@ -659,8 +732,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_ngfw_unblock_ips_in_policy(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="The device name in which the group is located. The default device name of NGFW is localhost.localdomain. In case configured differently, please refer to https://<NGFWIP>/php/rest/browse.php/config::devices for the list of all the device names and select the relevant device.")], vsys_name: Annotated[str, Field(..., description="The vsys in which the group is located. The default vsys name of NGFW is vsys1. In case configured differently, please refer to https://<NGFW IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE NAME>']::vsys for the list of all the vsys names of the device and select the relevant vsys.")], policy_name: Annotated[str, Field(..., description="Policy name value.")], target: Annotated[str, Field(..., description="Has to be source or destination.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto NGFW: Unblock IPS in Policy',
+        annotations=ToolAnnotations(
+            title='Palo Alto NGFW: Unblock IPS in Policy',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_ngfw_unblock_ips_in_policy(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="The device name in which the group is located. The default device name of NGFW is localhost.localdomain. In case configured differently, please refer to https://<NGFWIP>/php/rest/browse.php/config::devices for the list of all the device names and select the relevant device.")], vsys_name: Annotated[str, Field(..., description="The vsys in which the group is located. The default vsys name of NGFW is vsys1. In case configured differently, please refer to https://<NGFW IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE NAME>']::vsys for the list of all the vsys names of the device and select the relevant vsys.")], policy_name: Annotated[str, Field(..., description="Policy name value.")], target: Annotated[str, Field(..., description="Has to be source or destination.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Unblock IP addresses in a policy (each IP address is removed individually from the policy).
 
         Returns:
@@ -737,8 +819,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoNGFW")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_ngfw_get_blocked_applications(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="The device name in which the group is located. The default device name of NGFW is localhost.localdomain. In case configured differently, please refer to https://<NGFWIP>/php/rest/browse.php/config::devices for the list of all the device names and select the relevant device.")], vsys_name: Annotated[str, Field(..., description="The vsys in which the group is located. The default vsys name of NGFW is vsys1. In case configured differently, please refer to https://<NGFW IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE NAME>']::vsys for the list of all the vsys names of the device and select the relevant vsys.")], policy_name: Annotated[str, Field(..., description="Policy name value.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto NGFW: Get Blocked Applications',
+        annotations=ToolAnnotations(
+            title='Palo Alto NGFW: Get Blocked Applications',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_ngfw_get_blocked_applications(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="The device name in which the group is located. The default device name of NGFW is localhost.localdomain. In case configured differently, please refer to https://<NGFWIP>/php/rest/browse.php/config::devices for the list of all the device names and select the relevant device.")], vsys_name: Annotated[str, Field(..., description="The vsys in which the group is located. The default vsys name of NGFW is vsys1. In case configured differently, please refer to https://<NGFW IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE NAME>']::vsys for the list of all the vsys names of the device and select the relevant vsys.")], policy_name: Annotated[str, Field(..., description="Policy name value.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List all blocked applications in a given policy
 
         Returns:

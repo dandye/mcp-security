@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the Intezer integration.
 
-    @mcp.tool()
-    async def intezer_detonate_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_path: Annotated[str, Field(..., description="Path to file for analyzing. Multiple values can be provided as a comma-separated string.")], related_alert_id: Annotated[Optional[str], Field(default=None, description="The alert id related to the file.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Intezer: Detonate File',
+        annotations=ToolAnnotations(
+            title='Intezer: Detonate File',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def intezer_detonate_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_path: Annotated[str, Field(..., description="Path to file for analyzing. Multiple values can be provided as a comma-separated string.")], related_alert_id: Annotated[Optional[str], Field(default=None, description="The alert id related to the file.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Analyze a file from Splunk vault with Intezer.
 
         Returns:
@@ -104,8 +114,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Intezer")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def intezer_get_url_report(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], analysis_id: Annotated[str, Field(..., description="Specify a comma-separated list of URL Analysis IDs to run the action on. Analysis ID is case sensitive. The analysis ID is returned when submitting a URL for analysis. Multiple values can be provided as a comma-separated string.")], wait_for_completion: Annotated[Optional[bool], Field(default=None, description="Whether to wait for the analysis to finish.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Intezer: Get URL Report',
+        annotations=ToolAnnotations(
+            title='Intezer: Get URL Report',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def intezer_get_url_report(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], analysis_id: Annotated[str, Field(..., description="Specify a comma-separated list of URL Analysis IDs to run the action on. Analysis ID is case sensitive. The analysis ID is returned when submitting a URL for analysis. Multiple values can be provided as a comma-separated string.")], wait_for_completion: Annotated[Optional[bool], Field(default=None, description="Whether to wait for the analysis to finish.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get a URL analysis report based on a URL analysis ID.
 
         Returns:
@@ -181,8 +200,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Intezer")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def intezer_get_file_report(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], analysis_id: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of File Analysis IDs to run the action on. Analysis ID is case sensitive. Note: if both \"Analysis ID\" and \"File Hash\" are provided, then \"File Hash\" value will have priority. Multiple values can be provided as a comma-separated string.")], file_hash: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of file hashes to run the action on. File Hash is case sensitive. Note: if both \"Analysis ID\" and \"File Hash\" are provided, then \"File Hash\" value will have priority. Multiple values can be provided as a comma-separated string.")], private_only: Annotated[Optional[bool], Field(default=None, description="Whether to show only private reports (relevant only for hashes).")], wait_for_completion: Annotated[Optional[bool], Field(default=None, description="Whether to wait for the analysis to complete before returning the report.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Intezer: Get File Report',
+        annotations=ToolAnnotations(
+            title='Intezer: Get File Report',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def intezer_get_file_report(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], analysis_id: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of File Analysis IDs to run the action on. Analysis ID is case sensitive. Note: if both \"Analysis ID\" and \"File Hash\" are provided, then \"File Hash\" value will have priority. Multiple values can be provided as a comma-separated string.")], file_hash: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of file hashes to run the action on. File Hash is case sensitive. Note: if both \"Analysis ID\" and \"File Hash\" are provided, then \"File Hash\" value will have priority. Multiple values can be provided as a comma-separated string.")], private_only: Annotated[Optional[bool], Field(default=None, description="Whether to show only private reports (relevant only for hashes).")], wait_for_completion: Annotated[Optional[bool], Field(default=None, description="Whether to wait for the analysis to complete before returning the report.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get a file analysis report based on an analysis ID or a file hash.
 
         Returns:
@@ -263,8 +291,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Intezer")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def intezer_get_alert(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_id: Annotated[str, Field(..., description="The alert id to query.")], wait_for_completion: Annotated[Optional[bool], Field(default=None, description="Whether to wait for the analysis to finish.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Intezer: Get Alert',
+        annotations=ToolAnnotations(
+            title='Intezer: Get Alert',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def intezer_get_alert(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_id: Annotated[str, Field(..., description="The alert id to query.")], wait_for_completion: Annotated[Optional[bool], Field(default=None, description="Whether to wait for the analysis to finish.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get an ingested alert triage and response information using alert ID.
 
         Returns:
@@ -340,8 +377,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Intezer")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def intezer_unset_index_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], sha256: Annotated[Optional[str], Field(default=None, description="SHA256 file to unset the indexing. Multiple values can be provided as a comma-separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Intezer: Unset Index File',
+        annotations=ToolAnnotations(
+            title='Intezer: Unset Index File',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def intezer_unset_index_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], sha256: Annotated[Optional[str], Field(default=None, description="SHA256 file to unset the indexing. Multiple values can be provided as a comma-separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Unset file's indexing.
 
         Returns:
@@ -416,8 +462,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Intezer")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def intezer_detonate_url(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], url: Annotated[Optional[str], Field(default=None, description="URL to analyze. Multiple values can be provided as a comma-separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Intezer: Detonate URL',
+        annotations=ToolAnnotations(
+            title='Intezer: Detonate URL',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def intezer_detonate_url(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], url: Annotated[Optional[str], Field(default=None, description="URL to analyze. Multiple values can be provided as a comma-separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Analyze a suspicious URL with Intezer.
 
         Returns:
@@ -492,8 +547,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Intezer")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def intezer_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Intezer: Ping',
+        annotations=ToolAnnotations(
+            title='Intezer: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def intezer_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Test connectivity to the Intezer with parameters provided at the integration configuration page on the Marketplace tab.
 
@@ -569,8 +633,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Intezer")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def intezer_detonate_hash(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_hash: Annotated[Optional[str], Field(default=None, description="Hash of the desired report. Multiple values can be provided as a comma-separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Intezer: Detonate Hash',
+        annotations=ToolAnnotations(
+            title='Intezer: Detonate Hash',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def intezer_detonate_hash(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_hash: Annotated[Optional[str], Field(default=None, description="Hash of the desired report. Multiple values can be provided as a comma-separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Analyze a file hash (SHA1, SHA256, or MD5) on Intezer Analyze.
 
         Returns:
@@ -645,8 +718,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Intezer")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def intezer_index_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], index_as: Annotated[List[str], Field(..., description="Index as trusted or malicious")], sha256: Annotated[Optional[str], Field(default=None, description="Sha256 to index. Multiple values can be provided as a comma-separated string.")], family_name: Annotated[Optional[str], Field(default=None, description="Family name to index as")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Intezer: Index File',
+        annotations=ToolAnnotations(
+            title='Intezer: Index File',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def intezer_index_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], index_as: Annotated[List[str], Field(..., description="Index as trusted or malicious")], sha256: Annotated[Optional[str], Field(default=None, description="Sha256 to index. Multiple values can be provided as a comma-separated string.")], family_name: Annotated[Optional[str], Field(default=None, description="Family name to index as")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Index the file's genes into the organizational database.
 
         Returns:
@@ -724,8 +806,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Intezer")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def intezer_submit_alert(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source: Annotated[str, Field(..., description="The source of the alert")], raw_alert: Annotated[str, Field(..., description="Alert raw data in JSON format")], alert_mapping: Annotated[str, Field(..., description="Mapping to use for the alert in JSON format")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Intezer: Submit Alert',
+        annotations=ToolAnnotations(
+            title='Intezer: Submit Alert',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def intezer_submit_alert(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source: Annotated[str, Field(..., description="The source of the alert")], raw_alert: Annotated[str, Field(..., description="Alert raw data in JSON format")], alert_mapping: Annotated[str, Field(..., description="Mapping to use for the alert in JSON format")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Submit a new alert including the raw alert information to Intezer for processing.
 
         Returns:
@@ -801,8 +892,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Intezer")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def intezer_submit_suspicious_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], email_file_path: Annotated[str, Field(..., description="Path to the email file")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Intezer: Submit Suspicious Email',
+        annotations=ToolAnnotations(
+            title='Intezer: Submit Suspicious Email',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def intezer_submit_suspicious_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], email_file_path: Annotated[str, Field(..., description="Path to the email file")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Submit a suspicious phishing email in a raw format (.MSG or .EML) to Intezer for processing
 
         Returns:
@@ -876,8 +976,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Intezer")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def intezer_submit_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_paths: Annotated[str, Field(..., description="The paths of the file to analyze.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Intezer: Submit File',
+        annotations=ToolAnnotations(
+            title='Intezer: Submit File',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def intezer_submit_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_paths: Annotated[str, Field(..., description="The paths of the file to analyze.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Submit a file for analysis.
 
         Returns:
@@ -951,8 +1060,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Intezer")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def intezer_submit_hash(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Intezer: Submit Hash',
+        annotations=ToolAnnotations(
+            title='Intezer: Submit Hash',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def intezer_submit_hash(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Submit a hash for analysis.
 

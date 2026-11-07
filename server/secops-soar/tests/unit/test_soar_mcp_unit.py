@@ -55,11 +55,18 @@ async def test_soar_mcp_server_metadata_and_tool_listing() -> None:
         }.issubset(tool_names)
         for tool in tools_result.tools:
             assert isinstance(tool.input_schema, dict)
+            assert tool.title and tool.title.strip()
+            assert tool.annotations is not None
+            assert isinstance(tool.annotations.read_only_hint, bool)
+            assert isinstance(tool.annotations.destructive_hint, bool)
+            assert isinstance(tool.annotations.open_world_hint, bool)
+            assert tool.output_schema is not None
+            assert len(json.dumps(tool.output_schema)) < 2048
 
 
 @pytest.mark.asyncio
 async def test_soar_case_tools_via_in_memory_client() -> None:
-    """Verify list_cases and create_case accept explicit null optional params."""
+    """Verify list_cases and create_case accept explicit null optional params and emit structured_content."""
     isolated_mcp = MCPServer(name="secops-soar-test")
     register_case_tools(isolated_mcp)
 
@@ -71,6 +78,7 @@ async def test_soar_case_tools_via_in_memory_client() -> None:
         async with Client(isolated_mcp) as client:
             list_res = await client.call_tool("list_cases", {"next_page_token": None})
             assert list_res.is_error is False
+            assert list_res.structured_content == {"cases": [{"id": "42", "title": "Suspicious Beacon"}]}
             payload = json.loads(list_res.content[0].text)
             assert payload == {"cases": [{"id": "42", "title": "Suspicious Beacon"}]}
 
@@ -84,11 +92,49 @@ async def test_soar_case_tools_via_in_memory_client() -> None:
                 },
             )
             assert create_res.is_error is False
+            assert isinstance(create_res.structured_content, dict)
+            assert create_res.structured_content["id"] == "43"
             created = json.loads(create_res.content[0].text)
             assert created["id"] == "43"
             fake_http.post.assert_awaited_once()
             _, kwargs = fake_http.post.await_args
             assert kwargs["req"] == {"Name": "Manual Hunt Case"}
+
+
+@pytest.mark.asyncio
+async def test_soar_case_tools_error_signaling() -> None:
+    """Verify missing client, HTTP None responses, and exceptions set is_error=True."""
+    isolated_mcp = MCPServer(name="secops-soar-error-test")
+    register_case_tools(isolated_mcp)
+
+    with patch.object(bindings, "http_client", None):
+        async with Client(isolated_mcp) as client:
+            no_client_res = await client.call_tool("list_cases", {})
+            assert no_client_res.is_error is True
+            assert "error" in json.loads(no_client_res.content[0].text)
+
+    failing_http = AsyncMock()
+    failing_http.get.return_value = None
+    failing_http.post.side_effect = RuntimeError("SOAR backend 503")
+
+    with patch.object(bindings, "http_client", failing_http):
+        async with Client(isolated_mcp) as client:
+            none_res = await client.call_tool("list_cases", {})
+            assert none_res.is_error is True
+            assert "error" in json.loads(none_res.content[0].text)
+
+            exc_res = await client.call_tool(
+                "close_case",
+                {
+                    "case_id": "42",
+                    "root_cause": "Test",
+                    "comment": "Closing",
+                    "reason": "NotMalicious",
+                },
+            )
+            assert exc_res.is_error is True
+            err_payload = json.loads(exc_res.content[0].text)
+            assert "SOAR backend 503" in err_payload["error"]
 
 
 @pytest.mark.asyncio

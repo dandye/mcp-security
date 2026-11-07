@@ -19,13 +19,25 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
+from mcp.types import ToolAnnotations as _ToolAnnotations
 from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.utils import tool_error_result as _tool_error_result
 
 
 # Configure logging
 logger = logging.getLogger('secops-mcp')
 
-@server.tool()
+
+@server.tool(
+    title="Ingest Raw Logs into Chronicle",
+    annotations=_ToolAnnotations(
+        title="Ingest Raw Logs into Chronicle",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=False,
+    ),
+)
 async def ingest_raw_log(
     log_type: str,
     log_message: Union[str, List[str]],
@@ -36,7 +48,7 @@ async def ingest_raw_log(
     labels: Optional[Dict[str, str]] = None,
     log_entry_time: Optional[str] = None,
     collection_time: Optional[str] = None,
-) -> str:
+) -> dict[str, Any]:
     """Ingest raw logs directly into Chronicle SIEM.
 
     Allows ingestion of raw log data in various formats (JSON, XML, CEF, etc.) into Chronicle
@@ -102,10 +114,8 @@ async def ingest_raw_log(
         - Use entity lookup tools to analyze indicators found in the ingested data.
     """
     try:
-        logger.info(f'Ingesting raw log of type: {log_type}')
+        logger.info('Ingesting raw log of type: %s', log_type)
 
-        
-        
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # Prepare ingestion parameters
@@ -136,19 +146,35 @@ async def ingest_raw_log(
         if labels:
             response += f'\nLabels applied: {labels}'
         
-        return response
+        return {
+            'status': 'success',
+            'summary': response,
+            'log_type': log_type,
+            'ingested_count': log_count,
+            'operation': operation,
+        }
 
     except Exception as e:
-        logger.error(f'Error ingesting raw log: {str(e)}', exc_info=True)
-        return f'Error ingesting raw log: {str(e)}'
+        logger.error('Error ingesting raw log: %s', e, exc_info=True)
+        return _tool_error_result(f'Error ingesting raw log: {e}', log_type=log_type)
 
-@server.tool()
+
+@server.tool(
+    title="Ingest UDM Events into Chronicle",
+    annotations=_ToolAnnotations(
+        title="Ingest UDM Events into Chronicle",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=False,
+    ),
+)
 async def ingest_udm_events(
     udm_events: Union[Dict[str, Any], List[Dict[str, Any]]],
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> str:
+) -> dict[str, Any]:
     """Ingest UDM events directly into Chronicle SIEM.
 
     Allows direct ingestion of events already formatted in Chronicle's Unified Data Model (UDM)
@@ -256,8 +282,6 @@ async def ingest_udm_events(
     try:
         logger.info('Ingesting UDM events')
 
-        
-        
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # Auto-generate IDs for events that don't have them
@@ -268,7 +292,7 @@ async def ingest_udm_events(
                 event['metadata']['id'] = str(uuid.uuid4())
 
         # Ingest the UDM events
-        result = chronicle.ingest_udm(udm_events=udm_events)
+        chronicle.ingest_udm(udm_events=udm_events)
 
         # Format response
         event_count = len(events_to_ingest)
@@ -285,19 +309,34 @@ async def ingest_udm_events(
             if len(event_ids) > 5:
                 response += f' (and {len(event_ids) - 5} more)'
         
-        return response
+        return {
+            'status': 'success',
+            'summary': response,
+            'ingested_count': event_count,
+            'event_ids': event_ids,
+        }
 
     except Exception as e:
-        logger.error(f'Error ingesting UDM events: {str(e)}', exc_info=True)
-        return f'Error ingesting UDM events: {str(e)}'
+        logger.error('Error ingesting UDM events: %s', e, exc_info=True)
+        return _tool_error_result(f'Error ingesting UDM events: {e}')
 
-@server.tool()
+
+@server.tool(
+    title="Get Available Chronicle Log Types",
+    annotations=_ToolAnnotations(
+        title="Get Available Chronicle Log Types",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_available_log_types(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
     search_term: Optional[str] = None,
-) -> str:
+) -> dict[str, Any]:
     """Get available log types supported by Chronicle for ingestion.
 
     Retrieves the list of log types that Chronicle can parse and ingest, optionally filtered
@@ -348,10 +387,8 @@ async def get_available_log_types(
         - Create custom parsers if your log format isn't supported natively.
     """
     try:
-        logger.info(f'Getting available log types, search term: {search_term}')
+        logger.info('Getting available log types, search term: %s', search_term)
 
-        
-        
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         if search_term:
@@ -362,21 +399,34 @@ async def get_available_log_types(
             log_types = chronicle.get_all_log_types()[:50]
 
         if not log_types:
-            return f'No log types found{" matching search term: " + search_term if search_term else ""}.'
+            return {
+                'summary': f'No log types found{" matching search term: " + search_term if search_term else ""}.',
+                'count': 0,
+                'log_types': [],
+            }
 
         result = f'Found {len(log_types)} log type(s):\n\n'
+        items = []
         
         for log_type in log_types:
             log_id = getattr(log_type, 'id', 'Unknown ID')
             description = getattr(log_type, 'description', 'No description available')
+            items.append({'id': log_id, 'description': description})
             result += f'ID: {log_id}\n'
             result += f'Description: {description}\n\n'
 
         if len(log_types) == 50 and not search_term:
             result += '\nNote: Only showing first 50 log types. Use search_term to filter results.'
 
-        return result
+        return {
+            'summary': result,
+            'count': len(items),
+            'log_types': items,
+        }
 
     except Exception as e:
-        logger.error(f'Error getting available log types: {str(e)}', exc_info=True)
-        return f'Error getting available log types: {str(e)}' 
+        logger.error('Error getting available log types: %s', e, exc_info=True)
+        return _tool_error_result(
+            f'Error getting available log types: {e}',
+            log_types=[],
+        )

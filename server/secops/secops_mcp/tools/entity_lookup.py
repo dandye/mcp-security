@@ -15,22 +15,34 @@
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 
+from mcp.types import ToolAnnotations as _ToolAnnotations
 from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.utils import tool_error_result as _tool_error_result
 
 
 # Configure logging
 logger = logging.getLogger('secops-mcp')
 
-@server.tool()
+
+@server.tool(
+    title="Look Up Entity Context in Chronicle",
+    annotations=_ToolAnnotations(
+        title="Look Up Entity Context in Chronicle",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def lookup_entity(
     entity_value: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     hours_back: int = 24,
     region: Optional[str] = None,
-) -> str:
+) -> dict[str, Any]:
     """Look up an entity (IP, domain, hash, user, etc.) in Chronicle SIEM for enrichment.
 
     Provides a comprehensive summary of an entity's activity based on historical log data
@@ -99,20 +111,24 @@ async def lookup_entity(
             hasattr(entity_summary, 'primary_entity') and
             not entity_summary.primary_entity
         ):
-            return f'No information found for entity: {entity_value}'
+            return {
+                'summary': f'No information found for entity: {entity_value}',
+                'entity_value': entity_value,
+                'found': False,
+            }
 
         result = f'Entity Summary for {entity_value}:\n\n'
 
         # Process primary entity
         primary_entity = None
+        entity_type = 'Unknown'
         if hasattr(entity_summary, 'primary_entity'):
             primary_entity = entity_summary.primary_entity
 
         if primary_entity:
-            result += f'Primary Entity:\n'
+            result += 'Primary Entity:\n'
 
             # Get entity type
-            entity_type = 'Unknown'
             if hasattr(primary_entity, 'metadata') and hasattr(primary_entity.metadata, 'entity_type'):
                 entity_type = primary_entity.metadata.entity_type
 
@@ -120,7 +136,7 @@ async def lookup_entity(
             first_seen = 'Unknown'
             last_seen = 'Unknown'
             if hasattr(primary_entity, 'metric') and primary_entity.metric:
-                if hasattr(primary_entity.metric, 'first_seen'):
+                if hasattr(primary_entity, 'metric') and hasattr(primary_entity.metric, 'first_seen'):
                     first_seen = primary_entity.metric.first_seen
                 if hasattr(primary_entity.metric, 'last_seen'):
                     last_seen = primary_entity.metric.last_seen
@@ -137,11 +153,11 @@ async def lookup_entity(
         if related_entities:
             result += f'Related Entities ({len(related_entities)}):\n'
             for i, entity in enumerate(related_entities[:5], 1):  # Limit to 5 related entities
-                entity_type = 'Unknown'
+                rel_entity_type = 'Unknown'
                 if hasattr(entity, 'metadata') and hasattr(entity.metadata, 'entity_type'):
-                    entity_type = entity.metadata.entity_type
+                    rel_entity_type = entity.metadata.entity_type
 
-                result += f'{i}. Type: {entity_type}\n'
+                result += f'{i}. Type: {rel_entity_type}\n'
 
             if len(related_entities) > 5:
                 result += f'... and {len(related_entities) - 5} more related entities\n'
@@ -187,7 +203,17 @@ async def lookup_entity(
         if hasattr(entity_summary, 'prevalence') and entity_summary.prevalence:
             result += 'Prevalence Information Available\n\n'
 
-        return result
+        return {
+            'summary': result,
+            'entity_value': entity_value,
+            'found': True,
+            'entity_type': str(entity_type),
+            'related_entity_count': len(related_entities),
+            'alert_rule_count': len(alert_counts),
+        }
     except Exception as e:
-        logger.error(f'Error looking up entity: {str(e)}', exc_info=True)
-        return f'Error looking up entity: {str(e)}'
+        logger.error('Error looking up entity %s: %s', entity_value, e, exc_info=True)
+        return _tool_error_result(
+            f'Error looking up entity: {e}',
+            entity_value=entity_value,
+        )

@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the Splunk integration.
 
-    @mcp.tool()
-    async def splunk_splunk_csv_viewer(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], results: Annotated[str, Field(..., description="Raw results.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Splunk: SplunkCsvViewer',
+        annotations=ToolAnnotations(
+            title='Splunk: SplunkCsvViewer',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def splunk_splunk_csv_viewer(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], results: Annotated[str, Field(..., description="Raw results.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Deprecated. This action creates a CSV table based on the raw results.
 
@@ -105,8 +115,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Splunk")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def splunk_get_host_events(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_per_host_limit: Annotated[str, Field(..., description="Specify how many events to return per host.")], results_from: Annotated[str, Field(..., description="Specify the start time for the events.")], results_to: Annotated[str, Field(..., description="Specify the end time for the events.")], result_fields: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of fields that need to be returned.")], index: Annotated[Optional[str], Field(default=None, description="Specify what index should be used, when searching for events related to the host. If nothing is provided, action will not use index.")], host_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used to get information about host events. Default: host.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Splunk: Get Host Events',
+        annotations=ToolAnnotations(
+            title='Splunk: Get Host Events',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def splunk_get_host_events(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_per_host_limit: Annotated[str, Field(..., description="Specify how many events to return per host.")], results_from: Annotated[str, Field(..., description="Specify the start time for the events.")], results_to: Annotated[str, Field(..., description="Specify the end time for the events.")], result_fields: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of fields that need to be returned.")], index: Annotated[Optional[str], Field(default=None, description="Specify what index should be used, when searching for events related to the host. If nothing is provided, action will not use index.")], host_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used to get information about host events. Default: host.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Get events related to hosts in Splunk.
 
@@ -191,8 +210,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Splunk")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def splunk_update_notable_events(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], notable_event_i_ds: Annotated[str, Field(..., description="Specify IDs of notable events. Example:1A082D7B-D5A1-4A2B-BB94-41C439BE3EB7@@notable@@cb87390ae72763679d3f6f8f097ebe2b,1D234D5B-1531-2D2B-BB94-41C439BE12B7@@notable@@cb87390ae72763679d3f6f8f097ebe2b")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify the new status for notable events.")], urgency: Annotated[Optional[List[str]], Field(default=None, description="Specify the new urgency for the notable event.")], new_owner: Annotated[Optional[str], Field(default=None, description="Specify the new owner of the notable event.")], comment: Annotated[Optional[str], Field(default=None, description="Specify comment for the notable event.")], disposition: Annotated[Optional[List[str]], Field(default=None, description="Specify the disposition for the notable event.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Splunk: Update Notable Events',
+        annotations=ToolAnnotations(
+            title='Splunk: Update Notable Events',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def splunk_update_notable_events(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], notable_event_i_ds: Annotated[str, Field(..., description="Specify IDs of notable events. Example:1A082D7B-D5A1-4A2B-BB94-41C439BE3EB7@@notable@@cb87390ae72763679d3f6f8f097ebe2b,1D234D5B-1531-2D2B-BB94-41C439BE12B7@@notable@@cb87390ae72763679d3f6f8f097ebe2b")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify the new status for notable events.")], urgency: Annotated[Optional[List[str]], Field(default=None, description="Specify the new urgency for the notable event.")], new_owner: Annotated[Optional[str], Field(default=None, description="Specify the new owner of the notable event.")], comment: Annotated[Optional[str], Field(default=None, description="Specify comment for the notable event.")], disposition: Annotated[Optional[List[str]], Field(default=None, description="Specify the disposition for the notable event.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Update notable events in Splunk ES. Note: This action is only supported for Splunk ES.
 
@@ -279,8 +307,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Splunk")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def splunk_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Splunk: Ping',
+        annotations=ToolAnnotations(
+            title='Splunk: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def splunk_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Splunk with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -353,8 +390,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Splunk")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def splunk_splunk_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[str, Field(..., description="Specify the query that needs to be executed. Example: index=\"_internal\". You can provide multiple queries in the same action. The format is [\u201cquery 1\u201d, \u201cquery 2\u201d].")], search_mode: Annotated[Optional[List[str]], Field(default=None, description="Specify the mode for search execution.")], results_count_limit: Annotated[Optional[str], Field(default=None, description="Specify how many results to return. Note: this parameter appends the \u201chead\u201d key word to the provided query. Default is 100.")], results_from: Annotated[Optional[str], Field(default=None, description="Specify the start time for the query. Default: -24h")], results_to: Annotated[Optional[str], Field(default=None, description="Specify the end time for the query. Default: now.")], result_fields: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of fields that need to be returned. Note: this parameter appends \"fields\" key word to the provided query.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Splunk: SplunkQuery',
+        annotations=ToolAnnotations(
+            title='Splunk: SplunkQuery',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def splunk_splunk_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[str, Field(..., description="Specify the query that needs to be executed. Example: index=\"_internal\". You can provide multiple queries in the same action. The format is [\u201cquery 1\u201d, \u201cquery 2\u201d].")], search_mode: Annotated[Optional[List[str]], Field(default=None, description="Specify the mode for search execution.")], results_count_limit: Annotated[Optional[str], Field(default=None, description="Specify how many results to return. Note: this parameter appends the \u201chead\u201d key word to the provided query. Default is 100.")], results_from: Annotated[Optional[str], Field(default=None, description="Specify the start time for the query. Default: -24h")], results_to: Annotated[Optional[str], Field(default=None, description="Specify the end time for the query. Default: now.")], result_fields: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of fields that need to be returned. Note: this parameter appends \"fields\" key word to the provided query.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Execute a query in Splunk. Note: Please exclude any quotes that are part of the query string.
 
@@ -441,8 +487,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Splunk")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def splunk_execute_entity_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[str, Field(..., description="Specify the query that needs to be executed without the \u201cWhere\u201d clause.  Example: index=\"_internal\"")], cross_entity_operator: Annotated[List[str], Field(..., description="Specify what should be the logical operator used between different entity types.")], search_mode: Annotated[Optional[List[str]], Field(default=None, description="Specify the mode for search execution.")], results_count_limit: Annotated[Optional[str], Field(default=None, description="Specify how many results to return. Note: this parameter appends the \"head\" key word to the provided query. Default is 100.")], results_from: Annotated[Optional[str], Field(default=None, description="Specify the start time for the query. Default: -24h")], results_to: Annotated[Optional[str], Field(default=None, description="Specify the end time for the query. Default: now.")], result_fields: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of fields that need to be returned. Note: this parameter appends \"fields\" key word to the provided query.")], ip_entity_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used with IP entities. Please refer to the action documentation for details.")], hostname_entity_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used with Hostname entities, when preparing the. Please refer to the action documentation for details.")], file_hash_entity_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used with File Hash entities. Please refer to the action documentation for details.")], user_entity_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used with User entities. Please refer to the action documentation for details.")], url_entity_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used with URL entities. Please refer to the action documentation for details.")], email_address_entity_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used with Email Address entities. Please refer to the action documentation for details.")], stop_if_not_enough_entities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will not start execution, unless all of the entity types are available for the specified \".. Entity Keys\". Example: if \"IP Entity Key\" and \"File Hash Entity Key\" are specified, but in the scope there are no file hashes then if this parameter is enabled, action will not execute the query.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Splunk: Execute Entity Query',
+        annotations=ToolAnnotations(
+            title='Splunk: Execute Entity Query',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def splunk_execute_entity_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[str, Field(..., description="Specify the query that needs to be executed without the \u201cWhere\u201d clause.  Example: index=\"_internal\"")], cross_entity_operator: Annotated[List[str], Field(..., description="Specify what should be the logical operator used between different entity types.")], search_mode: Annotated[Optional[List[str]], Field(default=None, description="Specify the mode for search execution.")], results_count_limit: Annotated[Optional[str], Field(default=None, description="Specify how many results to return. Note: this parameter appends the \"head\" key word to the provided query. Default is 100.")], results_from: Annotated[Optional[str], Field(default=None, description="Specify the start time for the query. Default: -24h")], results_to: Annotated[Optional[str], Field(default=None, description="Specify the end time for the query. Default: now.")], result_fields: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of fields that need to be returned. Note: this parameter appends \"fields\" key word to the provided query.")], ip_entity_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used with IP entities. Please refer to the action documentation for details.")], hostname_entity_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used with Hostname entities, when preparing the. Please refer to the action documentation for details.")], file_hash_entity_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used with File Hash entities. Please refer to the action documentation for details.")], user_entity_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used with User entities. Please refer to the action documentation for details.")], url_entity_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used with URL entities. Please refer to the action documentation for details.")], email_address_entity_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used with Email Address entities. Please refer to the action documentation for details.")], stop_if_not_enough_entities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will not start execution, unless all of the entity types are available for the specified \".. Entity Keys\". Example: if \"IP Entity Key\" and \"File Hash Entity Key\" are specified, but in the scope there are no file hashes then if this parameter is enabled, action will not execute the query.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Execute an entity query in Splunk. Note: this action prepares the “Where” clause based on the entities. Check documentation for additional information.
 
@@ -544,8 +599,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Splunk")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def splunk_submit_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], index: Annotated[str, Field(..., description="Specify the index, where the event should be created.")], event: Annotated[str, Field(..., description="Specify the raw event that needs to be submitted.")], host: Annotated[Optional[str], Field(default=None, description="Specify the host that is related to the event.")], source: Annotated[Optional[str], Field(default=None, description="Specify the source of the event. Example: www.")], sourcetype: Annotated[Optional[str], Field(default=None, description="Specify the source type of the event. Example: web_event")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Splunk: Submit Event',
+        annotations=ToolAnnotations(
+            title='Splunk: Submit Event',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def splunk_submit_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], index: Annotated[str, Field(..., description="Specify the index, where the event should be created.")], event: Annotated[str, Field(..., description="Specify the raw event that needs to be submitted.")], host: Annotated[Optional[str], Field(default=None, description="Specify the host that is related to the event.")], source: Annotated[Optional[str], Field(default=None, description="Specify the source of the event. Example: www.")], sourcetype: Annotated[Optional[str], Field(default=None, description="Specify the source type of the event. Example: web_event")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Submit event to Splunk
 

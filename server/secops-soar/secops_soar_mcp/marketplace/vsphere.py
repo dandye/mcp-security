@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the VSphere integration.
 
-    @mcp.tool()
-    async def v_sphere_suspend(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vm_name: Annotated[str, Field(..., description="The name of the target VM.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='V Sphere: Suspend',
+        annotations=ToolAnnotations(
+            title='V Sphere: Suspend',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def v_sphere_suspend(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vm_name: Annotated[str, Field(..., description="The name of the target VM.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Suspend a VM
 
@@ -105,8 +115,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for VSphere")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def v_sphere_take_snapshot(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vm_name: Annotated[str, Field(..., description="The name of the target VM.")], snapshot_name: Annotated[str, Field(..., description="The name of the target snapshot.")], snapshot_description: Annotated[str, Field(..., description="Snapshot description value.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='V Sphere: Take Snapshot',
+        annotations=ToolAnnotations(
+            title='V Sphere: Take Snapshot',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def v_sphere_take_snapshot(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vm_name: Annotated[str, Field(..., description="The name of the target VM.")], snapshot_name: Annotated[str, Field(..., description="The name of the target snapshot.")], snapshot_description: Annotated[str, Field(..., description="Snapshot description value.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Take a snapshot of a VM
 
         Returns:
@@ -182,8 +201,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for VSphere")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def v_sphere_get_vm_by_ip(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='V Sphere: Get VM by IP',
+        annotations=ToolAnnotations(
+            title='V Sphere: Get VM by IP',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def v_sphere_get_vm_by_ip(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get VM name by IP address
 
         Returns:
@@ -256,8 +284,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for VSphere")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def v_sphere_revert_to_snapshot(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vm_name: Annotated[str, Field(..., description="The name of the target VM.")], snapshot_name: Annotated[str, Field(..., description="The name of the target snapshot.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='V Sphere: Revert to Snapshot',
+        annotations=ToolAnnotations(
+            title='V Sphere: Revert to Snapshot',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def v_sphere_revert_to_snapshot(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vm_name: Annotated[str, Field(..., description="The name of the target VM.")], snapshot_name: Annotated[str, Field(..., description="The name of the target snapshot.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Revert to a specific snapshot
 
@@ -335,8 +372,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for VSphere")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def v_sphere_power_on(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vm_name: Annotated[str, Field(..., description="")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='V Sphere: Power on',
+        annotations=ToolAnnotations(
+            title='V Sphere: Power on',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def v_sphere_power_on(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vm_name: Annotated[str, Field(..., description="")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Power on a VM
 
@@ -413,8 +459,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for VSphere")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def v_sphere_reset(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vm_name: Annotated[str, Field(..., description="The name of the target VM.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='V Sphere: Reset',
+        annotations=ToolAnnotations(
+            title='V Sphere: Reset',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def v_sphere_reset(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vm_name: Annotated[str, Field(..., description="The name of the target VM.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Hard reset a VM
 
@@ -491,8 +546,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for VSphere")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def v_sphere_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='V Sphere: Ping',
+        annotations=ToolAnnotations(
+            title='V Sphere: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def v_sphere_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test Connectivity
 
         Returns:
@@ -565,8 +629,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for VSphere")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def v_sphere_power_off(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vm_name: Annotated[str, Field(..., description="Target VM name.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='V Sphere: Power Off',
+        annotations=ToolAnnotations(
+            title='V Sphere: Power Off',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def v_sphere_power_off(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vm_name: Annotated[str, Field(..., description="Target VM name.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Power off a VM
 
@@ -643,8 +716,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for VSphere")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def v_sphere_get_system_info(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vm_name: Annotated[str, Field(..., description="Target VM name.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='V Sphere: Get System Info',
+        annotations=ToolAnnotations(
+            title='V Sphere: Get System Info',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def v_sphere_get_system_info(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vm_name: Annotated[str, Field(..., description="Target VM name.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Get information about a VM
 
@@ -721,8 +803,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for VSphere")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def v_sphere_list_vms(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='V Sphere: List VMs',
+        annotations=ToolAnnotations(
+            title='V Sphere: List VMs',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def v_sphere_list_vms(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get a list of all registered VMs
 
         Returns:

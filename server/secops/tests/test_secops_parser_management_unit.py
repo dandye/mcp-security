@@ -21,6 +21,7 @@ except ImportError:
     sys.modules["secops.exceptions"] = MagicMock()
 
 import mcp  # noqa: F401
+from mcp.types import CallToolResult
 
 from secops_mcp.tools.parser_management import list_parsers
 
@@ -155,17 +156,20 @@ async def test_list_parsers_returns_pagination_token_when_page_size_set(mock_get
 
 @pytest.mark.asyncio
 async def test_list_parsers_returns_error_string_on_exception(mock_get_client):
-    """SDK errors should be caught and returned as a dict with error and empty parsers."""
+    """SDK errors should be caught and returned with is_error=True and empty parsers."""
     mock_get_client.list_parsers.side_effect = RuntimeError("boom")
 
     result = await list_parsers(
         log_type="OKTA", project_id="test", customer_id="test", region="us"
     )
 
-    assert isinstance(result, dict)
-    assert "error" in result
-    assert "parsers" in result
-    assert result["parsers"] == []
-    assert "Error listing parsers" in result["error"]
-    assert "boom" in result["error"]
-    assert "OKTA" in result["error"]
+    assert isinstance(result, CallToolResult)
+    assert result.is_error is True
+    payload = result.structured_content
+    assert isinstance(payload, dict)
+    assert "error" in payload
+    assert "parsers" in payload
+    assert payload["parsers"] == []
+    assert "Error listing parsers" in payload["error"]
+    assert "boom" in payload["error"]
+    assert "OKTA" in payload["error"]

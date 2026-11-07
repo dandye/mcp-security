@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the Arcsight integration.
 
-    @mcp.tool()
-    async def arcsight_search(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_query: Annotated[str, Field(..., description="Specify the search query.")], max_items_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many items to return in the response.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Arcsight: Search',
+        annotations=ToolAnnotations(
+            title='Arcsight: Search',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def arcsight_search(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_query: Annotated[str, Field(..., description="Specify the search query.")], max_items_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many items to return in the response.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Search for available resources in ArcSight
 
         Returns:
@@ -104,8 +114,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Arcsight")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def arcsight_get_report(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], report_full_path_uri: Annotated[str, Field(..., description="Specify the URI to the report. Example: /All Reports/ArcSight Foundation/MITRE ATT&CK/Mitre ATT&CK Summary")], field_2: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], field_3: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], field_4: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], field_5: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], field_6: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], field_7: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], field_8: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], field_9: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], field_10: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Arcsight: Get Report',
+        annotations=ToolAnnotations(
+            title='Arcsight: Get Report',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def arcsight_get_report(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], report_full_path_uri: Annotated[str, Field(..., description="Specify the URI to the report. Example: /All Reports/ArcSight Foundation/MITRE ATT&CK/Mitre ATT&CK Summary")], field_2: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], field_3: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], field_4: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], field_5: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], field_6: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], field_7: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], field_8: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], field_9: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], field_10: Annotated[Optional[str], Field(default=None, description="The dynamic fields for the query to generate the report")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get details about report in ArcSight.
 
         Returns:
@@ -197,8 +216,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Arcsight")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def arcsight_add_entities_to_active_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], active_list_name: Annotated[str, Field(..., description="Specify the name of the active list to which you want to add entities.")], entity_column: Annotated[str, Field(..., description="Specify the name of the column, where entity value should be put.")], additional_fields: Annotated[Optional[str], Field(default=None, description="Specify additional fields that should be added alongside the entity in the active list. Format is a JSON object. Example: {\"Column_1\": \"Value_1\",\"Column_2\": \"Value_2\"}")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Arcsight: Add Entities to Active List',
+        annotations=ToolAnnotations(
+            title='Arcsight: Add Entities to Active List',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def arcsight_add_entities_to_active_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], active_list_name: Annotated[str, Field(..., description="Specify the name of the active list to which you want to add entities.")], entity_column: Annotated[str, Field(..., description="Specify the name of the column, where entity value should be put.")], additional_fields: Annotated[Optional[str], Field(default=None, description="Specify additional fields that should be added alongside the entity in the active list. Format is a JSON object. Example: {\"Column_1\": \"Value_1\",\"Column_2\": \"Value_2\"}")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add entities to the active list in ArcSight.
 
         Returns:
@@ -275,8 +303,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Arcsight")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def arcsight_get_activelist_entries(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], active_list_uuid: Annotated[Optional[str], Field(default=None, description="Specify the UUID of the active list for which you want to retrieve entries. Note: parameter \u201cActive list UUID\u201c takes priority over \u201cActive list name\u201c. Example: HLZRc9yYBABC-lHtlf3-f0Q==")], active_list_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the active list for which you want to retrieve entries. Note: parameter \u201cActive list UUID\u201c takes priority over \u201cActive list name\u201c.")], map_columns: Annotated[Optional[bool], Field(default=None, description="If enabled, action will map columns to the values in the JSON result.")], max_entries_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many entries to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Arcsight: Get Activelist Entries',
+        annotations=ToolAnnotations(
+            title='Arcsight: Get Activelist Entries',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def arcsight_get_activelist_entries(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], active_list_uuid: Annotated[Optional[str], Field(default=None, description="Specify the UUID of the active list for which you want to retrieve entries. Note: parameter \u201cActive list UUID\u201c takes priority over \u201cActive list name\u201c. Example: HLZRc9yYBABC-lHtlf3-f0Q==")], active_list_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the active list for which you want to retrieve entries. Note: parameter \u201cActive list UUID\u201c takes priority over \u201cActive list name\u201c.")], map_columns: Annotated[Optional[bool], Field(default=None, description="If enabled, action will map columns to the values in the JSON result.")], max_entries_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many entries to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Retrieve active list entries in ArcSight
 
         Returns:
@@ -357,8 +394,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Arcsight")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def arcsight_change_case_stage(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], case_name: Annotated[str, Field(..., description="Specify the name of the case for which you want to update the stage.")], stage: Annotated[str, Field(..., description="Specify a new stage for the case. Possible values: INITIAL, QUEUED, CLOSED, FINAL, and FOLLOW_UP.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Arcsight: Change Case Stage',
+        annotations=ToolAnnotations(
+            title='Arcsight: Change Case Stage',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def arcsight_change_case_stage(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], case_name: Annotated[str, Field(..., description="Specify the name of the case for which you want to update the stage.")], stage: Annotated[str, Field(..., description="Specify a new stage for the case. Possible values: INITIAL, QUEUED, CLOSED, FINAL, and FOLLOW_UP.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update the stage of the case in ArcSight.
 
         Returns:
@@ -433,8 +479,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Arcsight")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def arcsight_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Arcsight: Ping',
+        annotations=ToolAnnotations(
+            title='Arcsight: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def arcsight_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test Connectivity
 
         Returns:
@@ -507,8 +562,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Arcsight")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def arcsight_get_query_results(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query_id: Annotated[Optional[str], Field(default=None, description="Specify the ID of the query for which you want to return results. Note: parameter \u201cQuery ID\u201c takes priority over \u201cQuery Name\u201c. Example: cyUJKRz4BABCFwS9iFPq+aA==")], max_items_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many items to return in the response.")], query_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the query for which you want to return results. Note: parameter \u201cQuery ID\u201c takes priority over \u201cQuery Name\u201c.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Arcsight: Get Query Results',
+        annotations=ToolAnnotations(
+            title='Arcsight: Get Query Results',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def arcsight_get_query_results(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query_id: Annotated[Optional[str], Field(default=None, description="Specify the ID of the query for which you want to return results. Note: parameter \u201cQuery ID\u201c takes priority over \u201cQuery Name\u201c. Example: cyUJKRz4BABCFwS9iFPq+aA==")], max_items_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many items to return in the response.")], query_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the query for which you want to return results. Note: parameter \u201cQuery ID\u201c takes priority over \u201cQuery Name\u201c.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get results for the provided query in ArcSight
 
         Returns:
@@ -587,8 +651,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Arcsight")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def arcsight_list_resources(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], return_active_lists: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return available active lists.")], return_queries: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return available queries")], return_cases: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return available cases.")], return_reports: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return available reports.")], max_resources_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many resources to return per type.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Arcsight: List Resources',
+        annotations=ToolAnnotations(
+            title='Arcsight: List Resources',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def arcsight_list_resources(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], return_active_lists: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return available active lists.")], return_queries: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return available queries")], return_cases: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return available cases.")], return_reports: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return available reports.")], max_resources_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many resources to return per type.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List available queries in ArcSight.
 
         Returns:
@@ -671,8 +744,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Arcsight")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def arcsight_add_entries_to_activelist(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], columns: Annotated[Optional[str], Field(default=None, description="Specify the name of the columns, where you want to put values for the entries. Format: Column_name1;Column_name2")], entries: Annotated[Optional[str], Field(default=None, description="Specify the entries. Format entry1_value1|entry1_value2;entry2_value1|entry2_value2")], active_list_uuid: Annotated[Optional[str], Field(default=None, description="Specify the UUID of the active list, where you want to add new entries. Note: parameter \u201cActive list UUID\u201c takes priority over \u201cActive list name\u201c. Example: HLZRc9yYBABC-lHtlf3-f0Q==")], active_list_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the active list, where you want to add new entries. Note: parameter \u201cActive list UUID\u201c takes priority over \u201cActive list name\u201c.")], entries_json: Annotated[Optional[Union[str, dict]], Field(default=None, description="Specify a list of JSON objects that contain information about the entry. Note: Combination of \u2018Columns' and \u2018Entries\u2019 parameters have priority over 'Entries JSON\u2019. Format: [{\"Column_1\": \"Value_1\", \"Column_2\": \"Value_2\"}, {\"Column_1\": \"Value_3\", \"Column_2\": \"Value_4\"}]")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Arcsight: Add Entries to Activelist',
+        annotations=ToolAnnotations(
+            title='Arcsight: Add Entries to Activelist',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def arcsight_add_entries_to_activelist(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], columns: Annotated[Optional[str], Field(default=None, description="Specify the name of the columns, where you want to put values for the entries. Format: Column_name1;Column_name2")], entries: Annotated[Optional[str], Field(default=None, description="Specify the entries. Format entry1_value1|entry1_value2;entry2_value1|entry2_value2")], active_list_uuid: Annotated[Optional[str], Field(default=None, description="Specify the UUID of the active list, where you want to add new entries. Note: parameter \u201cActive list UUID\u201c takes priority over \u201cActive list name\u201c. Example: HLZRc9yYBABC-lHtlf3-f0Q==")], active_list_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the active list, where you want to add new entries. Note: parameter \u201cActive list UUID\u201c takes priority over \u201cActive list name\u201c.")], entries_json: Annotated[Optional[Union[str, dict]], Field(default=None, description="Specify a list of JSON objects that contain information about the entry. Note: Combination of \u2018Columns' and \u2018Entries\u2019 parameters have priority over 'Entries JSON\u2019. Format: [{\"Column_1\": \"Value_1\", \"Column_2\": \"Value_2\"}, {\"Column_1\": \"Value_3\", \"Column_2\": \"Value_4\"}]")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add new entry to active list in ArcSight. Column values are separated by delimiter ‘|' and entries are separated by ‘;’ in parameter ‘Entries’. Column names are separated by delimiter ‘;’ in parameter ‘Columns’. You can also use Entries JSON instead of ‘Columns’ + 'Entries’“.
 
         Returns:
@@ -755,8 +837,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Arcsight")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def arcsight_is_value_in_activelist_column(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], column_name: Annotated[str, Field(..., description="Specify the name of the column, where you want to search for the entity.")], active_list_uuid: Annotated[Optional[str], Field(default=None, description="Specify the UUID of the active list, where you want to search for entities. Note: parameter \u201cActive list UUID\u201c takes priority over \u201cActive list name\u201c. Example: HLZRc9yYBABC-lHtlf3-f0Q==")], active_list_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the active list, where you want to search for entities. Note: parameter \u201cActive list UUID\u201c takes priority over \u201cActive list name\u201c.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Arcsight: Is Value in Activelist Column',
+        annotations=ToolAnnotations(
+            title='Arcsight: Is Value in Activelist Column',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def arcsight_is_value_in_activelist_column(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], column_name: Annotated[str, Field(..., description="Specify the name of the column, where you want to search for the entity.")], active_list_uuid: Annotated[Optional[str], Field(default=None, description="Specify the UUID of the active list, where you want to search for entities. Note: parameter \u201cActive list UUID\u201c takes priority over \u201cActive list name\u201c. Example: HLZRc9yYBABC-lHtlf3-f0Q==")], active_list_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the active list, where you want to search for entities. Note: parameter \u201cActive list UUID\u201c takes priority over \u201cActive list name\u201c.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Action checks, if entities were found in ArcSight Activelist
 
         Returns:

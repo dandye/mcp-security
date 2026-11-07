@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the SumoLogicCloudSIEM integration.
 
-    @mcp.tool()
-    async def sumo_logic_cloud_siem_add_tags_to_insight(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], insight_id: Annotated[str, Field(..., description="Specify the ID of the insight to which action needs to add tags.")], tags: Annotated[str, Field(..., description="Specify a comma-separated list of tags that needs to be added in insight.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sumo Logic Cloud SIEM: Add Tags to Insight',
+        annotations=ToolAnnotations(
+            title='Sumo Logic Cloud SIEM: Add Tags to Insight',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sumo_logic_cloud_siem_add_tags_to_insight(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], insight_id: Annotated[str, Field(..., description="Specify the ID of the insight to which action needs to add tags.")], tags: Annotated[str, Field(..., description="Specify a comma-separated list of tags that needs to be added in insight.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add tags to insight in Sumo Logic Cloud SIEM.
 
         Returns:
@@ -103,8 +113,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SumoLogicCloudSIEM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sumo_logic_cloud_siem_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sumo Logic Cloud SIEM: Ping',
+        annotations=ToolAnnotations(
+            title='Sumo Logic Cloud SIEM: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sumo_logic_cloud_siem_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Sumo Logic Cloud SIEM with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -177,8 +196,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SumoLogicCloudSIEM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sumo_logic_cloud_siem_update_insight(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], insight_id: Annotated[str, Field(..., description="Specify the ID of the insight needs to be updated.")], status: Annotated[List[str], Field(..., description="Specify what status to set for the insight.")], assignee_type: Annotated[List[str], Field(..., description="Specify the assignee type for the \"Assignee\" parameter.")], assignee: Annotated[Optional[str], Field(default=None, description="Specify the assignee identifier.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sumo Logic Cloud SIEM: Update Insight',
+        annotations=ToolAnnotations(
+            title='Sumo Logic Cloud SIEM: Update Insight',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sumo_logic_cloud_siem_update_insight(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], insight_id: Annotated[str, Field(..., description="Specify the ID of the insight needs to be updated.")], status: Annotated[List[str], Field(..., description="Specify what status to set for the insight.")], assignee_type: Annotated[List[str], Field(..., description="Specify the assignee type for the \"Assignee\" parameter.")], assignee: Annotated[Optional[str], Field(default=None, description="Specify the assignee identifier.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update insight status in Sumo Logic Cloud SIEM.
 
         Returns:
@@ -256,8 +284,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SumoLogicCloudSIEM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sumo_logic_cloud_siem_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight containing all of the retrieved information about the entity.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sumo Logic Cloud SIEM: Enrich Entities',
+        annotations=ToolAnnotations(
+            title='Sumo Logic Cloud SIEM: Enrich Entities',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sumo_logic_cloud_siem_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight containing all of the retrieved information about the entity.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enrich entities using information from Sumo Logic Cloud SIEM. Supported entities: Hostname, User, IP address.
 
         Returns:
@@ -332,8 +369,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SumoLogicCloudSIEM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sumo_logic_cloud_siem_add_comment_to_insight(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], insight_id: Annotated[str, Field(..., description="Specify the ID of the insight to which action needs to add a comment.")], comment: Annotated[str, Field(..., description="Specify the comment that needs to be added in insight.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sumo Logic Cloud SIEM: Add Comment to Insight',
+        annotations=ToolAnnotations(
+            title='Sumo Logic Cloud SIEM: Add Comment to Insight',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def sumo_logic_cloud_siem_add_comment_to_insight(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], insight_id: Annotated[str, Field(..., description="Specify the ID of the insight to which action needs to add a comment.")], comment: Annotated[str, Field(..., description="Specify the comment that needs to be added in insight.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add a comment to insight in Sumo Logic Cloud SIEM.
 
         Returns:
@@ -408,8 +454,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SumoLogicCloudSIEM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sumo_logic_cloud_siem_search_entity_signals(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], lowest_severity_to_return: Annotated[Optional[str], Field(default=None, description="Specify the lowest severity number that will be used to return signals. Maximum: 10.")], time_frame: Annotated[Optional[List[str]], Field(default=None, description="Specify a time frame for the results. If \"Custom\" is selected, you also need to provide \"Start Time\". If \"30 Minutes Around Alert Time\" is selected, action will search the alerts 30 minutes before the alert happened till the 30 minutes after the alert has happened.  Same idea applies to \"1 Hour Around Alert Time\" and \"5 Minutes Around Alert Time\".")], start_time: Annotated[Optional[str], Field(default=None, description="Specify the start time for the results. This parameter is mandatory, if \"Custom\" is selected for the \"Time Frame\" parameter. Format: ISO 8601")], end_time: Annotated[Optional[str], Field(default=None, description="Specify the end time for the results. Format: ISO 8601. If nothing is provided and \"Custom\" is selected for the \"Time Frame\" parameter then this parameter will use current time.")], max_signals_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many signals to return per entity. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sumo Logic Cloud SIEM: Search Entity Signals',
+        annotations=ToolAnnotations(
+            title='Sumo Logic Cloud SIEM: Search Entity Signals',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sumo_logic_cloud_siem_search_entity_signals(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], lowest_severity_to_return: Annotated[Optional[str], Field(default=None, description="Specify the lowest severity number that will be used to return signals. Maximum: 10.")], time_frame: Annotated[Optional[List[str]], Field(default=None, description="Specify a time frame for the results. If \"Custom\" is selected, you also need to provide \"Start Time\". If \"30 Minutes Around Alert Time\" is selected, action will search the alerts 30 minutes before the alert happened till the 30 minutes after the alert has happened.  Same idea applies to \"1 Hour Around Alert Time\" and \"5 Minutes Around Alert Time\".")], start_time: Annotated[Optional[str], Field(default=None, description="Specify the start time for the results. This parameter is mandatory, if \"Custom\" is selected for the \"Time Frame\" parameter. Format: ISO 8601")], end_time: Annotated[Optional[str], Field(default=None, description="Specify the end time for the results. Format: ISO 8601. If nothing is provided and \"Custom\" is selected for the \"Time Frame\" parameter then this parameter will use current time.")], max_signals_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many signals to return per entity. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Search signals related to entities in Sumo Logic Cloud SIEM. Supported entities: IP Address, Hostname, Username.
 
         Returns:

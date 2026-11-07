@@ -150,6 +150,14 @@ async def test_scc_mcp_client_tool_listing_and_metadata() -> None:
         }
         for tool in tools_result.tools:
             assert isinstance(tool.input_schema, dict)
+            assert tool.title and tool.title.strip()
+            assert tool.annotations is not None
+            assert isinstance(tool.annotations.read_only_hint, bool)
+            assert isinstance(tool.annotations.destructive_hint, bool)
+            assert isinstance(tool.annotations.idempotent_hint, bool)
+            assert tool.annotations.open_world_hint is False
+            assert tool.output_schema is not None
+            assert len(json.dumps(tool.output_schema)) < 2048
 
 
 @pytest.mark.asyncio
@@ -272,7 +280,9 @@ async def test_top_vulnerability_findings_via_mcp_client() -> None:
             )
 
         assert call_res.is_error is False
+        assert isinstance(call_res.structured_content, dict)
         result = json.loads(call_res.content[0].text)
+        assert call_res.structured_content == result
         assert result["count"] == 2
         assert result["top_findings"][0]["attackExposureScore"] == 0.95
         assert result["top_findings"][1]["attackExposureScore"] == 0.20
@@ -362,3 +372,30 @@ async def test_set_finding_mute_uses_set_mute_request_via_mcp_client() -> None:
             == "projects/my-proj/sources/123/locations/global/findings/mute-me"
         )
         assert sent_req.mute == securitycenter_v2.Finding.Mute.MUTED
+
+
+@pytest.mark.asyncio
+async def test_scc_error_signaling_sets_is_error_true() -> None:
+    """Verify validation and upstream API errors emit is_error=True with JSON error payload."""
+    from google.api_core import exceptions as google_exceptions
+
+    async with Client(scc_server) as client:
+        missing_target = await client.call_tool("search_findings", {})
+        assert missing_target.is_error is True
+        err_payload = json.loads(missing_target.content[0].text)
+        assert "error" in err_payload
+        assert missing_target.structured_content == err_payload
+
+        with patch.object(scc_mcp, "scc_client") as mock_scc:
+            mock_scc.list_findings.side_effect = google_exceptions.PermissionDenied(
+                "Caller lacks roles/securitycenter.findingsViewer"
+            )
+            perm_res = await client.call_tool(
+                "top_vulnerability_findings",
+                {"project_id": "my-proj"},
+            )
+            assert perm_res.is_error is True
+            perm_payload = json.loads(perm_res.content[0].text)
+            assert perm_payload["error"] == "Permission Denied"
+            assert "findingsViewer" in perm_payload["details"]
+            assert perm_res.structured_content == perm_payload

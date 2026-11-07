@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the Netskope integration.
 
-    @mcp.tool()
-    async def netskope_block_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_id: Annotated[str, Field(..., description="ID of a file, needed to identify a file.")], quarantine_profile_id: Annotated[str, Field(..., description="ID of a quarantine profile.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Netskope: Block File',
+        annotations=ToolAnnotations(
+            title='Netskope: Block File',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def netskope_block_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_id: Annotated[str, Field(..., description="ID of a file, needed to identify a file.")], quarantine_profile_id: Annotated[str, Field(..., description="ID of a quarantine profile.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Block a quarantined file.
 
@@ -106,8 +116,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Netskope")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def netskope_list_quarantined_files(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], start_time: Annotated[Optional[str], Field(default=None, description="Restrict events to those that have timestamps greater than this (unixtime). Needed only if time period is not passed.")], end_time: Annotated[Optional[str], Field(default=None, description="Restrict events to those that have timestamps less than this (unixtime). Needed only if time period is not passed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Netskope: List Quarantined Files',
+        annotations=ToolAnnotations(
+            title='Netskope: List Quarantined Files',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def netskope_list_quarantined_files(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], start_time: Annotated[Optional[str], Field(default=None, description="Restrict events to those that have timestamps greater than this (unixtime). Needed only if time period is not passed.")], end_time: Annotated[Optional[str], Field(default=None, description="Restrict events to those that have timestamps less than this (unixtime). Needed only if time period is not passed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 List quarantined files.
 
@@ -187,8 +206,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Netskope")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def netskope_list_alerts(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[Optional[str], Field(default=None, description="This acts as a filter for all the cloud app events in the alerts database.")], type: Annotated[Optional[str], Field(default=None, description="The type of the alert to filter by. Valid values: anomaly | 'Compromised Credential' | policy | 'Legal Hold' | malsite | Malware | DLP | watchlist | quarantine | Remediation.")], time_period: Annotated[Optional[str], Field(default=None, description="Time period to search alerts at (milliseconds backwards). Valid Values: 3600 | 86400 | 604800 | 2592000.")], start_time: Annotated[Optional[str], Field(default=None, description="Restrict alerts to those that have timestamps greater than this (unixtime). Needed only if time period is not passed.")], end_time: Annotated[Optional[str], Field(default=None, description="Restrict alerts to those that have timestamps less than this (unixtime). Needed only if time period is not passed.")], is_acknowledged: Annotated[Optional[bool], Field(default=None, description="Whether to get only acknowledged alerts.")], limit: Annotated[Optional[str], Field(default=None, description="Number of results to return. Default: 100.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Netskope: List Alerts',
+        annotations=ToolAnnotations(
+            title='Netskope: List Alerts',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def netskope_list_alerts(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[Optional[str], Field(default=None, description="This acts as a filter for all the cloud app events in the alerts database.")], type: Annotated[Optional[str], Field(default=None, description="The type of the alert to filter by. Valid values: anomaly | 'Compromised Credential' | policy | 'Legal Hold' | malsite | Malware | DLP | watchlist | quarantine | Remediation.")], time_period: Annotated[Optional[str], Field(default=None, description="Time period to search alerts at (milliseconds backwards). Valid Values: 3600 | 86400 | 604800 | 2592000.")], start_time: Annotated[Optional[str], Field(default=None, description="Restrict alerts to those that have timestamps greater than this (unixtime). Needed only if time period is not passed.")], end_time: Annotated[Optional[str], Field(default=None, description="Restrict alerts to those that have timestamps less than this (unixtime). Needed only if time period is not passed.")], is_acknowledged: Annotated[Optional[bool], Field(default=None, description="Whether to get only acknowledged alerts.")], limit: Annotated[Optional[str], Field(default=None, description="Number of results to return. Default: 100.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 List alerts.
 
@@ -278,8 +306,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Netskope")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def netskope_allow_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_id: Annotated[str, Field(..., description="ID of a file, needed to identify a file.")], quarantine_profile_id: Annotated[str, Field(..., description="ID of a quarantine profile.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Netskope: Allow File',
+        annotations=ToolAnnotations(
+            title='Netskope: Allow File',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def netskope_allow_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_id: Annotated[str, Field(..., description="ID of a file, needed to identify a file.")], quarantine_profile_id: Annotated[str, Field(..., description="ID of a quarantine profile.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Allow a quarantined file.
 
@@ -357,8 +394,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Netskope")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def netskope_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Netskope: Ping',
+        annotations=ToolAnnotations(
+            title='Netskope: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def netskope_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to Netskope.
 
         Returns:
@@ -431,8 +477,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Netskope")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def netskope_list_events(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[Optional[str], Field(default=None, description="This acts as a filter for all the cloud app events in the events database.")], type: Annotated[Optional[str], Field(default=None, description="The type of the alert to filter by. Valid values: page | application | audit | infrastructure.")], time_period: Annotated[Optional[str], Field(default=None, description="Time period to search events at (milliseconds backwards). Valid Values: 3600 | 86400 | 604800 | 2592000.")], start_time: Annotated[Optional[str], Field(default=None, description="Restrict events to those that have timestamps greater than this (unixtime). Needed only if time period is not passed.")], end_time: Annotated[Optional[str], Field(default=None, description="Restrict events to those that have timestamps less than this (unixtime). Needed only if time period is not passed.")], limit: Annotated[Optional[str], Field(default=None, description="Number of results to return. Default: 100.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Netskope: List Events',
+        annotations=ToolAnnotations(
+            title='Netskope: List Events',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def netskope_list_events(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[Optional[str], Field(default=None, description="This acts as a filter for all the cloud app events in the events database.")], type: Annotated[Optional[str], Field(default=None, description="The type of the alert to filter by. Valid values: page | application | audit | infrastructure.")], time_period: Annotated[Optional[str], Field(default=None, description="Time period to search events at (milliseconds backwards). Valid Values: 3600 | 86400 | 604800 | 2592000.")], start_time: Annotated[Optional[str], Field(default=None, description="Restrict events to those that have timestamps greater than this (unixtime). Needed only if time period is not passed.")], end_time: Annotated[Optional[str], Field(default=None, description="Restrict events to those that have timestamps less than this (unixtime). Needed only if time period is not passed.")], limit: Annotated[Optional[str], Field(default=None, description="Number of results to return. Default: 100.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 List events.
 
@@ -520,8 +575,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Netskope")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def netskope_download_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_id: Annotated[str, Field(..., description="ID of a file, needed to identify a file.")], quarantine_profile_id: Annotated[str, Field(..., description="ID of a quarantine profile.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Netskope: Download File',
+        annotations=ToolAnnotations(
+            title='Netskope: Download File',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def netskope_download_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_id: Annotated[str, Field(..., description="ID of a file, needed to identify a file.")], quarantine_profile_id: Annotated[str, Field(..., description="ID of a quarantine profile.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Download a quarantined file.
 
@@ -599,8 +663,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Netskope")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def netskope_list_clients(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[Optional[str], Field(default=None, description="This acts as a filter on all the entries in the database.")], limit: Annotated[Optional[str], Field(default=None, description="Number of results to return. Default: 25.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Netskope: List Clients',
+        annotations=ToolAnnotations(
+            title='Netskope: List Clients',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def netskope_list_clients(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[Optional[str], Field(default=None, description="This acts as a filter on all the entries in the database.")], limit: Annotated[Optional[str], Field(default=None, description="Number of results to return. Default: 25.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 List clients.
 

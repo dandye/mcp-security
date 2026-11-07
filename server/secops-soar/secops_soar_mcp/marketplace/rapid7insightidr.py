@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the Rapid7InsightIDR integration.
 
-    @mcp.tool()
-    async def rapid7_insight_idr_delete_saved_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], saved_query_id: Annotated[str, Field(..., description="ID of the saved query to delete in the format 00000000-0003-7218-0000-000000000000")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Rapid7 Insight IDR: Delete Saved Query',
+        annotations=ToolAnnotations(
+            title='Rapid7 Insight IDR: Delete Saved Query',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rapid7_insight_idr_delete_saved_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], saved_query_id: Annotated[str, Field(..., description="ID of the saved query to delete in the format 00000000-0003-7218-0000-000000000000")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete Rapid7 InsightIDR saved query. Note: Action is not working with Siemplify Entities.
 
         Returns:
@@ -102,8 +112,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Rapid7InsightIDR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rapid7_insight_idr_update_investigation(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], investigation_id: Annotated[str, Field(..., description="Specify the ID of the investigation that needs to be updated.")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify the status for the investigation.")], disposition: Annotated[Optional[List[str]], Field(default=None, description="Specify the disposition for the investigation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Rapid7 Insight IDR: Update Investigation',
+        annotations=ToolAnnotations(
+            title='Rapid7 Insight IDR: Update Investigation',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rapid7_insight_idr_update_investigation(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], investigation_id: Annotated[str, Field(..., description="Specify the ID of the investigation that needs to be updated.")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify the status for the investigation.")], disposition: Annotated[Optional[List[str]], Field(default=None, description="Specify the disposition for the investigation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update investigation in Rapid7 InsightIDR. Note: this action was built using API endpoints that are in preview release.
 
         Returns:
@@ -181,8 +200,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Rapid7InsightIDR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rapid7_insight_idr_list_investigations(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], time_frame: Annotated[Optional[str], Field(default=None, description="Specify a time frame in hours for which to fetch findings.")], record_limit: Annotated[Optional[str], Field(default=None, description="Specify how many records can be returned by the action.")], include_closed_investigations: Annotated[Optional[bool], Field(default=None, description="Specify whether to include closed investigations in results or not.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Rapid7 Insight IDR: List Investigations',
+        annotations=ToolAnnotations(
+            title='Rapid7 Insight IDR: List Investigations',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rapid7_insight_idr_list_investigations(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], time_frame: Annotated[Optional[str], Field(default=None, description="Specify a time frame in hours for which to fetch findings.")], record_limit: Annotated[Optional[str], Field(default=None, description="Specify how many records can be returned by the action.")], include_closed_investigations: Annotated[Optional[bool], Field(default=None, description="Specify whether to include closed investigations in results or not.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List Rapid7 InsightIDR investigations based on the specified action input parameters.  Note: Action is not working with Siemplify entities, only with action input parameters.
 
         Returns:
@@ -261,8 +289,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Rapid7InsightIDR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rapid7_insight_idr_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Rapid7 Insight IDR: Ping',
+        annotations=ToolAnnotations(
+            title='Rapid7 Insight IDR: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rapid7_insight_idr_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Rapid7 InsightIDR service with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -335,8 +372,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Rapid7InsightIDR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rapid7_insight_idr_set_investigation_status(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], investigation_id: Annotated[str, Field(..., description="ID of investigation to update status for. ID should be in the format like 8ec8e324-4522-4a6e-9838-81496a0cadb0")], status: Annotated[List[str], Field(..., description="New Status of investigation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Rapid7 Insight IDR: Set Investigation Status',
+        annotations=ToolAnnotations(
+            title='Rapid7 Insight IDR: Set Investigation Status',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rapid7_insight_idr_set_investigation_status(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], investigation_id: Annotated[str, Field(..., description="ID of investigation to update status for. ID should be in the format like 8ec8e324-4522-4a6e-9838-81496a0cadb0")], status: Annotated[List[str], Field(..., description="New Status of investigation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Set the status for the specific Rapid7 InsightIDR investigation. Note: Action is not working with Siemplify Entities.
 
         Returns:
@@ -411,8 +457,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Rapid7InsightIDR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rapid7_insight_idr_run_saved_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], saved_query_id: Annotated[str, Field(..., description="Because Saved query names are not unique, provide a saved query ID to execute.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Rapid7 Insight IDR: Run Saved Query',
+        annotations=ToolAnnotations(
+            title='Rapid7 Insight IDR: Run Saved Query',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def rapid7_insight_idr_run_saved_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], saved_query_id: Annotated[str, Field(..., description="Because Saved query names are not unique, provide a saved query ID to execute.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Run a Rapid7 InsightIDR saved query. Note: Action is not working with Siemplify Entities.
 
         Returns:
@@ -486,8 +541,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Rapid7InsightIDR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rapid7_insight_idr_list_saved_queries(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], record_limit: Annotated[Optional[str], Field(default=None, description="Specify how many records can be returned by the action.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Rapid7 Insight IDR: List Saved Queries',
+        annotations=ToolAnnotations(
+            title='Rapid7 Insight IDR: List Saved Queries',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rapid7_insight_idr_list_saved_queries(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], record_limit: Annotated[Optional[str], Field(default=None, description="Specify how many records can be returned by the action.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List Rapid7 InsightIDR saved queries.  Note: Action is not working with Siemplify entities, only with action input parameters.
 
         Returns:
@@ -562,8 +626,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Rapid7InsightIDR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rapid7_insight_idr_set_investigation_assignee(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], investigation_id: Annotated[str, Field(..., description="ID of investigation to update assignee for. ID should be in the format like 8ec8e324-4522-4a6e-9838-81496a0cadb0.")], assignee_email: Annotated[str, Field(..., description="Email of a new assignee of investigation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Rapid7 Insight IDR: Set Investigation Assignee',
+        annotations=ToolAnnotations(
+            title='Rapid7 Insight IDR: Set Investigation Assignee',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rapid7_insight_idr_set_investigation_assignee(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], investigation_id: Annotated[str, Field(..., description="ID of investigation to update assignee for. ID should be in the format like 8ec8e324-4522-4a6e-9838-81496a0cadb0.")], assignee_email: Annotated[str, Field(..., description="Email of a new assignee of investigation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Set the assignee for the specific Rapid7 InsightIDR investigation. Note: Action is not working with Siemplify Entities.
 
         Returns:
@@ -638,8 +711,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Rapid7InsightIDR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rapid7_insight_idr_create_saved_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Name for the new saved query")], statement: Annotated[str, Field(..., description="A statement to execute in query, should follow LEQL syntax, for example: where(foo=bar)")], time_frame: Annotated[str, Field(..., description="Specify a time frame in hours for which query should fetch data.")], logs: Annotated[Optional[str], Field(default=None, description="Log names query should execute against. Parameter accepts multiple values as a comma separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Rapid7 Insight IDR: Create Saved Query',
+        annotations=ToolAnnotations(
+            title='Rapid7 Insight IDR: Create Saved Query',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def rapid7_insight_idr_create_saved_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Name for the new saved query")], statement: Annotated[str, Field(..., description="A statement to execute in query, should follow LEQL syntax, for example: where(foo=bar)")], time_frame: Annotated[str, Field(..., description="Specify a time frame in hours for which query should fetch data.")], logs: Annotated[Optional[str], Field(default=None, description="Log names query should execute against. Parameter accepts multiple values as a comma separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create Rapid7 InsightIDR saved query based on the specified action input parameters. Note: Action is not working with Siemplify Entities.
 
         Returns:

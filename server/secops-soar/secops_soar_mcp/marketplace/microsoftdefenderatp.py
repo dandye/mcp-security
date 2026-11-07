@@ -13,6 +13,7 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import (
     ApiManualActionDataModel,
@@ -20,7 +21,7 @@ from secops_soar_mcp.utils.models import (
     TargetEntity,
 )
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -31,7 +32,16 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the MicrosoftDefenderATP integration.
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: Run Advanced Hunting Query',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: Run Advanced Hunting Query',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_run_advanced_hunting_query(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -53,7 +63,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Run Advanced Hunting Query
 
         Returns:
@@ -135,7 +145,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: Get Machine Related Alerts',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: Get Machine Related Alerts',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_get_machine_related_alerts(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -182,7 +201,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Get Machine Related Alerts
 
         Returns:
@@ -271,7 +290,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: Wait Task Status',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: Wait Task Status',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_wait_task_status(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -293,7 +321,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Wait for Task Status
 
         Returns:
@@ -375,7 +403,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: Get File Related Machines',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: Get File Related Machines',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_get_file_related_machines(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -420,7 +457,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Get File Related Machines. Note: For this action only SHA1 is supported
 
         Returns:
@@ -513,7 +550,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: Get Current Task Status',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: Get Current Task Status',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_get_current_task_status(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -535,7 +581,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Get Current Task Status
 
         Returns:
@@ -617,7 +663,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: Create Stop and Quarantine File Specific Machine Task',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: Create Stop and Quarantine File Specific Machine Task',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_create_stop_and_quarantine_file_specific_machine_task(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -642,7 +697,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Create Stop and Quarantine a File on Specific Machine Task
 
         Returns:
@@ -725,7 +780,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: Create Isolate Machine Task',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: Create Isolate Machine Task',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_create_isolate_machine_task(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -748,7 +812,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Create Isolate Machine Task
 
         Returns:
@@ -831,7 +895,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: Update Alert',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: Update Alert',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_update_alert(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -867,7 +940,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Update Alerts
 
         Returns:
@@ -957,7 +1030,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: List Alerts',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: List Alerts',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_list_alerts(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -1011,7 +1093,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Get Alerts
 
         Returns:
@@ -1102,7 +1184,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: Ping',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_ping(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -1121,7 +1212,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Test Connectivity
 
         Returns:
@@ -1202,7 +1293,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: Get Machine Logon Users',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: Get Machine Logon Users',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_get_machine_logon_users(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -1221,7 +1321,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Get Machine Log on users
 
         Returns:
@@ -1302,7 +1402,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: List Machines',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: List Machines',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_list_machines(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -1354,7 +1463,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Get Machines
 
         Returns:
@@ -1449,7 +1558,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: List Indicators',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: List Indicators',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_list_indicators(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -1503,7 +1621,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """List indicators in Microsoft Defender ATP.
 
         Returns:
@@ -1594,7 +1712,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: Submit Entity Indicators',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: Submit Entity Indicators',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_submit_entity_indicators(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -1648,7 +1775,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Submit entities as indicators in Microsoft Defender ATP. Supported entities: Filehash, URL, IP Address. Note: only MD5, SHA1 and SHA256 hashes are supported.
 
         Returns:
@@ -1737,7 +1864,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: Get File Related Alerts',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: Get File Related Alerts',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_get_file_related_alerts(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -1784,7 +1920,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Get File Related Alerts. Note: For this action only SHA1 is supported
 
         Returns:
@@ -1873,7 +2009,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: Enrich Entities',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: Enrich Entities',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_enrich_entities(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -1892,7 +2037,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """This action allows a user to enrich Microsoft Defender ATP hosts, ips and file hashes. Note: File hash can be in sha1 or sha256 format.
 
         Returns:
@@ -1973,7 +2118,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: Create Run Antivirus Scan Task',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: Create Run Antivirus Scan Task',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_create_run_antivirus_scan_task(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -2002,7 +2156,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Create Run AV Scan Task
 
         Returns:
@@ -2085,7 +2239,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: Create Unisolate Machine Task',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: Create Unisolate Machine Task',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_create_unisolate_machine_task(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -2107,7 +2270,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Create Unisolate Machine Task
 
         Returns:
@@ -2189,7 +2352,16 @@ def register_tools(mcp: MCPServer):
             )
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
+    @mcp.tool(
+        title='Microsoft Defender ATP: Delete Entity Indicators',
+        annotations=ToolAnnotations(
+            title='Microsoft Defender ATP: Delete Entity Indicators',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def microsoft_defender_atp_delete_entity_indicators(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
@@ -2208,7 +2380,7 @@ def register_tools(mcp: MCPServer):
                 default="All entities", description="Defines the scope for the action."
             ),
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Delete entity indicators in Microsoft Defender ATP. Supported entities: Filehash, URL, IP Address. Note: only MD5, SHA1 and SHA256 hashes are supported.
 
         Returns:

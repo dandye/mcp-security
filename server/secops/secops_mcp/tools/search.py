@@ -15,16 +15,27 @@
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
+from mcp.types import ToolAnnotations as _ToolAnnotations
 from secops_mcp.server import get_chronicle_client, server
-from secops_mcp.utils import parse_time_range
+from secops_mcp.utils import parse_time_range, tool_error_result as _tool_error_result
 
 
 # Configure logging
 logger = logging.getLogger('secops-mcp')
 
-@server.tool()
+
+@server.tool(
+    title='Search Chronicle UDM Events',
+    annotations=_ToolAnnotations(
+        title='Search Chronicle UDM Events',
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def search_udm(
     query: str,
     hours_back: int = 24,
@@ -34,7 +45,7 @@ async def search_udm(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Search UDM events using UDM query in Chronicle.
 
     Args:
@@ -54,11 +65,17 @@ async def search_udm(
         try:
             start_dt, end_dt = parse_time_range(start_time, end_time, hours_back)
         except ValueError as e:
-            logger.error(f'Error parsing date format: {str(e)}', exc_info=True)
-            return {'error': f"Error parsing date format: {str(e)}. Use ISO 8601 format (e.g., 2023-01-01T12:00:00Z)", 'events': []}
+            logger.error('Error parsing date format: %s', e, exc_info=True)
+            return _tool_error_result(
+                f'Error parsing date format: {e}. Use ISO 8601 format (e.g., 2023-01-01T12:00:00Z)',
+                events=[],
+            )
 
         logger.info(
-            f'Searching UDM events - Query: {query}, Effective Time Range: {start_dt} to {end_dt}'
+            'Searching UDM events - Query: %s, Effective Time Range: %s to %s',
+            query,
+            start_dt,
+            end_dt,
         )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
@@ -71,10 +88,10 @@ async def search_udm(
             max_events=max_events,
         )
 
-        logger.info(f'Successfully found {search_results.get("total_events", 0)} events.')
+        logger.info('Successfully found %s events.', search_results.get('total_events', 0))
 
         return search_results
 
     except Exception as e:
-        logger.error(f'Error searching UDM events: {str(e)}', exc_info=True)
-        return {'error': str(e), 'events': []}
+        logger.error('Error searching UDM events: %s', e, exc_info=True)
+        return _tool_error_result(str(e), events=[])

@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the Attivo integration.
 
-    @mcp.tool()
-    async def attivo_update_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID of the event, which needs to be updated.")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify the status for the event.")], comment: Annotated[Optional[str], Field(default=None, description="Specify a comment that needs to be added to the event.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Attivo: Update Event',
+        annotations=ToolAnnotations(
+            title='Attivo: Update Event',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def attivo_update_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID of the event, which needs to be updated.")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify the status for the event.")], comment: Annotated[Optional[str], Field(default=None, description="Specify a comment that needs to be added to the event.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update event in Attivo.
 
         Returns:
@@ -106,8 +116,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Attivo")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def attivo_list_service_threat_paths(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], services: Annotated[str, Field(..., description="Specify a comma-separated list of services for which action needs to return ThreatPaths.")], max_threat_paths_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many ThreatPaths to return. If nothing is provided, action will return 50 ThreatPaths.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Attivo: List Service ThreatPaths',
+        annotations=ToolAnnotations(
+            title='Attivo: List Service ThreatPaths',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def attivo_list_service_threat_paths(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], services: Annotated[str, Field(..., description="Specify a comma-separated list of services for which action needs to return ThreatPaths.")], max_threat_paths_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many ThreatPaths to return. If nothing is provided, action will return 50 ThreatPaths.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List ThreatPaths related to services in Attivo.
 
         Returns:
@@ -183,8 +202,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Attivo")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def attivo_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Attivo: Ping',
+        annotations=ToolAnnotations(
+            title='Attivo: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def attivo_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Attivo with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -257,8 +285,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Attivo")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def attivo_list_vulnerability_hosts(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vulnerabilities: Annotated[str, Field(..., description="Specify a comma-separated list of vulnerabilities for which action needs to return hostnames.")], max_hosts_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many hosts to return. If nothing is provided, action will return 50 hosts.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Attivo: List Vulnerability Hosts',
+        annotations=ToolAnnotations(
+            title='Attivo: List Vulnerability Hosts',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def attivo_list_vulnerability_hosts(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vulnerabilities: Annotated[str, Field(..., description="Specify a comma-separated list of vulnerabilities for which action needs to return hostnames.")], max_hosts_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many hosts to return. If nothing is provided, action will return 50 hosts.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List hosts related to the vulnerability in Attivo.
 
         Returns:
@@ -334,8 +371,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Attivo")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def attivo_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], include_threat_paths: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return information about ThreatPaths related to the entity.")], include_vulnerabilities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return information about vulnerabilities related to the entity.")], include_credential_info: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return information about credential information related to the entity.")], create_insights: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight containing all of the retrieved information about the entity.")], max_threat_paths_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many ThreatPaths to return per entity. Default: 50.")], max_vulnerabilities_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many vulnerabilities to return per entity. Default: 50.")], max_credentials_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many credentials to return per entity. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Attivo: Enrich Entities',
+        annotations=ToolAnnotations(
+            title='Attivo: Enrich Entities',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def attivo_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], include_threat_paths: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return information about ThreatPaths related to the entity.")], include_vulnerabilities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return information about vulnerabilities related to the entity.")], include_credential_info: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return information about credential information related to the entity.")], create_insights: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight containing all of the retrieved information about the entity.")], max_threat_paths_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many ThreatPaths to return per entity. Default: 50.")], max_vulnerabilities_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many vulnerabilities to return per entity. Default: 50.")], max_credentials_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many credentials to return per entity. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enrich entities using information from Attivo. Supported entities: Hostname, IP Address.
 
         Returns:
@@ -422,8 +468,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Attivo")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def attivo_list_critical_threat_path(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_key: Annotated[Optional[List[str]], Field(default=None, description="Specify the key that needs to be used to filter critical paths.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied. Filtering logic is working based on the value provided in the \"Filter Key\" parameter.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain that substring. If nothing is provided in this parameter, the filter will not be applied. Filtering logic is working based on the value  provided in the \"Filter Key\" parameter.")], max_records_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many records to return. If nothing is provided, action will return 50 records.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Attivo: List Critical ThreatPath',
+        annotations=ToolAnnotations(
+            title='Attivo: List Critical ThreatPath',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def attivo_list_critical_threat_path(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_key: Annotated[Optional[List[str]], Field(default=None, description="Specify the key that needs to be used to filter critical paths.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied. Filtering logic is working based on the value provided in the \"Filter Key\" parameter.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain that substring. If nothing is provided in this parameter, the filter will not be applied. Filtering logic is working based on the value  provided in the \"Filter Key\" parameter.")], max_records_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many records to return. If nothing is provided, action will return 50 records.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List available critical ThreatPaths in Attivo.
 
         Returns:

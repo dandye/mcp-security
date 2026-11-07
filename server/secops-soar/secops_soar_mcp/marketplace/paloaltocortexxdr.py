@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the PaloAltoCortexXDR integration.
 
-    @mcp.tool()
-    async def palo_alto_cortex_xdr_add_hashes_to_block_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], comment: Annotated[Optional[str], Field(default=None, description="Provide additional comment that represents additional information regarding the action.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Cortex XDR: Add Hashes to Block List',
+        annotations=ToolAnnotations(
+            title='Palo Alto Cortex XDR: Add Hashes to Block List',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_cortex_xdr_add_hashes_to_block_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], comment: Annotated[Optional[str], Field(default=None, description="Provide additional comment that represents additional information regarding the action.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """The action will add files which do not exist in the allow or block lists to a block list. Note - only SH256 format  for file hashes is supported.
 
         Returns:
@@ -103,8 +113,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoCortexXDR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_cortex_xdr_update_an_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="The ID of the incident to be updated.")], assigned_user_name: Annotated[Optional[str], Field(default=None, description="The updated full name of the incident assignee.")], severity: Annotated[Optional[List[str]], Field(default=None, description="Administrator-defined severity")], status: Annotated[Optional[List[str]], Field(default=None, description="Updated incident status")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Cortex XDR: Update an Incident',
+        annotations=ToolAnnotations(
+            title='Palo Alto Cortex XDR: Update an Incident',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_cortex_xdr_update_an_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="The ID of the incident to be updated.")], assigned_user_name: Annotated[Optional[str], Field(default=None, description="The updated full name of the incident assignee.")], severity: Annotated[Optional[List[str]], Field(default=None, description="Administrator-defined severity")], status: Annotated[Optional[List[str]], Field(default=None, description="Updated incident status")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """The ability to set a specific XDR incident as under investigation, assign to named users, etc.
 
         Returns:
@@ -184,8 +203,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoCortexXDR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_cortex_xdr_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Cortex XDR: Ping',
+        annotations=ToolAnnotations(
+            title='Palo Alto Cortex XDR: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_cortex_xdr_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to Palo Alto Cortex XDR
 
         Returns:
@@ -258,8 +286,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoCortexXDR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_cortex_xdr_get_endpoint_agent_report(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Cortex XDR: Get Endpoint Agent Report',
+        annotations=ToolAnnotations(
+            title='Palo Alto Cortex XDR: Get Endpoint Agent Report',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_cortex_xdr_get_endpoint_agent_report(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get the agent report for an endpoint.
 
         Returns:
@@ -332,8 +369,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoCortexXDR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_cortex_xdr_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="The ID of the incident for which you want to retrieve data.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Cortex XDR: Query',
+        annotations=ToolAnnotations(
+            title='Palo Alto Cortex XDR: Query',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_cortex_xdr_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="The ID of the incident for which you want to retrieve data.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get data of a specific incident including alerts and key artifacts.
 
         Returns:
@@ -407,8 +453,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoCortexXDR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_cortex_xdr_resolve_an_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="The ID of the incident to be updated.")], status: Annotated[List[str], Field(..., description="Updated incident status")], resolve_comment: Annotated[Optional[str], Field(default=None, description="Descriptive comment explaining the incident change.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Cortex XDR: Resolve an Incident',
+        annotations=ToolAnnotations(
+            title='Palo Alto Cortex XDR: Resolve an Incident',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_cortex_xdr_resolve_an_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="The ID of the incident to be updated.")], status: Annotated[List[str], Field(..., description="Updated incident status")], resolve_comment: Annotated[Optional[str], Field(default=None, description="Descriptive comment explaining the incident change.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """The ability to close XDR incidents with a close reason.
 
         Returns:
@@ -485,8 +540,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoCortexXDR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_cortex_xdr_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Cortex XDR: Enrich Entities',
+        annotations=ToolAnnotations(
+            title='Palo Alto Cortex XDR: Enrich Entities',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_cortex_xdr_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enrich Siemplify Host and IP entities based on the information from the Palo Alto Cortex XDR.
 
         Returns:
@@ -559,8 +623,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoCortexXDR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_cortex_xdr_isolate_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Cortex XDR: Isolate Endpoint',
+        annotations=ToolAnnotations(
+            title='Palo Alto Cortex XDR: Isolate Endpoint',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_cortex_xdr_isolate_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Isolate an endpoint.
 
         Returns:
@@ -633,8 +706,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoCortexXDR")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_cortex_xdr_unisolate_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Cortex XDR: Unisolate Endpoint',
+        annotations=ToolAnnotations(
+            title='Palo Alto Cortex XDR: Unisolate Endpoint',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_cortex_xdr_unisolate_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Unisolate an endpoint.
 
         Returns:

@@ -12,9 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import json
 import logging
-import vt
 import typing
+
+from mcp.types import CallToolResult, TextContent
+import vt
+
+
+def tool_error_result(error: str, **details: typing.Any) -> CallToolResult:
+  """Build a structured MCP error result with is_error=True."""
+  payload: dict[str, typing.Any] = {"error": error, **details}
+  return CallToolResult(
+      content=[TextContent(type="text", text=json.dumps(payload))],
+      structured_content=payload,
+      is_error=True,
+  )
+
+
+def is_error_dict(data: typing.Any) -> bool:
+  """Return True when a helper response dict represents an error."""
+  return isinstance(data, dict) and "error" in data and "id" not in data
+
+
+def tool_error_result_from_dict(data: dict[str, typing.Any]) -> CallToolResult:
+  """Convert an error dictionary into a CallToolResult with is_error=True."""
+  error_msg = str(data.get("error", "Unknown error"))
+  extra = {k: v for k, v in data.items() if k != "error"}
+  return tool_error_result(error_msg, **extra)
 
 
 async def consume_vt_iterator(
@@ -36,9 +61,11 @@ async def fetch_object(
     params: dict[str, typing.Any] | None = None):
   """Fetches objects from Google Threat Intelligence API."""
   logging.info(
-      f"Fetching comprehensive {resource_collection_type} "
-      f"report for id: {resource_id}")
-  
+      "Fetching comprehensive %s report for id: %s",
+      resource_collection_type,
+      resource_id,
+  )
+
   params = {k: v for k, v in params.items()} if params else {}
 
   # Retrieve a selection of object attributes and/or relationships.
@@ -53,15 +80,21 @@ async def fetch_object(
 
     if obj.error:
       logging.error(
-          f"Error fetching main {resource_type} report for {resource_id}: {obj.error}"
+          "Error fetching main %s report for %s: %s",
+          resource_type,
+          resource_id,
+          obj.error,
       )
       return {
           "error": f"Failed to get main {resource_type} report: {obj.error}",
-          # "details": report.get("details"),
       }
   except vt.error.APIError as e:
     logging.warning(
-        f"VirusTotal API Error fetching {resource_type} {resource_id}: {e.code} - {e.message}"
+        "VirusTotal API Error fetching %s %s: %s - %s",
+        resource_type,
+        resource_id,
+        e.code,
+        e.message,
     )
     return {
         "error": f"VirusTotal API Error: {e.code} - {e.message}",
@@ -69,9 +102,12 @@ async def fetch_object(
     }
   except Exception as e:
     logging.exception(
-        f"Unexpected error fetching {resource_type} {resource_id}: {e}"
+        "Unexpected error fetching %s %s: %s",
+        resource_type,
+        resource_id,
+        e,
     )
-    return {"error": "An unexpected internal error occurred."}
+    return {"error": f"An unexpected internal error occurred: {e}"}
 
   # Build response.
   obj_dict = obj.to_dict()
@@ -80,7 +116,9 @@ async def fetch_object(
     del obj_dict['attributes']['aggregations']
 
   logging.info(
-      f"Successfully generated concise threat summary for id: {resource_id}")
+      "Successfully generated concise threat summary for id: %s",
+      resource_id,
+  )
   return obj_dict
 
 

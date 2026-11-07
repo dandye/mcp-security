@@ -40,7 +40,7 @@ class _FakeMCP:
     def __init__(self) -> None:
         self.tools: dict[str, object] = {}
 
-    def tool(self):
+    def tool(self, *args: object, **kwargs: object):
         def decorator(fn):
             self.tools[fn.__name__] = fn
             return fn

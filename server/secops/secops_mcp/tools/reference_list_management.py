@@ -16,13 +16,25 @@
 import logging
 from typing import Any, Dict, List, Optional
 
+from mcp.types import ToolAnnotations as _ToolAnnotations
 from secops.chronicle import ReferenceListView
 from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.utils import tool_error_result as _tool_error_result
 
 # Configure logging
 logger = logging.getLogger('secops-mcp')
 
-@server.tool()
+
+@server.tool(
+    title="Create Chronicle Reference List",
+    annotations=_ToolAnnotations(
+        title="Create Chronicle Reference List",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=False,
+    ),
+)
 async def create_reference_list(
     name: str,
     description: str,
@@ -31,7 +43,7 @@ async def create_reference_list(
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
     syntax_type: str = "STRING",
-) -> str:
+) -> dict[str, Any]:
     """Create a new reference list in Chronicle SIEM.
 
     Creates a reference list containing a collection of values that can be referenced in
@@ -111,10 +123,8 @@ async def create_reference_list(
         - Set up automated processes to maintain the list with current threat intelligence.
     """
     try:
-        logger.info(f'Creating reference list: {name} with {len(entries)} entries')
+        logger.info('Creating reference list: %s with %s entries', name, len(entries))
 
-        
-        
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # Create the reference list
@@ -148,20 +158,41 @@ async def create_reference_list(
         
         result += f'\nThe list can now be referenced in detection rules as: reference_list.{name}'
         
-        return result
+        return {
+            "status": "success",
+            "summary": result,
+            "name": name,
+            "list_id": list_name,
+            "syntax_type": syntax_type,
+            "create_time": create_time,
+            "entry_count": entry_count,
+        }
 
     except Exception as e:
-        logger.error(f'Error creating reference list {name}: {str(e)}', exc_info=True)
-        return f'Error creating reference list {name}: {str(e)}'
+        logger.error('Error creating reference list %s: %s', name, e, exc_info=True)
+        return _tool_error_result(
+            f'Error creating reference list {name}: {e}',
+            name=name,
+        )
 
-@server.tool()
+
+@server.tool(
+    title="Get Chronicle Reference List",
+    annotations=_ToolAnnotations(
+        title="Get Chronicle Reference List",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_reference_list(
     name: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
     include_entries: bool = True,
-) -> str:
+) -> dict[str, Any]:
     """Get details and contents of a reference list in Chronicle SIEM.
 
     Retrieves the metadata and optionally the full contents of a reference list. This is
@@ -221,10 +252,8 @@ async def get_reference_list(
         - Set up regular reviews to maintain data quality and relevance.
     """
     try:
-        logger.info(f'Getting reference list: {name}')
+        logger.info('Getting reference list: %s', name)
 
-        
-        
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # Determine view based on include_entries parameter
@@ -238,7 +267,10 @@ async def get_reference_list(
         reference_list = chronicle.get_reference_list(name, view=view)
 
         if not reference_list:
-            return f'Reference list "{name}" was not found.'
+            return _tool_error_result(
+                f'Reference list "{name}" was not found.',
+                name=name,
+            )
 
         # Extract list details
         list_name = reference_list.get("name", "").split("/")[-1]
@@ -252,15 +284,17 @@ async def get_reference_list(
         result += f'Syntax Type: {syntax_type}\n'
         result += f'Created: {create_time}\n'
 
+        entry_values: list[str] = []
+        raw_entries = reference_list.get("entries", [])
+        entry_count = len(raw_entries)
+
         # Show entries if requested
         if include_entries:
-            entries = reference_list.get("entries", [])
-            entry_count = len(entries)
             result += f'Total entries: {entry_count}\n\n'
             
-            if entries:
+            if raw_entries:
                 result += 'Entries:\n'
-                for i, entry in enumerate(entries):
+                for i, entry in enumerate(raw_entries):
                     if isinstance(entry, str):
                         entry_value = entry
                     elif isinstance(entry, dict):
@@ -269,28 +303,50 @@ async def get_reference_list(
                         entry_value = entry.value
                     else:
                         entry_value = str(entry)
-                    result += f'  {i+1}. {entry_value}\n'
-
-                    # Limit display for very large lists
-                    if i >= 49:  # Show first 50 entries
+                    entry_values.append(entry_value)
+                    if i < 50:
+                        result += f'  {i+1}. {entry_value}\n'
+                    elif i == 50:
                         remaining = entry_count - 50
                         if remaining > 0:
                             result += f'  ... and {remaining} more entries\n'
-                        break
             else:
                 result += 'No entries found in this reference list.\n'
         else:
             # Just show count if entries are not included
-            entries = reference_list.get("entries", [])
-            result += f'Total entries: {len(entries)} (entries not displayed)\n'
+            result += f'Total entries: {entry_count} (entries not displayed)\n'
         
-        return result
+        payload: dict[str, Any] = {
+            "summary": result,
+            "name": name,
+            "list_id": list_name,
+            "description": description,
+            "syntax_type": syntax_type,
+            "create_time": create_time,
+            "entry_count": entry_count,
+        }
+        if include_entries:
+            payload["entries"] = entry_values
+        return payload
 
     except Exception as e:
-        logger.error(f'Error getting reference list {name}: {str(e)}', exc_info=True)
-        return f'Error getting reference list {name}: {str(e)}'
+        logger.error('Error getting reference list %s: %s', name, e, exc_info=True)
+        return _tool_error_result(
+            f'Error getting reference list {name}: {e}',
+            name=name,
+        )
 
-@server.tool()
+
+@server.tool(
+    title="Update Chronicle Reference List",
+    annotations=_ToolAnnotations(
+        title="Update Chronicle Reference List",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def update_reference_list(
     name: str,
     project_id: Optional[str] = None,
@@ -298,7 +354,7 @@ async def update_reference_list(
     region: Optional[str] = None,
     entries: Optional[List[str]] = None,
     description: Optional[str] = None,
-) -> str:
+) -> dict[str, Any]:
     """Update an existing reference list in Chronicle SIEM.
 
     Updates the contents or description of an existing reference list. This is useful for
@@ -376,23 +432,24 @@ async def update_reference_list(
     try:
         # Validate that at least one update parameter is provided
         if entries is None and description is None:
-            return "Error: Either entries or description must be provided for update."
+            return _tool_error_result(
+                "Error: Either entries or description must be provided for update.",
+                name=name,
+            )
 
-        logger.info(f'Updating reference list: {name}')
+        logger.info('Updating reference list: %s', name)
 
-        
-        
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # Prepare update parameters
-        update_params = {"name": name}
+        update_params: dict[str, Any] = {"name": name}
         if entries is not None:
             update_params["entries"] = entries
         if description is not None:
             update_params["description"] = description
 
         # Update the reference list
-        updated_list = chronicle.update_reference_list(**update_params)
+        chronicle.update_reference_list(**update_params)
 
         result = f'Successfully updated reference list: {name}\n'
         
@@ -414,8 +471,17 @@ async def update_reference_list(
         
         result += f'\nThe updated list can be used in detection rules as: reference_list.{name}'
         
-        return result
+        return {
+            "status": "success",
+            "summary": result,
+            "name": name,
+            "entry_count": len(entries) if entries is not None else None,
+            "description": description,
+        }
 
     except Exception as e:
-        logger.error(f'Error updating reference list {name}: {str(e)}', exc_info=True)
-        return f'Error updating reference list {name}: {str(e)}' 
+        logger.error('Error updating reference list %s: %s', name, e, exc_info=True)
+        return _tool_error_result(
+            f'Error updating reference list {name}: {e}',
+            name=name,
+        )

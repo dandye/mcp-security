@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the ServiceDeskPlus integration.
 
-    @mcp.tool()
-    async def service_desk_plus_create_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], subject: Annotated[str, Field(..., description="The subject of the request.")], requester: Annotated[Optional[str], Field(default=None, description="The requester of the request. If not specified, set to the user of the API key.")], description: Annotated[Optional[str], Field(default=None, description="The description of the request.")], status: Annotated[Optional[str], Field(default=None, description="The status of the request.")], technician: Annotated[Optional[str], Field(default=None, description="The name of the technician assigned to the request.")], priority: Annotated[Optional[str], Field(default=None, description="The priority of the request.")], urgency: Annotated[Optional[str], Field(default=None, description="The urgency of the request.")], category: Annotated[Optional[str], Field(default=None, description="The category of the request.")], request_template: Annotated[Optional[str], Field(default=None, description="The template of the request.")], request_type: Annotated[Optional[str], Field(default=None, description="The type of the request. I.e: Incident, Service Request, etc.")], due_by_time_ms: Annotated[Optional[str], Field(default=None, description="The due date of the request in milliseconds.")], mode: Annotated[Optional[str], Field(default=None, description="The mode of the request.")], level: Annotated[Optional[str], Field(default=None, description="The level of the request.")], site: Annotated[Optional[str], Field(default=None, description="The site of the request.")], group: Annotated[Optional[str], Field(default=None, description="The group of the request.")], impact: Annotated[Optional[str], Field(default=None, description="The impact of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus: Create Request',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus: Create Request',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_create_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], subject: Annotated[str, Field(..., description="The subject of the request.")], requester: Annotated[Optional[str], Field(default=None, description="The requester of the request. If not specified, set to the user of the API key.")], description: Annotated[Optional[str], Field(default=None, description="The description of the request.")], status: Annotated[Optional[str], Field(default=None, description="The status of the request.")], technician: Annotated[Optional[str], Field(default=None, description="The name of the technician assigned to the request.")], priority: Annotated[Optional[str], Field(default=None, description="The priority of the request.")], urgency: Annotated[Optional[str], Field(default=None, description="The urgency of the request.")], category: Annotated[Optional[str], Field(default=None, description="The category of the request.")], request_template: Annotated[Optional[str], Field(default=None, description="The template of the request.")], request_type: Annotated[Optional[str], Field(default=None, description="The type of the request. I.e: Incident, Service Request, etc.")], due_by_time_ms: Annotated[Optional[str], Field(default=None, description="The due date of the request in milliseconds.")], mode: Annotated[Optional[str], Field(default=None, description="The mode of the request.")], level: Annotated[Optional[str], Field(default=None, description="The level of the request.")], site: Annotated[Optional[str], Field(default=None, description="The site of the request.")], group: Annotated[Optional[str], Field(default=None, description="The group of the request.")], impact: Annotated[Optional[str], Field(default=None, description="The impact of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create a new request
 
         Returns:
@@ -132,8 +142,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ServiceDeskPlus")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def service_desk_plus_create_alert_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], subject: Annotated[str, Field(..., description="The subject of the request.")], requester: Annotated[Optional[str], Field(default=None, description="The requester of the request. If not specified, set to the user of the API key.")], status: Annotated[Optional[str], Field(default=None, description="The status of the request.")], technician: Annotated[Optional[str], Field(default=None, description="The name of the technician assigned to the request.")], priority: Annotated[Optional[str], Field(default=None, description="The priority of the request.")], urgency: Annotated[Optional[str], Field(default=None, description="The urgency of the request.")], category: Annotated[Optional[str], Field(default=None, description="The category of the request.")], request_template: Annotated[Optional[str], Field(default=None, description="The template of the request.")], request_type: Annotated[Optional[str], Field(default=None, description="The type of the request. I.e: Incident, Service Request, etc.")], due_by_time_ms: Annotated[Optional[str], Field(default=None, description="The due date of the request in milliseconds.")], mode: Annotated[Optional[str], Field(default=None, description="The mode of the request.")], level: Annotated[Optional[str], Field(default=None, description="The level of the request.")], site: Annotated[Optional[str], Field(default=None, description="The site of the request.")], group: Annotated[Optional[str], Field(default=None, description="The group of the request.")], impact: Annotated[Optional[str], Field(default=None, description="The impact of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus: Create Alert Request',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus: Create Alert Request',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_create_alert_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], subject: Annotated[str, Field(..., description="The subject of the request.")], requester: Annotated[Optional[str], Field(default=None, description="The requester of the request. If not specified, set to the user of the API key.")], status: Annotated[Optional[str], Field(default=None, description="The status of the request.")], technician: Annotated[Optional[str], Field(default=None, description="The name of the technician assigned to the request.")], priority: Annotated[Optional[str], Field(default=None, description="The priority of the request.")], urgency: Annotated[Optional[str], Field(default=None, description="The urgency of the request.")], category: Annotated[Optional[str], Field(default=None, description="The category of the request.")], request_template: Annotated[Optional[str], Field(default=None, description="The template of the request.")], request_type: Annotated[Optional[str], Field(default=None, description="The type of the request. I.e: Incident, Service Request, etc.")], due_by_time_ms: Annotated[Optional[str], Field(default=None, description="The due date of the request in milliseconds.")], mode: Annotated[Optional[str], Field(default=None, description="The mode of the request.")], level: Annotated[Optional[str], Field(default=None, description="The level of the request.")], site: Annotated[Optional[str], Field(default=None, description="The site of the request.")], group: Annotated[Optional[str], Field(default=None, description="The group of the request.")], impact: Annotated[Optional[str], Field(default=None, description="The impact of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create an request related to a Siemplify alert
 
         Returns:
@@ -235,8 +254,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ServiceDeskPlus")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def service_desk_plus_add_note_and_wait_for_reply(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The requests' ID.")], note: Annotated[str, Field(..., description="The note's content.")], is_public: Annotated[bool, Field(..., description="Whether to make the note public or not.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus: Add Note and Wait for Reply',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus: Add Note and Wait for Reply',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_add_note_and_wait_for_reply(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The requests' ID.")], note: Annotated[str, Field(..., description="The note's content.")], is_public: Annotated[bool, Field(..., description="Whether to make the note public or not.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add a note and wait for new notes to be added to the given request.
 
         Returns:
@@ -312,8 +340,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ServiceDeskPlus")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def service_desk_plus_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus: Ping',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to ServiceDesk Plus instance.
 
         Returns:
@@ -386,8 +423,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ServiceDeskPlus")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def service_desk_plus_update_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The id of the request to update.")], requester: Annotated[Optional[str], Field(default=None, description="The requester of the request. If not specified, set to the user of the API key.")], description: Annotated[Optional[str], Field(default=None, description="The description of the request.")], status: Annotated[Optional[str], Field(default=None, description="The status of the request.")], technician: Annotated[Optional[str], Field(default=None, description="The name of the technician assigned to the request.")], priority: Annotated[Optional[str], Field(default=None, description="The priority of the request.")], urgency: Annotated[Optional[str], Field(default=None, description="The urgency of the request.")], category: Annotated[Optional[str], Field(default=None, description="The category of the request.")], request_template: Annotated[Optional[str], Field(default=None, description="The template of the request.")], request_type: Annotated[Optional[str], Field(default=None, description="The type of the request. I.e: Incident, Service Request, etc.")], due_by_time_ms: Annotated[Optional[str], Field(default=None, description="The due date of the request in milliseconds.")], mode: Annotated[Optional[str], Field(default=None, description="The mode of the request.")], level: Annotated[Optional[str], Field(default=None, description="The level of the request.")], site: Annotated[Optional[str], Field(default=None, description="The site of the request.")], group: Annotated[Optional[str], Field(default=None, description="The group of the request.")], impact: Annotated[Optional[str], Field(default=None, description="The impact of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus: Update Request',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus: Update Request',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_update_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The id of the request to update.")], requester: Annotated[Optional[str], Field(default=None, description="The requester of the request. If not specified, set to the user of the API key.")], description: Annotated[Optional[str], Field(default=None, description="The description of the request.")], status: Annotated[Optional[str], Field(default=None, description="The status of the request.")], technician: Annotated[Optional[str], Field(default=None, description="The name of the technician assigned to the request.")], priority: Annotated[Optional[str], Field(default=None, description="The priority of the request.")], urgency: Annotated[Optional[str], Field(default=None, description="The urgency of the request.")], category: Annotated[Optional[str], Field(default=None, description="The category of the request.")], request_template: Annotated[Optional[str], Field(default=None, description="The template of the request.")], request_type: Annotated[Optional[str], Field(default=None, description="The type of the request. I.e: Incident, Service Request, etc.")], due_by_time_ms: Annotated[Optional[str], Field(default=None, description="The due date of the request in milliseconds.")], mode: Annotated[Optional[str], Field(default=None, description="The mode of the request.")], level: Annotated[Optional[str], Field(default=None, description="The level of the request.")], site: Annotated[Optional[str], Field(default=None, description="The site of the request.")], group: Annotated[Optional[str], Field(default=None, description="The group of the request.")], impact: Annotated[Optional[str], Field(default=None, description="The impact of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update a request
 
         Returns:
@@ -491,8 +537,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ServiceDeskPlus")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def service_desk_plus_get_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The ID of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus: Get Request',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus: Get Request',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_get_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The ID of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Retrieve information about a request
 
         Returns:
@@ -566,8 +621,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ServiceDeskPlus")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def service_desk_plus_close_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The request's ID.")], comment: Annotated[str, Field(..., description="Closing comment.")], resolution_acknowledged: Annotated[bool, Field(..., description="Whether the resolution of the request is acknowledged or not.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus: Close Request',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus: Close Request',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_close_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The request's ID.")], comment: Annotated[str, Field(..., description="Closing comment.")], resolution_acknowledged: Annotated[bool, Field(..., description="Whether the resolution of the request is acknowledged or not.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Close a request
 
         Returns:
@@ -643,8 +707,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ServiceDeskPlus")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def service_desk_plus_wait_for_field_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The ID of the request.")], field_name: Annotated[str, Field(..., description="The name of the field to be updated.")], values: Annotated[str, Field(..., description="Desired values for the given field.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus: Wait for Field Update',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus: Wait for Field Update',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_wait_for_field_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The ID of the request.")], field_name: Annotated[str, Field(..., description="The name of the field to be updated.")], values: Annotated[str, Field(..., description="Desired values for the given field.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Wait for a field of a request ot update to a desired value.
 
         Returns:
@@ -720,8 +793,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ServiceDeskPlus")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def service_desk_plus_add_note(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The requests' ID.")], note: Annotated[str, Field(..., description="The note's content.")], is_public: Annotated[bool, Field(..., description="Whether to make the note public or not.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus: Add Note',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus: Add Note',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_add_note(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The requests' ID.")], note: Annotated[str, Field(..., description="The note's content.")], is_public: Annotated[bool, Field(..., description="Whether to make the note public or not.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add a note to a request
 
         Returns:
@@ -797,8 +879,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ServiceDeskPlus")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def service_desk_plus_wait_for_status_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The ID of the request.")], statuses: Annotated[str, Field(..., description="Desired request statuses, comma separated.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus: Wait for Status Update',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus: Wait for Status Update',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_wait_for_status_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The ID of the request.")], statuses: Annotated[str, Field(..., description="Desired request statuses, comma separated.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Wait for the status of a request ot update to a desired status.
 
         Returns:

@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the AzureSecurityCenter integration.
 
-    @mcp.tool()
-    async def azure_security_center_get_o_auth_refresh_token(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], redirect_url: Annotated[str, Field(..., description="Specify the redirect URL that was used when the app was created.")], authorization_code: Annotated[str, Field(..., description="Specify the authorization code from action \"Get OAuth Authorization Code\"")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Security Center: Get OAuth Refresh Token',
+        annotations=ToolAnnotations(
+            title='Azure Security Center: Get OAuth Refresh Token',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_security_center_get_o_auth_refresh_token(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], redirect_url: Annotated[str, Field(..., description="Specify the redirect URL that was used when the app was created.")], authorization_code: Annotated[str, Field(..., description="Specify the authorization code from action \"Get OAuth Authorization Code\"")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Generate the refresh token that is needed for the integration configuration. Authorization code can be generated using "Get OAuth Authorization Code". Please refer to the documentation portal for more information.
 
         Returns:
@@ -103,8 +113,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureSecurityCenter")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_security_center_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Security Center: Ping',
+        annotations=ToolAnnotations(
+            title='Azure Security Center: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_security_center_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to Azure Security Center with parameters provided at the integration configuration page on Marketplace tab.
 
         Returns:
@@ -177,8 +196,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureSecurityCenter")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_security_center_list_regulatory_standards(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], subscription_id: Annotated[Optional[str], Field(default=None, description="Specify the ID of the subscription for which you want to query information. Note: if subscription ID is provided at the integration level and action level, priority will be given to action configuration.")], state_filter: Annotated[Optional[str], Field(default=None, description="Specify the comma-separated list of states. Example: Failed, Skipped. Only standards with the matching state will be returned. For example, if you specify \u201cFailed\u201d, action will only return failed standards. Possible values: Passed, Failed, Unsupported, Skipped")], max_standards_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many standards to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Security Center: List Regulatory Standards',
+        annotations=ToolAnnotations(
+            title='Azure Security Center: List Regulatory Standards',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_security_center_list_regulatory_standards(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], subscription_id: Annotated[Optional[str], Field(default=None, description="Specify the ID of the subscription for which you want to query information. Note: if subscription ID is provided at the integration level and action level, priority will be given to action configuration.")], state_filter: Annotated[Optional[str], Field(default=None, description="Specify the comma-separated list of states. Example: Failed, Skipped. Only standards with the matching state will be returned. For example, if you specify \u201cFailed\u201d, action will only return failed standards. Possible values: Passed, Failed, Unsupported, Skipped")], max_standards_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many standards to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List available regulatory standards in Microsoft Azure Security Center
 
         Returns:
@@ -257,8 +285,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureSecurityCenter")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_security_center_update_alert_status(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_id: Annotated[str, Field(..., description="Specify an ID of the alert, where you want to update status.")], location: Annotated[str, Field(..., description="Specify the location of the alert. Example: centralus.")], status: Annotated[List[str], Field(..., description="Specify the status for the alert.")], subscription_id: Annotated[Optional[str], Field(default=None, description="Specify the ID of the subscription for which you want to query information. Note: if subscription ID is provided at the integration level and action level, priority will be given to action configuration.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Security Center: Update Alert Status',
+        annotations=ToolAnnotations(
+            title='Azure Security Center: Update Alert Status',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_security_center_update_alert_status(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_id: Annotated[str, Field(..., description="Specify an ID of the alert, where you want to update status.")], location: Annotated[str, Field(..., description="Specify the location of the alert. Example: centralus.")], status: Annotated[List[str], Field(..., description="Specify the status for the alert.")], subscription_id: Annotated[Optional[str], Field(default=None, description="Specify the ID of the subscription for which you want to query information. Note: if subscription ID is provided at the integration level and action level, priority will be given to action configuration.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update status of the alert in Microsoft Azure Security Center.
 
         Returns:
@@ -336,8 +373,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureSecurityCenter")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_security_center_list_regulatory_standard_controls(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], standard_names: Annotated[str, Field(..., description="Specify a comma-separated list of standard names for which you want to retrieve details. Example: Azure-CIS-1.1.0")], subscription_id: Annotated[Optional[str], Field(default=None, description="Specify the ID of the subscription for which you want to query information. Note: if subscription ID is provided at the integration level and action level, priority will be given to action configuration.")], state_filter: Annotated[Optional[str], Field(default=None, description="Specify the comma-separated list of states. Example: Failed, Skipped. Only standards with the matching state will be returned. For example, if you specify \u201cFailed\u201d, action will only return failed standards. Possible values: Passed, Failed, Unsupported, Skipped")], max_standards_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many controls to return per standard.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Security Center: List Regulatory Standard Controls',
+        annotations=ToolAnnotations(
+            title='Azure Security Center: List Regulatory Standard Controls',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_security_center_list_regulatory_standard_controls(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], standard_names: Annotated[str, Field(..., description="Specify a comma-separated list of standard names for which you want to retrieve details. Example: Azure-CIS-1.1.0")], subscription_id: Annotated[Optional[str], Field(default=None, description="Specify the ID of the subscription for which you want to query information. Note: if subscription ID is provided at the integration level and action level, priority will be given to action configuration.")], state_filter: Annotated[Optional[str], Field(default=None, description="Specify the comma-separated list of states. Example: Failed, Skipped. Only standards with the matching state will be returned. For example, if you specify \u201cFailed\u201d, action will only return failed standards. Possible values: Passed, Failed, Unsupported, Skipped")], max_standards_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many controls to return per standard.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List available controls related to standards in Microsoft Azure Security Center.
 
         Returns:
@@ -417,8 +463,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureSecurityCenter")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_security_center_get_o_auth_authorization_code(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], redirect_url: Annotated[str, Field(..., description="Specify the redirect URL that was used when the app was created.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Security Center: Get OAuth Authorization Code',
+        annotations=ToolAnnotations(
+            title='Azure Security Center: Get OAuth Authorization Code',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_security_center_get_o_auth_authorization_code(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], redirect_url: Annotated[str, Field(..., description="Specify the redirect URL that was used when the app was created.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Generate an OAuth authorization code in Azure Security Center. Please refer to the documentation portal for more information.
 
         Returns:

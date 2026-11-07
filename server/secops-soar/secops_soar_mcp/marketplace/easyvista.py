@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the EasyVista integration.
 
-    @mcp.tool()
-    async def easy_vista_close_easy_vista_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_identifier: Annotated[str, Field(..., description="EasyVista ticket identifier, eg S201001_000001.")], comment: Annotated[Optional[str], Field(default=None, description="Comment explaining the closing of the ticket.")], actions_close_date: Annotated[Optional[str], Field(default=None, description="Closing date of open actions associated with the ticket and the anticipated closure action. Date should be in the following format: MM/DD/YYYY HH:MM:SS. If the wrong format is provided, action will use current datetime as close date.")], delete_ongoing_actions: Annotated[Optional[bool], Field(default=None, description="Specify whether to delete the ticket's ongoing actions on ticket closing.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Easy Vista: Close EasyVista Ticket',
+        annotations=ToolAnnotations(
+            title='Easy Vista: Close EasyVista Ticket',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def easy_vista_close_easy_vista_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_identifier: Annotated[str, Field(..., description="EasyVista ticket identifier, eg S201001_000001.")], comment: Annotated[Optional[str], Field(default=None, description="Comment explaining the closing of the ticket.")], actions_close_date: Annotated[Optional[str], Field(default=None, description="Closing date of open actions associated with the ticket and the anticipated closure action. Date should be in the following format: MM/DD/YYYY HH:MM:SS. If the wrong format is provided, action will use current datetime as close date.")], delete_ongoing_actions: Annotated[Optional[bool], Field(default=None, description="Specify whether to delete the ticket's ongoing actions on ticket closing.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Close EasyVista ticket based on the provided parameters. Note: action is not working on Siemplify entities, ticket identifier (rfc_number) should be provided.
 
         Returns:
@@ -108,8 +118,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for EasyVista")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def easy_vista_add_comment_to_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_identifier: Annotated[str, Field(..., description="EasyVista ticket identifier to get info for, eg S201001_000001.")], comment: Annotated[str, Field(..., description="Comment to add to EasyVista ticket.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Easy Vista: Add Comment to Ticket',
+        annotations=ToolAnnotations(
+            title='Easy Vista: Add Comment to Ticket',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def easy_vista_add_comment_to_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_identifier: Annotated[str, Field(..., description="EasyVista ticket identifier to get info for, eg S201001_000001.")], comment: Annotated[str, Field(..., description="Comment to add to EasyVista ticket.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add a comment to the EasyVista ticket. Note: action is not working on Siemplify entities, action input parameters should be provided.
 
         Returns:
@@ -184,8 +203,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for EasyVista")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def easy_vista_get_easy_vista_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_identifier: Annotated[str, Field(..., description="EasyVista ticket identifier to get info for, eg S201001_000001.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Easy Vista: Get EasyVista Ticket',
+        annotations=ToolAnnotations(
+            title='Easy Vista: Get EasyVista Ticket',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def easy_vista_get_easy_vista_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_identifier: Annotated[str, Field(..., description="EasyVista ticket identifier to get info for, eg S201001_000001.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get information on specific EasyVista ticket. Note: action is not working on Siemplify entities, ticket identifier (rfc_number) should be provided.
 
         Returns:
@@ -259,8 +287,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for EasyVista")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def easy_vista_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Easy Vista: Ping',
+        annotations=ToolAnnotations(
+            title='Easy Vista: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def easy_vista_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the EasyVista instance with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -333,8 +370,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for EasyVista")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def easy_vista_wait_for_the_ticket_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_identifier: Annotated[str, Field(..., description="EasyVista ticket identifier, eg S201001_000001.")], field_to_monitor: Annotated[Optional[List[str]], Field(default=None, description="EasyVista ticket field to monitor for the update.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Easy Vista: Wait for the Ticket Update',
+        annotations=ToolAnnotations(
+            title='Easy Vista: Wait for the Ticket Update',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def easy_vista_wait_for_the_ticket_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_identifier: Annotated[str, Field(..., description="EasyVista ticket identifier, eg S201001_000001.")], field_to_monitor: Annotated[Optional[List[str]], Field(default=None, description="EasyVista ticket field to monitor for the update.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Action pauses the playbook execution and periodically connects to EasyVista until timeout and checks if the specified ticket got an update. Action also can monitor specific field for the update, once that field is updated - action completes and fetches back the updated ticket information. 
 
         Returns:

@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the GoogleCloudPolicyIntelligence integration.
 
-    @mcp.tool()
-    async def google_cloud_policy_intelligence_search_service_account_activity(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], service_account_resource_name: Annotated[str, Field(..., description="Specify a comma-separated list of service accounts for which you want to fetch activity.")], max_activities_to_return: Annotated[str, Field(..., description="Specify how many activities to return. Maximum: 1000.")], project_id: Annotated[Optional[str], Field(default=None, description="Specify the name of the project, where you want to search service account activities. If nothing is provided, the project will be extracted from integration configuration.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google Cloud Policy Intelligence: Search Service Account Activity',
+        annotations=ToolAnnotations(
+            title='Google Cloud Policy Intelligence: Search Service Account Activity',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_cloud_policy_intelligence_search_service_account_activity(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], service_account_resource_name: Annotated[str, Field(..., description="Specify a comma-separated list of service accounts for which you want to fetch activity.")], max_activities_to_return: Annotated[str, Field(..., description="Specify how many activities to return. Maximum: 1000.")], project_id: Annotated[Optional[str], Field(default=None, description="Specify the name of the project, where you want to search service account activities. If nothing is provided, the project will be extracted from integration configuration.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Search activity related to service accounts in Google Cloud Policy Intelligence.
 
         Returns:
@@ -105,8 +115,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GoogleCloudPolicyIntelligence")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def google_cloud_policy_intelligence_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google Cloud Policy Intelligence: Ping',
+        annotations=ToolAnnotations(
+            title='Google Cloud Policy Intelligence: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_cloud_policy_intelligence_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Google Cloud Policy Intelligence with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:

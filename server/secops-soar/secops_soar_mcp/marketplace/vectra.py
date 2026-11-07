@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the Vectra integration.
 
-    @mcp.tool()
-    async def vectra_enrich_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Vectra: Enrich Endpoint',
+        annotations=ToolAnnotations(
+            title='Vectra: Enrich Endpoint',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def vectra_enrich_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Fetch endpoint's system information by its hostname or IP address.
 
         Returns:
@@ -101,8 +111,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Vectra")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def vectra_update_note(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], item_type: Annotated[List[str], Field(..., description="Select on which item type you want to update a note.")], item_id: Annotated[str, Field(..., description="Specify ID of the detection/endpoint.")], note: Annotated[str, Field(..., description="Specify what note you want to have on the detection/endpoint.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Vectra: Update Note',
+        annotations=ToolAnnotations(
+            title='Vectra: Update Note',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def vectra_update_note(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], item_type: Annotated[List[str], Field(..., description="Select on which item type you want to update a note.")], item_id: Annotated[str, Field(..., description="Specify ID of the detection/endpoint.")], note: Annotated[str, Field(..., description="Specify what note you want to have on the detection/endpoint.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Update note for the endpoint or detection.
 
@@ -181,8 +200,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Vectra")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def vectra_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Vectra: Ping',
+        annotations=ToolAnnotations(
+            title='Vectra: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def vectra_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to Vectra with parameters provided at the integration configuration page on Marketplace tab.
 
         Returns:
@@ -255,8 +283,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Vectra")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def vectra_remove_tags(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], item_type: Annotated[List[str], Field(..., description="Select from which item type you want to remove tags.")], item_id: Annotated[str, Field(..., description="Specify ID of the detection/endpoint.")], tags: Annotated[str, Field(..., description="Specify what tags you want to remove from detection/endpoint. Tags should be separated by comma, e.g tag1, tag2.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Vectra: Remove Tags',
+        annotations=ToolAnnotations(
+            title='Vectra: Remove Tags',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def vectra_remove_tags(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], item_type: Annotated[List[str], Field(..., description="Select from which item type you want to remove tags.")], item_id: Annotated[str, Field(..., description="Specify ID of the detection/endpoint.")], tags: Annotated[str, Field(..., description="Specify what tags you want to remove from detection/endpoint. Tags should be separated by comma, e.g tag1, tag2.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Remove tags from the endpoint or detection in Vectra.
 
@@ -335,8 +372,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Vectra")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def vectra_get_triage_rule_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], triage_rule_i_ds: Annotated[str, Field(..., description="Specify a comma-separated list of triage rule IDs. Example: 28,29.")], create_insights: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create a separate insight for every processed triage rule.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Vectra: Get Triage Rule Details',
+        annotations=ToolAnnotations(
+            title='Vectra: Get Triage Rule Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def vectra_get_triage_rule_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], triage_rule_i_ds: Annotated[str, Field(..., description="Specify a comma-separated list of triage rule IDs. Example: 28,29.")], create_insights: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create a separate insight for every processed triage rule.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Get detailed information about triage rules.
 
@@ -415,8 +461,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Vectra")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def vectra_update_detection_status(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], detection_id: Annotated[str, Field(..., description="Specify the detection ID on which you want to update the status.")], status: Annotated[List[str], Field(..., description="Specify what status to set on the detection.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Vectra: Update Detection Status',
+        annotations=ToolAnnotations(
+            title='Vectra: Update Detection Status',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def vectra_update_detection_status(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], detection_id: Annotated[str, Field(..., description="Specify the detection ID on which you want to update the status.")], status: Annotated[List[str], Field(..., description="Specify what status to set on the detection.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Update status of the detection.
 
@@ -494,8 +549,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Vectra")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def vectra_add_tags(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], item_type: Annotated[List[str], Field(..., description="Select to which item type you want to add tags.")], item_id: Annotated[str, Field(..., description="Specify ID of the detection/endpoint.")], tags: Annotated[str, Field(..., description="Specify what tags you want to add to detection/endpoint. Tags should be separated by comma, e.g tag1, tag2.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Vectra: Add Tags',
+        annotations=ToolAnnotations(
+            title='Vectra: Add Tags',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def vectra_add_tags(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], item_type: Annotated[List[str], Field(..., description="Select to which item type you want to add tags.")], item_id: Annotated[str, Field(..., description="Specify ID of the detection/endpoint.")], tags: Annotated[str, Field(..., description="Specify what tags you want to add to detection/endpoint. Tags should be separated by comma, e.g tag1, tag2.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Add tags to the endpoint or detection in Vectra.
 

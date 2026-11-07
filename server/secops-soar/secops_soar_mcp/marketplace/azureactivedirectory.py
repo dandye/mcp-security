@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the AzureActiveDirectory integration.
 
-    @mcp.tool()
-    async def azure_active_directory_force_password_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Active Directory: Force Password Update',
+        annotations=ToolAnnotations(
+            title='Azure Active Directory: Force Password Update',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_active_directory_force_password_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Force password update for user so the user will have to change their password on next login. Action expects Siemplify user entity in username@domain format.
 
         Returns:
@@ -101,8 +111,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureActiveDirectory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_active_directory_get_manager_contact_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Active Directory: Get Manager Contact Details',
+        annotations=ToolAnnotations(
+            title='Azure Active Directory: Get Manager Contact Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_active_directory_get_manager_contact_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get manager contact details for user. Action expects Siemplify user entity in username@domain format.
 
         Returns:
@@ -175,8 +194,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureActiveDirectory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_active_directory_disable_account(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Active Directory: Disable Account',
+        annotations=ToolAnnotations(
+            title='Azure Active Directory: Disable Account',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_active_directory_disable_account(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Disable account in Azure Active Directory. Action expects Siemplify user entity in username@domain format.
 
         Returns:
@@ -249,8 +277,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureActiveDirectory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_active_directory_remove_user_from_a_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], user_name: Annotated[Optional[str], Field(default=None, description="Specify user name to remove from the target group. User name should be specified in username@domain format. Parameter accepts multiple values as a comma separated string.")], group_name: Annotated[Optional[str], Field(default=None, description="Specify group name to remove user from.")], group_id: Annotated[Optional[str], Field(default=None, description="Specify the ID of the group from which you want to remove the user. If both \"Group Name\" and \"Group ID\" are provided, then \"Group ID\" will have priority. Example of the id: 00e40000-1971-439d-80fc-d0e000001dbd.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Active Directory: Remove User from a Group',
+        annotations=ToolAnnotations(
+            title='Azure Active Directory: Remove User from a Group',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_active_directory_remove_user_from_a_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], user_name: Annotated[Optional[str], Field(default=None, description="Specify user name to remove from the target group. User name should be specified in username@domain format. Parameter accepts multiple values as a comma separated string.")], group_name: Annotated[Optional[str], Field(default=None, description="Specify group name to remove user from.")], group_id: Annotated[Optional[str], Field(default=None, description="Specify the ID of the group from which you want to remove the user. If both \"Group Name\" and \"Group ID\" are provided, then \"Group ID\" will have priority. Example of the id: 00e40000-1971-439d-80fc-d0e000001dbd.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove User from the specified group. Note: The user name can be provided either as a Siemplify entity or as an action input parameter. If the user name is passed to action both as an entity and input parameter - action will be executed on the input parameter. User name should be specified in username@domain format.
 
         Returns:
@@ -329,8 +366,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureActiveDirectory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_active_directory_enrich_user(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], fields_to_return: Annotated[Optional[str], Field(default=None, description="A comma-separated list of fields that you want to return. If nothing is provided, action will return fields that are considered to be default by API.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Active Directory: Enrich User',
+        annotations=ToolAnnotations(
+            title='Azure Active Directory: Enrich User',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_active_directory_enrich_user(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], fields_to_return: Annotated[Optional[str], Field(default=None, description="A comma-separated list of fields that you want to return. If nothing is provided, action will return fields that are considered to be default by API.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enrich Siemplify User entity with information from Azure Active Directory. Action expects Siemplify user entity in username@domain format.
 
         Returns:
@@ -405,8 +451,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureActiveDirectory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_active_directory_enable_account(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Active Directory: Enable Account',
+        annotations=ToolAnnotations(
+            title='Azure Active Directory: Enable Account',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_active_directory_enable_account(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enable account in Azure Active Directory. Action expects Siemplify user entity in username@domain format.
 
         Returns:
@@ -479,8 +534,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureActiveDirectory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_active_directory_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Active Directory: Ping',
+        annotations=ToolAnnotations(
+            title='Azure Active Directory: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_active_directory_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Azure Active Directory service with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -553,8 +617,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureActiveDirectory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_active_directory_reset_user_password(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], password: Annotated[str, Field(..., description="User Authentication password.")], username: Annotated[Optional[str], Field(default=None, description="User name to change password for. Parameter expects value in a username@domain format and accepts multiple values as a comma separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Active Directory: Reset User Password',
+        annotations=ToolAnnotations(
+            title='Azure Active Directory: Reset User Password',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_active_directory_reset_user_password(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], password: Annotated[str, Field(..., description="User Authentication password.")], username: Annotated[Optional[str], Field(default=None, description="User name to change password for. Parameter expects value in a username@domain format and accepts multiple values as a comma separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Change user password to the password specified in the action. User will have to change their password on next login. Action expects User to change password for as  SecOps User entity in username@domain format or as an action input parameter. If the User name is passed to action both as a SecOps entity and input parameter - action will be executed on the input parameter.
 
         Returns:
@@ -630,8 +703,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureActiveDirectory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_active_directory_revoke_user_session(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Active Directory: Revoke User Session',
+        annotations=ToolAnnotations(
+            title='Azure Active Directory: Revoke User Session',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_active_directory_revoke_user_session(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Revoke user session. Supported entities: Username, Email Address (username that matches email regex).
 
         Returns:
@@ -704,8 +786,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureActiveDirectory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_active_directory_list_groups(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], order_by: Annotated[Optional[List[str]], Field(default=None, description="Specifies the result order. Groups are sorted by their display name.")], results_limit: Annotated[Optional[str], Field(default=None, description="Specify max number of groups to return.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied. Filtering is working on the Name field.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \u201cEqual\u201c is selected, action will try to find the exact match among results and if \u201cContains\u201c is selected, action will try to find results that contain that substring. If nothing is provided in this parameter, the filter will not be applied. Filtering is working on the Name field.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Active Directory: List Groups',
+        annotations=ToolAnnotations(
+            title='Azure Active Directory: List Groups',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_active_directory_list_groups(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], order_by: Annotated[Optional[List[str]], Field(default=None, description="Specifies the result order. Groups are sorted by their display name.")], results_limit: Annotated[Optional[str], Field(default=None, description="Specify max number of groups to return.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied. Filtering is working on the Name field.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \u201cEqual\u201c is selected, action will try to find the exact match among results and if \u201cContains\u201c is selected, action will try to find results that contain that substring. If nothing is provided in this parameter, the filter will not be applied. Filtering is working on the Name field.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List Azure Active Directory groups based on the specified search criteria. Note that action is not working on Siemplify entities. Additionally, filtering is working on the Name field.
 
         Returns:
@@ -786,8 +877,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureActiveDirectory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_active_directory_list_members_in_the_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_records_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many records to return. If nothing is provided, action will return 50 records.")], group_name: Annotated[Optional[str], Field(default=None, description="Specify group name to return user list for.")], group_id: Annotated[Optional[str], Field(default=None, description="Specify the ID of the group in which you want to list the members. If both \"Group Name\" and \"Group ID\" are provided, then \"Group ID\" will have priority. Example of the id: 00e40000-1971-439d-80fc-d0e000001dbd.")], filter_key: Annotated[Optional[List[str]], Field(default=None, description="Specify the key that needs to be used to filter group members.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied. Filtering logic is working based on the value  provided in the \"Filter Key\" parameter.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \u201cEqual\u201c is selected, action will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain that substring. If nothing is provided in this parameter, the filter will not be applied. Filtering logic is working based on the value  provided in the \"Filter Key\" parameter.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Active Directory: List Members in the Group',
+        annotations=ToolAnnotations(
+            title='Azure Active Directory: List Members in the Group',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_active_directory_list_members_in_the_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_records_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many records to return. If nothing is provided, action will return 50 records.")], group_name: Annotated[Optional[str], Field(default=None, description="Specify group name to return user list for.")], group_id: Annotated[Optional[str], Field(default=None, description="Specify the ID of the group in which you want to list the members. If both \"Group Name\" and \"Group ID\" are provided, then \"Group ID\" will have priority. Example of the id: 00e40000-1971-439d-80fc-d0e000001dbd.")], filter_key: Annotated[Optional[List[str]], Field(default=None, description="Specify the key that needs to be used to filter group members.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied. Filtering logic is working based on the value  provided in the \"Filter Key\" parameter.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \u201cEqual\u201c is selected, action will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain that substring. If nothing is provided in this parameter, the filter will not be applied. Filtering logic is working based on the value  provided in the \"Filter Key\" parameter.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List members in the specified Azure AD group.
 
         Returns:
@@ -872,8 +972,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureActiveDirectory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_active_directory_add_user_to_a_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_id: Annotated[str, Field(..., description="Azure AD group id in 00e40000-1971-439d-80fc-d0e000001dbd format.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Active Directory: Add User to a Group',
+        annotations=ToolAnnotations(
+            title='Azure Active Directory: Add User to a Group',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_active_directory_add_user_to_a_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_id: Annotated[str, Field(..., description="Azure AD group id in 00e40000-1971-439d-80fc-d0e000001dbd format.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add user to a specific Azure AD group. Action expects Siemplify user entity in username@domain format and group id in 00e40000-1971-439d-80fc-d0e000001dbd format.
 
         Returns:
@@ -947,8 +1056,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureActiveDirectory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_active_directory_is_user_in_a_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_id: Annotated[str, Field(..., description="Azure AD group id in 00e40000-1971-439d-80fc-d0e000001dbd format.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Active Directory: Is User in a Group',
+        annotations=ToolAnnotations(
+            title='Azure Active Directory: Is User in a Group',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_active_directory_is_user_in_a_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_id: Annotated[str, Field(..., description="Azure AD group id in 00e40000-1971-439d-80fc-d0e000001dbd format.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Check if user has membership in a specific Azure AD group. Action expects Siemplify user entity in username@domain format and group id in 00e40000-1971-439d-80fc-d0e000001dbd format.
 
         Returns:
@@ -1022,8 +1140,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureActiveDirectory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_active_directory_enrich_host(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Active Directory: Enrich Host',
+        annotations=ToolAnnotations(
+            title='Azure Active Directory: Enrich Host',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_active_directory_enrich_host(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enrich Siemplify Host entity with information from Azure Active Directory. Action finds a match for a provided Host entity based on the devices displayName field in Azure AD
 
         Returns:
@@ -1096,8 +1223,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureActiveDirectory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_active_directory_list_users_groups_membership(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], user_name: Annotated[Optional[str], Field(default=None, description="Specify user name to return groups membership for. User name should be specified in username@domain format. Parameter accepts multiple values as a comma separated string.")], return_only_security_enabled_groups: Annotated[Optional[bool], Field(default=None, description="If enabled, only security groups that the user is a member of will be returned.")], return_detailed_groups_information: Annotated[Optional[bool], Field(default=None, description="If enabled, detailed information on the AD groups will be returned.")], filter_key: Annotated[Optional[List[str]], Field(default=None, description="Specify the key that needs to be used to filter groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied. Filtering logic is working based on the value  provided in the \"Filter Key\" parameter.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain that substring. If nothing is provided in this parameter, the filter will not be applied. Filtering logic is working based on the value  provided in the \"Filter Key\" parameter.")], max_records_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many records to return. If nothing is provided, action will return 50 records.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title="Azure Active Directory: List User's Groups Membership",
+        annotations=ToolAnnotations(
+            title="Azure Active Directory: List User's Groups Membership",
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_active_directory_list_users_groups_membership(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], user_name: Annotated[Optional[str], Field(default=None, description="Specify user name to return groups membership for. User name should be specified in username@domain format. Parameter accepts multiple values as a comma separated string.")], return_only_security_enabled_groups: Annotated[Optional[bool], Field(default=None, description="If enabled, only security groups that the user is a member of will be returned.")], return_detailed_groups_information: Annotated[Optional[bool], Field(default=None, description="If enabled, detailed information on the AD groups will be returned.")], filter_key: Annotated[Optional[List[str]], Field(default=None, description="Specify the key that needs to be used to filter groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied. Filtering logic is working based on the value  provided in the \"Filter Key\" parameter.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain that substring. If nothing is provided in this parameter, the filter will not be applied. Filtering logic is working based on the value  provided in the \"Filter Key\" parameter.")], max_records_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many records to return. If nothing is provided, action will return 50 records.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List Azure AD groups user is a member of. Note: The user name can be provided either as a Siemplify entity or as an action input parameter. If the user name is passed to action both as an entity and input parameter - action will be executed on the input parameter. User name should be specified in username@domain format.
 
         Returns:
@@ -1184,8 +1320,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AzureActiveDirectory")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def azure_active_directory_list_users(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter: Annotated[Optional[List[str]], Field(default=None, description="Specifies which fields will be included in the results. By default, we will return all the fields.")], order_by_field: Annotated[Optional[List[str]], Field(default=None, description="Specifies the field based on which the results are ordered.")], order_by: Annotated[Optional[List[str]], Field(default=None, description="Specifies the result order.")], results_limit: Annotated[Optional[str], Field(default=None, description="Specify max number of users to return.")], advanced_filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied. Advanced filtering is working on the Username (userPrincipalName) field.")], advanced_filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \u201cEqual\u201c is selected, action will try to find the exact match among results and if \u201cContains\u201c is selected, action will try to find results that contain that substring. If nothing is provided in this parameter, the filter will not be applied.  Advanced filtering is working on the Username (userPrincipalName) field.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Azure Active Directory: List Users',
+        annotations=ToolAnnotations(
+            title='Azure Active Directory: List Users',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def azure_active_directory_list_users(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter: Annotated[Optional[List[str]], Field(default=None, description="Specifies which fields will be included in the results. By default, we will return all the fields.")], order_by_field: Annotated[Optional[List[str]], Field(default=None, description="Specifies the field based on which the results are ordered.")], order_by: Annotated[Optional[List[str]], Field(default=None, description="Specifies the result order.")], results_limit: Annotated[Optional[str], Field(default=None, description="Specify max number of users to return.")], advanced_filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied. Advanced filtering is working on the Username (userPrincipalName) field.")], advanced_filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \u201cEqual\u201c is selected, action will try to find the exact match among results and if \u201cContains\u201c is selected, action will try to find results that contain that substring. If nothing is provided in this parameter, the filter will not be applied.  Advanced filtering is working on the Username (userPrincipalName) field.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List Azure Active Directory users based on the specified search criteria. Note that action is not working on Siemplify entities. Additionally, advanced filtering is working on the Username (userPrincipalName) field.
 
         Returns:

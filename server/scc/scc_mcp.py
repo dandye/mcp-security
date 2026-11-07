@@ -13,6 +13,7 @@
 # limitations under the License.
 import argparse
 from collections.abc import Sequence
+import json
 import logging
 import os
 import re
@@ -25,6 +26,7 @@ from google.protobuf import json_format
 from mcp.server.caching import CacheHint
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
+from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -188,12 +190,23 @@ except Exception as e:
 
 # --- Helper Function for Proto to Dict Conversion ---
 
+
+def tool_error_result(error: str, **details: Any) -> CallToolResult:
+    """Build a structured MCP error result with is_error=True."""
+    payload: dict[str, Any] = {"error": error, **details}
+    return CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(payload))],
+        structured_content=payload,
+        is_error=True,
+    )
+
+
 def proto_message_to_dict(message: Any) -> Dict[str, Any]:
     """Converts a protobuf message to a dictionary."""
     try:
         return json_format.MessageToDict(message._pb)
     except Exception as e:
-        logger.error(f"Error converting protobuf message to dict: {e}")
+        logger.error("Error converting protobuf message to dict: %s", e)
         return {"error": "Failed to serialize response part", "details": str(e)}
 
 
@@ -226,7 +239,16 @@ def _build_or_filter(field: str, value: str) -> str:
 
 # --- Security Command Center Tools ---
 
-@mcp.tool()
+@mcp.tool(
+    title="Search SCC Findings",
+    annotations=ToolAnnotations(
+        title="Search SCC Findings",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def search_findings(
     project_id: Optional[str] = None,
     organization_id: Optional[str] = None,
@@ -241,7 +263,7 @@ async def search_findings(
     max_findings: int = 50,
     location: str = "global",
     order_by: str = "event_time desc",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Name: search_findings
 
     Description: Searches and lists ALL types of Security Command Center findings for a specific project
@@ -273,10 +295,10 @@ async def search_findings(
         'severity desc', 'create_time desc'.
     """
     if not scc_client:
-        return {"error": "Security Center Client not initialized."}
+        return tool_error_result("Security Center Client not initialized.")
 
     if not project_id and not organization_id:
-        return {"error": "Either project_id or organization_id must be provided."}
+        return tool_error_result("Either project_id or organization_id must be provided.")
 
     filter_parts = []
     if state:
@@ -300,10 +322,10 @@ async def search_findings(
     try:
         parent = _build_parent(project_id=project_id, organization_id=organization_id, location=location)
     except ValueError as e:
-        return {"error": str(e)}
+        return tool_error_result(str(e))
 
     target_label = f"organization '{organization_id}'" if organization_id else f"project '{project_id}'"
-    logger.info(f"Searching findings for {target_label}, filter: {filter_str}")
+    logger.info("Searching findings for %s, filter: %s", target_label, filter_str)
 
     try:
         request_args = {
@@ -338,27 +360,39 @@ async def search_findings(
         }
 
     except google_exceptions.NotFound as e:
-        logger.error(f"Target not found for search on {parent}: {e}")
-        return {"error": "Not Found", "details": f"Could not find {target_label} or relevant resources. {str(e)}"}
+        logger.error("Target not found for search on %s: %s", parent, e)
+        return tool_error_result(
+            "Not Found",
+            details=f"Could not find {target_label} or relevant resources. {str(e)}",
+        )
     except google_exceptions.PermissionDenied as e:
-        logger.error(f"Permission denied for search on {parent}: {e}")
-        return {"error": "Permission Denied", "details": str(e)}
+        logger.error("Permission denied for search on %s: %s", parent, e)
+        return tool_error_result("Permission Denied", details=str(e))
     except google_exceptions.InvalidArgument as e:
-        logger.error(f"Invalid argument (check filter syntax?) for search on {parent}: {e}")
-        return {"error": "Invalid Argument", "details": str(e)}
+        logger.error("Invalid argument (check filter syntax?) for search on %s: %s", parent, e)
+        return tool_error_result("Invalid Argument", details=str(e))
     except Exception as e:
-        logger.error(f"An unexpected error occurred searching findings: {e}", exc_info=True)
-        return {"error": "An unexpected error occurred", "details": str(e)}
+        logger.error("An unexpected error occurred searching findings: %s", e, exc_info=True)
+        return tool_error_result("An unexpected error occurred", details=str(e))
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Get SCC Finding Details",
+    annotations=ToolAnnotations(
+        title="Get SCC Finding Details",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_finding_details(
     project_id: Optional[str] = None,
     organization_id: Optional[str] = None,
     finding_id: Optional[str] = None,
     location: str = "global",
     include_resource_details: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Name: get_finding_details
 
     Description: Gets the full details of a specific finding by its finding ID, including description,
@@ -374,18 +408,18 @@ async def get_finding_details(
         Inventory. Defaults to True.
     """
     if not scc_client:
-        return {"error": "Security Center Client not initialized."}
+        return tool_error_result("Security Center Client not initialized.")
 
     if not finding_id:
-        return {"error": "finding_id is required."}
+        return tool_error_result("finding_id is required.")
 
     if not project_id and not organization_id:
-        return {"error": "Either project_id or organization_id must be provided."}
+        return tool_error_result("Either project_id or organization_id must be provided.")
 
     try:
         parent = _build_parent(project_id=project_id, organization_id=organization_id, location=location)
     except ValueError as e:
-        return {"error": str(e)}
+        return tool_error_result(str(e))
 
     target_label = f"organization '{organization_id}'" if organization_id else f"project '{project_id}'"
     if organization_id:
@@ -394,7 +428,7 @@ async def get_finding_details(
         finding_name_filter = f"projects/{project_id}/sources/-/locations/{location}/findings/{finding_id}"
 
     filter_str = f'name="{finding_name_filter}"'
-    logger.info(f"Getting details for finding {finding_id} in {target_label}")
+    logger.info("Getting details for finding %s in %s", finding_id, target_label)
 
     try:
         scc_request_args = {
@@ -412,7 +446,10 @@ async def get_finding_details(
                 first_finding = results[0].finding
 
         if not first_finding:
-            return {"error": "Finding not found", "details": f"No finding with ID '{finding_id}' found in {target_label}."}
+            return tool_error_result(
+                "Finding not found",
+                details=f"No finding with ID '{finding_id}' found in {target_label}.",
+            )
 
         finding_dict = proto_message_to_dict(first_finding)
 
@@ -435,11 +472,11 @@ async def get_finding_details(
                 asset_result = next(iter(cai_response), None)
                 if asset_result:
                     result["resource_details_cai"] = proto_message_to_dict(asset_result)
-                    logger.info(f"Successfully fetched CAI details for {resource_name_from_finding}")
+                    logger.info("Successfully fetched CAI details for %s", resource_name_from_finding)
                 else:
                     result["resource_details_cai"] = {"warning": "Resource not found in CAI.", "resource_name": resource_name_from_finding}
             except Exception as cai_e:
-                logger.error(f"Error fetching CAI details: {cai_e}")
+                logger.error("Error fetching CAI details: %s", cai_e)
                 result["resource_details_cai"] = {"error": "Failed to fetch resource details from CAI.", "details": str(cai_e)}
         elif include_resource_details and not cai_client:
             result["resource_details_cai"] = {"error": "Cloud Asset Inventory Client not initialized."}
@@ -447,20 +484,29 @@ async def get_finding_details(
         return result
 
     except google_exceptions.NotFound as e:
-        logger.error(f"Resource not found: {e}")
-        return {"error": "Not Found", "details": str(e)}
+        logger.error("Resource not found: %s", e)
+        return tool_error_result("Not Found", details=str(e))
     except google_exceptions.PermissionDenied as e:
-        logger.error(f"Permission denied: {e}")
-        return {"error": "Permission Denied", "details": str(e)}
+        logger.error("Permission denied: %s", e)
+        return tool_error_result("Permission Denied", details=str(e))
     except google_exceptions.InvalidArgument as e:
-        logger.error(f"Invalid argument: {e}")
-        return {"error": "Invalid Argument", "details": str(e)}
+        logger.error("Invalid argument: %s", e)
+        return tool_error_result("Invalid Argument", details=str(e))
     except Exception as e:
-        logger.error(f"Unexpected error getting finding details: {e}", exc_info=True)
-        return {"error": "An unexpected error occurred", "details": str(e)}
+        logger.error("Unexpected error getting finding details: %s", e, exc_info=True)
+        return tool_error_result("An unexpected error occurred", details=str(e))
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Search SCC Findings by Compliance",
+    annotations=ToolAnnotations(
+        title="Search SCC Findings by Compliance",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def search_findings_by_compliance(
     project_id: Optional[str] = None,
     organization_id: Optional[str] = None,
@@ -472,7 +518,7 @@ async def search_findings_by_compliance(
     state: Optional[str] = "ACTIVE",
     max_findings: int = 50,
     location: str = "global",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Name: search_findings_by_compliance
 
     Description: Searches Security Command Center findings by compliance framework information (e.g., CIS benchmarks,
@@ -499,16 +545,16 @@ async def search_findings_by_compliance(
     location (optional): The Google Cloud location for SCC v2. Defaults to 'global'.
     """
     if not scc_client:
-        return {"error": "Security Center Client not initialized."}
+        return tool_error_result("Security Center Client not initialized.")
 
     if not project_id and not organization_id:
-        return {"error": "Either project_id or organization_id must be provided."}
+        return tool_error_result("Either project_id or organization_id must be provided.")
 
     if not search_text and not compliance_standard and not compliance_id:
-        return {
-            "error": "Missing parameters",
-            "details": "At least one of search_text, compliance_standard, or compliance_id must be provided.",
-        }
+        return tool_error_result(
+            "Missing parameters",
+            details="At least one of search_text, compliance_standard, or compliance_id must be provided.",
+        )
 
     filter_parts = []
     if state:
@@ -520,13 +566,16 @@ async def search_findings_by_compliance(
     try:
         parent = _build_parent(project_id=project_id, organization_id=organization_id, location=location)
     except ValueError as e:
-        return {"error": str(e)}
+        return tool_error_result(str(e))
 
     target_label = f"organization '{organization_id}'" if organization_id else f"project '{project_id}'"
     logger.info(
-        f"Searching findings by compliance for {target_label}, "
-        f"search_text='{search_text}', standard='{compliance_standard}', "
-        f"version='{compliance_version}', id='{compliance_id}'"
+        "Searching findings by compliance for %s, search_text=%r, standard=%r, version=%r, id=%r",
+        target_label,
+        search_text,
+        compliance_standard,
+        compliance_version,
+        compliance_id,
     )
 
     try:
@@ -633,26 +682,35 @@ async def search_findings_by_compliance(
         }
 
     except google_exceptions.NotFound as e:
-        logger.error(f"Target not found for compliance search on {parent}: {e}")
-        return {"error": "Not Found", "details": f"Could not find {target_label}. {str(e)}"}
+        logger.error("Target not found for compliance search on %s: %s", parent, e)
+        return tool_error_result("Not Found", details=f"Could not find {target_label}. {str(e)}")
     except google_exceptions.PermissionDenied as e:
-        logger.error(f"Permission denied for compliance search on {parent}: {e}")
-        return {"error": "Permission Denied", "details": str(e)}
+        logger.error("Permission denied for compliance search on %s: %s", parent, e)
+        return tool_error_result("Permission Denied", details=str(e))
     except google_exceptions.InvalidArgument as e:
-        logger.error(f"Invalid argument for compliance search on {parent}: {e}")
-        return {"error": "Invalid Argument", "details": str(e)}
+        logger.error("Invalid argument for compliance search on %s: %s", parent, e)
+        return tool_error_result("Invalid Argument", details=str(e))
     except Exception as e:
-        logger.error(f"Unexpected error in compliance search: {e}", exc_info=True)
-        return {"error": "An unexpected error occurred", "details": str(e)}
+        logger.error("Unexpected error in compliance search: %s", e, exc_info=True)
+        return tool_error_result("An unexpected error occurred", details=str(e))
 
 
-@mcp.tool()
+@mcp.tool(
+    title="List Top SCC Vulnerability Findings",
+    annotations=ToolAnnotations(
+        title="List Top SCC Vulnerability Findings",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def top_vulnerability_findings(
     project_id: Optional[str] = None,
     organization_id: Optional[str] = None,
     max_findings: int = 20,
     location: str = "global",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Name: top_vulnerability_findings
 
     Description: Lists the top ACTIVE, HIGH or CRITICAL severity findings of class VULNERABILITY for a specific project
@@ -665,15 +723,15 @@ async def top_vulnerability_findings(
     location (optional): The Google Cloud location for SCC v2 (e.g., 'global', 'us-central1'). Defaults to 'global'.
     """
     if not scc_client:
-        return {"error": "Security Center Client not initialized."}
+        return tool_error_result("Security Center Client not initialized.")
 
     if not project_id and not organization_id:
-        return {"error": "Either project_id or organization_id must be provided."}
+        return tool_error_result("Either project_id or organization_id must be provided.")
 
     try:
         parent = _build_parent(project_id=project_id, organization_id=organization_id, location=location)
     except ValueError as e:
-        return {"error": str(e)}
+        return tool_error_result(str(e))
 
     filter_str = 'state="ACTIVE" AND findingClass="VULNERABILITY" AND (severity="HIGH" OR severity="CRITICAL")'
 
@@ -683,7 +741,11 @@ async def top_vulnerability_findings(
     fetch_size = min(final_max * 10, 1000)
 
     target_label = f"organization '{organization_id}'" if organization_id else f"project '{project_id}'"
-    logger.info(f"Getting top vulnerability findings for {target_label}, fetching up to {fetch_size} for sorting")
+    logger.info(
+        "Getting top vulnerability findings for %s, fetching up to %d for sorting",
+        target_label,
+        fetch_size,
+    )
 
     try:
         response_pager = scc_client.list_findings(request={
@@ -726,20 +788,32 @@ async def top_vulnerability_findings(
         }
 
     except google_exceptions.NotFound as e:
-        logger.error(f"Target or resource not found for top findings on {parent}: {e}")
-        return {"error": "Not Found", "details": f"Could not find {target_label} or relevant resources. {str(e)}"}
+        logger.error("Target or resource not found for top findings on %s: %s", parent, e)
+        return tool_error_result(
+            "Not Found",
+            details=f"Could not find {target_label} or relevant resources. {str(e)}",
+        )
     except google_exceptions.PermissionDenied as e:
-        logger.error(f"Permission denied for top findings on {parent}: {e}")
-        return {"error": "Permission Denied", "details": str(e)}
+        logger.error("Permission denied for top findings on %s: %s", parent, e)
+        return tool_error_result("Permission Denied", details=str(e))
     except google_exceptions.InvalidArgument as e:
-        logger.error(f"Invalid argument (check filter syntax?) for top findings on {parent}: {e}")
-        return {"error": "Invalid Argument", "details": str(e)}
+        logger.error("Invalid argument (check filter syntax?) for top findings on %s: %s", parent, e)
+        return tool_error_result("Invalid Argument", details=str(e))
     except Exception as e:
-        logger.error(f"An unexpected error occurred getting top findings: {e}", exc_info=True)
-        return {"error": "An unexpected error occurred", "details": str(e)}
+        logger.error("An unexpected error occurred getting top findings: %s", e, exc_info=True)
+        return tool_error_result("An unexpected error occurred", details=str(e))
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Get SCC Finding Remediation",
+    annotations=ToolAnnotations(
+        title="Get SCC Finding Remediation",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_finding_remediation(
     project_id: Optional[str] = None,
     organization_id: Optional[str] = None,
@@ -747,7 +821,7 @@ async def get_finding_remediation(
     category: Optional[str] = None,
     finding_id: Optional[str] = None,
     location: str = "global",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Name: get_finding_remediation
 
     Description: Gets the remediation steps (nextSteps) for a specific finding within a project or organization,
@@ -764,22 +838,25 @@ async def get_finding_remediation(
     location (optional): The Google Cloud location for SCC v2 (e.g., 'global', 'us-central1'). Defaults to 'global'.
     """
     if not scc_client:
-        return {"error": "Security Center Client not initialized."}
+        return tool_error_result("Security Center Client not initialized.")
     # Also check CAI client
     if not cai_client:
-        return {"error": "Cloud Asset Inventory Client not initialized."}
+        return tool_error_result("Cloud Asset Inventory Client not initialized.")
 
     # Input validation
     if not resource_name and not category and not finding_id:
-        return {"error": "Missing required parameters", "details": "Either resource_name and category or finding_id must be provided."}
+        return tool_error_result(
+            "Missing required parameters",
+            details="Either resource_name and category or finding_id must be provided.",
+        )
     if not project_id and not organization_id:
-        return {"error": "Either project_id or organization_id must be provided."}
+        return tool_error_result("Either project_id or organization_id must be provided.")
 
     first_finding_result = None
     try:
         parent = _build_parent(project_id=project_id, organization_id=organization_id, location=location)
     except ValueError as e:
-        return {"error": str(e)}
+        return tool_error_result(str(e))
 
     target_label = f"organization '{organization_id}'" if organization_id else f"project '{project_id}'"
     filter_str = ""
@@ -793,121 +870,197 @@ async def get_finding_remediation(
             else:
                 finding_name_to_filter = f"projects/{project_id}/sources/-/locations/{location}/findings/{finding_id}"
             filter_str = f'name="{finding_name_to_filter}"'
-            logger.info(f"Attempting to list findings by name filter: {filter_str}")
+            logger.info("Attempting to list findings by name filter: %s", filter_str)
             scc_request_args = {
                 "parent": parent,
                 "filter": filter_str,
-                "page_size": 1, # Expecting only one result for a unique name
+                "page_size": 1,  # Expecting only one result for a unique name
             }
         elif resource_name and category:
-            # --- Use list_findings for resource/category --- 
+            # --- Use list_findings for resource/category ---
             filter_str = f'state="ACTIVE" AND resourceName="{resource_name}" AND category="{category}"'
-            logger.info(f"Attempting to list active findings for resource: {resource_name}, category: {category}")
+            logger.info(
+                "Attempting to list active findings for resource: %s, category: %s",
+                resource_name,
+                category,
+            )
             scc_request_args = {
                 "parent": parent,
                 "filter": filter_str,
-                "page_size": 2, # Fetch 2 to detect multiple matches
+                "page_size": 2,  # Fetch 2 to detect multiple matches
             }
         else:
-             # This case should be caught by initial validation, but safety check.
-             return {"error": "Invalid Arguments", "details": "No valid criteria provided."}
+            # This case should be caught by initial validation, but safety check.
+            return tool_error_result("Invalid Arguments", details="No valid criteria provided.")
 
-        # --- Perform the list_findings call --- 
-        logger.debug(f"Executing list_findings with parent='{parent}', filter='{filter_str}', page_size={scc_request_args['page_size']}")
+        # --- Perform the list_findings call ---
+        logger.debug(
+            "Executing list_findings with parent=%r, filter=%r, page_size=%d",
+            parent,
+            filter_str,
+            scc_request_args["page_size"],
+        )
         scc_response_pager = scc_client.list_findings(request=scc_request_args)
-        
+
         results = []
         page = next(iter(scc_response_pager.pages), None)
         if page and page.list_findings_results:
             results = list(page.list_findings_results)
-        
-        # --- Process results --- 
-        if len(results) >= 1:
-            if len(results) > 1 and resource_name: # Warning only needed for resource/category search
-                 logger.warning(f"Multiple ({len(results)}) ACTIVE findings found for resource '{resource_name}' and category '{category}'. Using the first one.")
-            first_finding_result = results[0].finding
-            logger.info(f"Successfully retrieved finding matching criteria.")
-        else:
-             first_finding_result = None
 
-        # --- Process the found finding (if any) --- 
+        # --- Process results ---
+        if len(results) >= 1:
+            if len(results) > 1 and resource_name:  # Warning only needed for resource/category search
+                logger.warning(
+                    "Multiple (%d) ACTIVE findings found for resource %r and category %r. Using the first one.",
+                    len(results),
+                    resource_name,
+                    category,
+                )
+            first_finding_result = results[0].finding
+            logger.info("Successfully retrieved finding matching criteria.")
+        else:
+            first_finding_result = None
+
+        # --- Process the found finding (if any) ---
         if first_finding_result:
             finding_dict = proto_message_to_dict(first_finding_result)
             remediation_steps = finding_dict.get("nextSteps", "No remediation steps provided for this finding.")
-            finding_name = finding_dict.get('name')
+            finding_name = finding_dict.get("name")
             description = finding_dict.get("description", "No description available.")
             resource_name_from_finding = finding_dict.get("resourceName")
 
-            logger.info(f"Processing finding {finding_name}. Fetching CAI details...")
+            logger.info("Processing finding %s. Fetching CAI details...", finding_name)
             asset_details = None
             if resource_name_from_finding:
-                 try:
-                     cai_scope = f"organizations/{organization_id}" if organization_id else f"projects/{project_id}"
-                     cai_request = asset_v1.SearchAllResourcesRequest(
-                         scope=cai_scope,
-                         query=f'name="{resource_name_from_finding}"',
-                         page_size=1,
-                     )
-                     logger.debug(f"Attempting CAI search with request: {{scope='{cai_scope}', query='{cai_request.query}', page_size=1}}")
-                     cai_response = cai_client.search_all_resources(request=cai_request)
-                     asset_result = next(iter(cai_response), None)
-                     if asset_result:
-                         asset_details = proto_message_to_dict(asset_result)
-                         logger.info(f"Successfully fetched CAI details for {resource_name_from_finding}")
-                     else:
-                         logger.warning(f"Could not find asset details in CAI for resource: {resource_name_from_finding} within scope {cai_scope}")
-                         asset_details = {"error": "Resource details not found in CAI.", "resource_name": resource_name_from_finding}
-                 except google_exceptions.PermissionDenied as cai_e:
-                     logger.error(f"Permission denied fetching CAI details for {resource_name_from_finding}: {cai_e}")
-                     asset_details = {"error": "Permission Denied fetching resource details from CAI.", "details": str(cai_e)}
-                 except google_exceptions.InvalidArgument as cai_e:
-                     logger.error(f"Invalid argument fetching CAI details for {resource_name_from_finding}: {cai_e}")
-                     asset_details = {"error": "Invalid Argument fetching resource details from CAI.", "details": str(cai_e)}
-                 except Exception as cai_e:
-                     logger.error(f"An unexpected error occurred fetching CAI details for {resource_name_from_finding}: {cai_e}", exc_info=True)
-                     asset_details = {"error": "An unexpected error occurred fetching resource details from CAI.", "details": str(cai_e)}
+                try:
+                    cai_scope = f"organizations/{organization_id}" if organization_id else f"projects/{project_id}"
+                    cai_request = asset_v1.SearchAllResourcesRequest(
+                        scope=cai_scope,
+                        query=f'name="{resource_name_from_finding}"',
+                        page_size=1,
+                    )
+                    logger.debug(
+                        "Attempting CAI search with scope=%r, query=%r, page_size=1",
+                        cai_scope,
+                        cai_request.query,
+                    )
+                    cai_response = cai_client.search_all_resources(request=cai_request)
+                    asset_result = next(iter(cai_response), None)
+                    if asset_result:
+                        asset_details = proto_message_to_dict(asset_result)
+                        logger.info("Successfully fetched CAI details for %s", resource_name_from_finding)
+                    else:
+                        logger.warning(
+                            "Could not find asset details in CAI for resource: %s within scope %s",
+                            resource_name_from_finding,
+                            cai_scope,
+                        )
+                        asset_details = {"error": "Resource details not found in CAI.", "resource_name": resource_name_from_finding}
+                except google_exceptions.PermissionDenied as cai_e:
+                    logger.error(
+                        "Permission denied fetching CAI details for %s: %s",
+                        resource_name_from_finding,
+                        cai_e,
+                    )
+                    asset_details = {"error": "Permission Denied fetching resource details from CAI.", "details": str(cai_e)}
+                except google_exceptions.InvalidArgument as cai_e:
+                    logger.error(
+                        "Invalid argument fetching CAI details for %s: %s",
+                        resource_name_from_finding,
+                        cai_e,
+                    )
+                    asset_details = {"error": "Invalid Argument fetching resource details from CAI.", "details": str(cai_e)}
+                except Exception as cai_e:
+                    logger.error(
+                        "An unexpected error occurred fetching CAI details for %s: %s",
+                        resource_name_from_finding,
+                        cai_e,
+                        exc_info=True,
+                    )
+                    asset_details = {"error": "An unexpected error occurred fetching resource details from CAI.", "details": str(cai_e)}
             else:
-                 logger.warning(f"Finding {finding_name} does not have a resourceName, cannot fetch CAI details.")
-                 asset_details = {"warning": "Finding does not have an associated resource name."}
-            
+                logger.warning("Finding %s does not have a resourceName, cannot fetch CAI details.", finding_name)
+                asset_details = {"warning": "Finding does not have an associated resource name."}
+
             return {
                 "remediation_steps": remediation_steps,
                 "finding_name": finding_name,
                 "description": description,
                 "resource_name": resource_name_from_finding,
                 "resource_details_cai": asset_details,
-                "finding_details": finding_dict
+                "finding_details": finding_dict,
             }
         else:
-            # --- Handle case where no finding was found --- 
+            # --- Handle case where no finding was found ---
             search_criteria = f"finding ID '{finding_id}' (using name filter)" if finding_id else f"active finding for resource '{resource_name}' and category '{category}'"
-            logger.warning(f"No finding found matching {search_criteria} in {target_label}. Filter: {filter_str}")
-            return {"message": f"No finding found matching the specified criteria ({search_criteria})."}
+            logger.warning(
+                "No finding found matching %s in %s. Filter: %s",
+                search_criteria,
+                target_label,
+                filter_str,
+            )
+            return tool_error_result(
+                "Finding not found",
+                message=f"No finding found matching the specified criteria ({search_criteria}).",
+            )
 
-    # --- Outer Exception Handling --- 
+    # --- Outer Exception Handling ---
     except google_exceptions.NotFound as e:
-        logger.error(f"Resource not found during SCC operation for {target_label} (finding_id: {finding_id}, resource: {resource_name}): {e}")
-        return {"error": "Not Found", "details": f"Could not find {target_label} or related SCC resources. {str(e)}"}
+        logger.error(
+            "Resource not found during SCC operation for %s (finding_id: %s, resource: %s): %s",
+            target_label,
+            finding_id,
+            resource_name,
+            e,
+        )
+        return tool_error_result(
+            "Not Found",
+            details=f"Could not find {target_label} or related SCC resources. {str(e)}",
+        )
     except google_exceptions.PermissionDenied as e:
-        logger.error(f"Permission denied during SCC operation for {target_label} (finding_id: {finding_id}, resource: {resource_name}): {e}")
-        return {"error": "Permission Denied", "details": str(e)}
+        logger.error(
+            "Permission denied during SCC operation for %s (finding_id: %s, resource: %s): %s",
+            target_label,
+            finding_id,
+            resource_name,
+            e,
+        )
+        return tool_error_result("Permission Denied", details=str(e))
     except google_exceptions.InvalidArgument as e:
-        logger.error(f"Invalid argument during SCC operation for {target_label} (finding_id: {finding_id}, resource: {resource_name}): {e}")
-        return {"error": "Invalid Argument", "details": f"Check SCC filter syntax or input parameters. {str(e)}"}
+        logger.error(
+            "Invalid argument during SCC operation for %s (finding_id: %s, resource: %s): %s",
+            target_label,
+            finding_id,
+            resource_name,
+            e,
+        )
+        return tool_error_result(
+            "Invalid Argument",
+            details=f"Check SCC filter syntax or input parameters. {str(e)}",
+        )
     except Exception as e:
         # General fallback, including potential CAI client errors not caught inside
-        logger.error(f"An unexpected error occurred in get_finding_remediation: {e}", exc_info=True)
-        return {"error": "An unexpected error occurred", "details": str(e)}
+        logger.error("An unexpected error occurred in get_finding_remediation: %s", e, exc_info=True)
+        return tool_error_result("An unexpected error occurred", details=str(e))
 
 
-@mcp.tool()
+@mcp.tool(
+    title="Set SCC Finding Mute State",
+    annotations=ToolAnnotations(
+        title="Set SCC Finding Mute State",
+        read_only_hint=False,
+        destructive_hint=True,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def set_finding_mute(
     project_id: Optional[str] = None,
     organization_id: Optional[str] = None,
     finding_id: Optional[str] = None,
     mute: Optional[str] = None,
     location: str = "global",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Name: set_finding_mute
 
     Description: Mutes or unmutes a specific Security Command Center finding. Muted findings are
@@ -921,27 +1074,27 @@ async def set_finding_mute(
     location (optional): The Google Cloud location for SCC v2. Defaults to 'global'.
     """
     if not scc_client:
-        return {"error": "Security Center Client not initialized."}
+        return tool_error_result("Security Center Client not initialized.")
 
     if not finding_id:
-        return {"error": "finding_id is required."}
+        return tool_error_result("finding_id is required.")
 
     if not project_id and not organization_id:
-        return {"error": "Either project_id or organization_id must be provided."}
+        return tool_error_result("Either project_id or organization_id must be provided.")
 
     if not mute:
-        return {"error": "mute parameter is required."}
+        return tool_error_result("mute parameter is required.")
 
     mute_upper = mute.upper()
     if mute_upper not in ("MUTED", "UNMUTED"):
-        return {"error": "Invalid mute value", "details": "Must be 'MUTED' or 'UNMUTED'."}
+        return tool_error_result("Invalid mute value", details="Must be 'MUTED' or 'UNMUTED'.")
 
     # set_mute requires the canonical finding name (with actual source ID, not wildcard).
     # Look up the finding first via list_findings to resolve the full name.
     try:
         parent = _build_parent(project_id=project_id, organization_id=organization_id, location=location)
     except ValueError as e:
-        return {"error": str(e)}
+        return tool_error_result(str(e))
 
     target_label = f"organization '{organization_id}'" if organization_id else f"project '{project_id}'"
     if organization_id:
@@ -949,7 +1102,7 @@ async def set_finding_mute(
     else:
         filter_str = f'name="projects/{project_id}/sources/-/locations/{location}/findings/{finding_id}"'
 
-    logger.info(f"Resolving finding {finding_id} for mute operation in {target_label}")
+    logger.info("Resolving finding %s for mute operation in %s", finding_id, target_label)
 
     try:
         response_pager = scc_client.list_findings(request={
@@ -963,7 +1116,10 @@ async def set_finding_mute(
             finding = list(page.list_findings_results)[0].finding
 
         if not finding:
-            return {"error": "Finding not found", "details": f"No finding with ID '{finding_id}' in {target_label}."}
+            return tool_error_result(
+                "Finding not found",
+                details=f"No finding with ID '{finding_id}' in {target_label}.",
+            )
 
         full_name = finding.name
         mute_enum = securitycenter_v2.Finding.Mute[mute_upper]
@@ -983,15 +1139,18 @@ async def set_finding_mute(
 
     except google_exceptions.NotFound as e:
         logger.error("Finding not found: %s", e)
-        return {"error": "Not Found", "details": str(e)}
+        return tool_error_result("Not Found", details=str(e))
     except google_exceptions.PermissionDenied as e:
         logger.error("Permission denied setting mute: %s", e)
-        return {"error": "Permission Denied", "details": str(e)}
+        return tool_error_result("Permission Denied", details=str(e))
     except KeyError:
-        return {"error": "Invalid mute value", "details": f"'{mute}' is not a valid Mute enum value. Use MUTED or UNMUTED."}
+        return tool_error_result(
+            "Invalid mute value",
+            details=f"'{mute}' is not a valid Mute enum value. Use MUTED or UNMUTED.",
+        )
     except Exception as e:
         logger.error("Unexpected error setting mute on %s: %s", finding_id, e, exc_info=True)
-        return {"error": "An unexpected error occurred", "details": str(e)}
+        return tool_error_result("An unexpected error occurred", details=str(e))
 
 
 # --- Main execution ---

@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the PaloAltoPanorama integration.
 
-    @mcp.tool()
-    async def palo_alto_panorama_edit_blocked_applications(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], policy_name: Annotated[str, Field(..., description="Specify name of the policy.")], applications_to_block: Annotated[Optional[str], Field(default=None, description="Specify what kind of application should be blocked. Example: apple-siri,windows-azure.")], applications_to_un_block: Annotated[Optional[str], Field(default=None, description="Specify what kind of application should be unblocked. Example: apple-siri,windows-azure.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Panorama: Edit Blocked Applications',
+        annotations=ToolAnnotations(
+            title='Palo Alto Panorama: Edit Blocked Applications',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_panorama_edit_blocked_applications(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], policy_name: Annotated[str, Field(..., description="Specify name of the policy.")], applications_to_block: Annotated[Optional[str], Field(default=None, description="Specify what kind of application should be blocked. Example: apple-siri,windows-azure.")], applications_to_un_block: Annotated[Optional[str], Field(default=None, description="Specify what kind of application should be unblocked. Example: apple-siri,windows-azure.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Block and unblock applications. Each application is added to or removed from a given policy
 
         Returns:
@@ -108,8 +118,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoPanorama")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_panorama_block_ips_in_policy(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], policy_name: Annotated[str, Field(..., description="Specify name of the policy.")], target: Annotated[str, Field(..., description="Specify what should be the target. Possible values: source, destination.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Panorama: Block IPS in Policy',
+        annotations=ToolAnnotations(
+            title='Palo Alto Panorama: Block IPS in Policy',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_panorama_block_ips_in_policy(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], policy_name: Annotated[str, Field(..., description="Specify name of the policy.")], target: Annotated[str, Field(..., description="Specify what should be the target. Possible values: source, destination.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Block IP addresses in a given policy
 
         Returns:
@@ -186,8 +205,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoPanorama")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_panorama_get_correlated_traffic_between_i_ps(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source_ip: Annotated[str, Field(..., description="Specify source IP that will be used to get traffic.")], destination_ip: Annotated[str, Field(..., description="Specify destination IP that will be used to get traffic.")], max_hours_backwards: Annotated[Optional[str], Field(default=None, description="Specify the amount of hours from where to fetch logs.")], max_logs_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many logs to return. Maximum is 1000.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Panorama: Get Correlated Traffic Between IPs',
+        annotations=ToolAnnotations(
+            title='Palo Alto Panorama: Get Correlated Traffic Between IPs',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_panorama_get_correlated_traffic_between_i_ps(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], source_ip: Annotated[str, Field(..., description="Specify source IP that will be used to get traffic.")], destination_ip: Annotated[str, Field(..., description="Specify destination IP that will be used to get traffic.")], max_hours_backwards: Annotated[Optional[str], Field(default=None, description="Specify the amount of hours from where to fetch logs.")], max_logs_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many logs to return. Maximum is 1000.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Action returns correlated network traffic logs from Palo Alto Panorama between Source IP Address and Destination IP Address.
 
         Returns:
@@ -266,8 +294,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoPanorama")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_panorama_add_ips_to_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], address_group_name: Annotated[str, Field(..., description="Specify name of the address group.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Panorama: Add IPS to Group',
+        annotations=ToolAnnotations(
+            title='Palo Alto Panorama: Add IPS to Group',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_panorama_add_ips_to_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], address_group_name: Annotated[str, Field(..., description="Specify name of the address group.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add IP addresses to an address group
 
         Returns:
@@ -343,8 +380,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoPanorama")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_panorama_search_logs(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], log_type: Annotated[List[str], Field(..., description="Specify which log type should be returned.")], query: Annotated[Optional[str], Field(default=None, description="Specify what query filter should be used to return logs.")], max_hours_backwards: Annotated[Optional[str], Field(default=None, description="Specify the amount of hours from where to fetch logs.")], max_logs_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many logs to return. Maximum is 1000.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Panorama: Search Logs',
+        annotations=ToolAnnotations(
+            title='Palo Alto Panorama: Search Logs',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_panorama_search_logs(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], log_type: Annotated[List[str], Field(..., description="Specify which log type should be returned.")], query: Annotated[Optional[str], Field(default=None, description="Specify what query filter should be used to return logs.")], max_hours_backwards: Annotated[Optional[str], Field(default=None, description="Specify the amount of hours from where to fetch logs.")], max_logs_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many logs to return. Maximum is 1000.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Search logs in Palo Alto Panorama based on the query.
 
         Returns:
@@ -424,8 +470,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoPanorama")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_panorama_commit_changes(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], only_my_changes: Annotated[bool, Field(..., description="If enabled, action will only commit changes that were done by the current user.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Panorama: Commit Changes',
+        annotations=ToolAnnotations(
+            title='Palo Alto Panorama: Commit Changes',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_panorama_commit_changes(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], only_my_changes: Annotated[bool, Field(..., description="If enabled, action will only commit changes that were done by the current user.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Action commits changes in Palo Alto Panorama. Note: In order to use "Only My Changes" option, the user must be an admin.
 
         Returns:
@@ -499,8 +554,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoPanorama")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_panorama_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Panorama: Ping',
+        annotations=ToolAnnotations(
+            title='Palo Alto Panorama: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_panorama_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to Panorama
 
         Returns:
@@ -573,8 +637,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoPanorama")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_panorama_unblock_urls(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], url_category_name: Annotated[str, Field(..., description="Specify name of the URL Category.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Panorama: Unblock URLs',
+        annotations=ToolAnnotations(
+            title='Palo Alto Panorama: Unblock URLs',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_panorama_unblock_urls(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], url_category_name: Annotated[str, Field(..., description="Specify name of the URL Category.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove URLs from a given URL category.
 
         Returns:
@@ -650,8 +723,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoPanorama")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_panorama_push_changes(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_group_name: Annotated[str, Field(..., description="The device group in which the rule is located, e.g: LCaas. For viewing the available device group names in a given device, please refer to https://<PANORAMA IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE_NAME>']::device-group.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Panorama: Push Changes',
+        annotations=ToolAnnotations(
+            title='Palo Alto Panorama: Push Changes',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_panorama_push_changes(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_group_name: Annotated[str, Field(..., description="The device group in which the rule is located, e.g: LCaas. For viewing the available device group names in a given device, please refer to https://<PANORAMA IP>/php/rest/browse.php/config::devices::entry[@name='<DEVICE_NAME>']::device-group.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Push commits of a device group in Palo Alto Panorama. Note: It can take several minutes before changes are pushed. 
 
         Returns:
@@ -725,8 +807,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoPanorama")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_panorama_block_urls(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], url_category_name: Annotated[str, Field(..., description="Specify name of the URL Category.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Panorama: Block URLs',
+        annotations=ToolAnnotations(
+            title='Palo Alto Panorama: Block URLs',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_panorama_block_urls(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], url_category_name: Annotated[str, Field(..., description="Specify name of the URL Category.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add URLs to a given URL category. Note:  You need to create a policy and add desired URL category to that policy in order to block the URL
 
         Returns:
@@ -802,8 +893,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoPanorama")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_panorama_remove_ips_from_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], address_group_name: Annotated[str, Field(..., description="Specify name of the address group.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Panorama: Remove IPS from Group',
+        annotations=ToolAnnotations(
+            title='Palo Alto Panorama: Remove IPS from Group',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_panorama_remove_ips_from_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], address_group_name: Annotated[str, Field(..., description="Specify name of the address group.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove IP addresses from an address group
 
         Returns:
@@ -879,8 +979,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoPanorama")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_panorama_unblock_ips_in_policy(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], policy_name: Annotated[str, Field(..., description="Specify name of the policy.")], target: Annotated[str, Field(..., description="Specify what should be the target. Possible values: source, destination.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Panorama: Unblock IPS in Policy',
+        annotations=ToolAnnotations(
+            title='Palo Alto Panorama: Unblock IPS in Policy',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_panorama_unblock_ips_in_policy(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], policy_name: Annotated[str, Field(..., description="Specify name of the policy.")], target: Annotated[str, Field(..., description="Specify what should be the target. Possible values: source, destination.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Unblock IP addresses in a given policy
 
         Returns:
@@ -957,8 +1066,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for PaloAltoPanorama")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def palo_alto_panorama_get_blocked_applications(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], policy_name: Annotated[str, Field(..., description="Specify name of the policy.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Palo Alto Panorama: Get Blocked Applications',
+        annotations=ToolAnnotations(
+            title='Palo Alto Panorama: Get Blocked Applications',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def palo_alto_panorama_get_blocked_applications(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], device_name: Annotated[str, Field(..., description="Specify name of the device. The default device name for Palo Alto Panorama is localhost.localdomain. Visit action documentation to get more insights on where you can find this value.")], device_group_name: Annotated[str, Field(..., description="Specify name of the device group. Visit action documentation to get more insights on where you can find this value.")], policy_name: Annotated[str, Field(..., description="Specify name of the policy.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List all blocked applications in a given policy
 
         Returns:

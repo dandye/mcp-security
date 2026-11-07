@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the RSAArcher integration.
 
-    @mcp.tool()
-    async def rsa_archer_add_incident_journal_entry(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], destination_content_id: Annotated[str, Field(..., description="Specify a content id of the security incident to which you want to add journal entry.")], text: Annotated[str, Field(..., description="Specify the text for the journal entry.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Archer: Add Incident Journal Entry',
+        annotations=ToolAnnotations(
+            title='RSA Archer: Add Incident Journal Entry',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_archer_add_incident_journal_entry(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], destination_content_id: Annotated[str, Field(..., description="Specify a content id of the security incident to which you want to add journal entry.")], text: Annotated[str, Field(..., description="Specify the text for the journal entry.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add a journal entry to the Security Incident in RSA Archer.
 
         Returns:
@@ -103,8 +113,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for RSAArcher")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rsa_archer_update_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], content_id: Annotated[str, Field(..., description="Content Id of the incident to update.")], application_name: Annotated[Optional[str], Field(default=None, description="Specify an application name for the incident. Default: Incidents.")], incident_summary: Annotated[Optional[str], Field(default=None, description="The new summary of the incident.")], incident_details: Annotated[Optional[str], Field(default=None, description="The new details (decsription) of the incident.")], incident_owner: Annotated[Optional[str], Field(default=None, description="The new owner of the incident.")], incident_status: Annotated[Optional[str], Field(default=None, description="The new status of the incident.")], priority: Annotated[Optional[str], Field(default=None, description="The new priority of the incident.")], category: Annotated[Optional[str], Field(default=None, description="The new category of the incident.")], custom_fields: Annotated[Optional[str], Field(default=None, description="Specify a JSON object of fields that need to be updated. Example: {\u201cCategory\u201d:\u201cMalware\u201d}.")], custom_mapping_file: Annotated[Optional[str], Field(default=None, description="Specify an absolute path to the file that contains all of the required mapping. If \u201cRemote File\u201c is enabled, then provide a URL that contains the mapping file. Please refer to action documentation for the additional information.")], remote_file: Annotated[Optional[bool], Field(default=None, description="If enabled, action will treat value provided in \u201cCustom Mapping File\u201c as a URL and try to fetch a file from it.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Archer: Update Incident',
+        annotations=ToolAnnotations(
+            title='RSA Archer: Update Incident',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_archer_update_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], content_id: Annotated[str, Field(..., description="Content Id of the incident to update.")], application_name: Annotated[Optional[str], Field(default=None, description="Specify an application name for the incident. Default: Incidents.")], incident_summary: Annotated[Optional[str], Field(default=None, description="The new summary of the incident.")], incident_details: Annotated[Optional[str], Field(default=None, description="The new details (decsription) of the incident.")], incident_owner: Annotated[Optional[str], Field(default=None, description="The new owner of the incident.")], incident_status: Annotated[Optional[str], Field(default=None, description="The new status of the incident.")], priority: Annotated[Optional[str], Field(default=None, description="The new priority of the incident.")], category: Annotated[Optional[str], Field(default=None, description="The new category of the incident.")], custom_fields: Annotated[Optional[str], Field(default=None, description="Specify a JSON object of fields that need to be updated. Example: {\u201cCategory\u201d:\u201cMalware\u201d}.")], custom_mapping_file: Annotated[Optional[str], Field(default=None, description="Specify an absolute path to the file that contains all of the required mapping. If \u201cRemote File\u201c is enabled, then provide a URL that contains the mapping file. Please refer to action documentation for the additional information.")], remote_file: Annotated[Optional[bool], Field(default=None, description="If enabled, action will treat value provided in \u201cCustom Mapping File\u201c as a URL and try to fetch a file from it.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update an incident
 
         Returns:
@@ -198,8 +217,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for RSAArcher")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rsa_archer_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Archer: Ping',
+        annotations=ToolAnnotations(
+            title='RSA Archer: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_archer_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test Connectivity
 
         Returns:
@@ -272,8 +300,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for RSAArcher")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rsa_archer_get_incident_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], content_id: Annotated[str, Field(..., description="Specify ID of the content for which you want to retrieve details.")], application_name: Annotated[Optional[str], Field(default=None, description="Specify an application name for the incident. Default: Incidents.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Archer: Get Incident Details',
+        annotations=ToolAnnotations(
+            title='RSA Archer: Get Incident Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_archer_get_incident_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], content_id: Annotated[str, Field(..., description="Specify ID of the content for which you want to retrieve details.")], application_name: Annotated[Optional[str], Field(default=None, description="Specify an application name for the incident. Default: Incidents.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Retrieve information about the incident from RSA Archer.
 
         Returns:
@@ -349,8 +386,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for RSAArcher")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rsa_archer_create_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_summary: Annotated[Optional[str], Field(default=None, description="The summary of the new incident.")], application_name: Annotated[Optional[str], Field(default=None, description="Specify an application name for the incident. Default: Incidents.")], incident_details: Annotated[Optional[str], Field(default=None, description="The details (description) of the new incident.")], incident_owner: Annotated[Optional[str], Field(default=None, description="The owner of the new incident.")], incident_status: Annotated[Optional[str], Field(default=None, description="The status of the new incident.")], priority: Annotated[Optional[str], Field(default=None, description="The priority of the new incident.")], category: Annotated[Optional[str], Field(default=None, description="The category of the new incident.")], custom_fields: Annotated[Optional[str], Field(default=None, description="Specify a JSON object of fields that need to be used, when creating an incident . Example: {\u201cCategory\u201d:\u201cMalware\u201d}.")], custom_mapping_file: Annotated[Optional[str], Field(default=None, description="Specify an absolute path to the file that contains all of the required mapping. If \u201cRemote File\u201c is enabled, then provide a URL that contains the mapping file. Please refer to action documentation for the additional information.")], remote_file: Annotated[Optional[bool], Field(default=None, description="If enabled, action will treat value provided in \u201cCustom Mapping File\u201c as a URL and try to fetch a file from it.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Archer: Create Incident',
+        annotations=ToolAnnotations(
+            title='RSA Archer: Create Incident',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_archer_create_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_summary: Annotated[Optional[str], Field(default=None, description="The summary of the new incident.")], application_name: Annotated[Optional[str], Field(default=None, description="Specify an application name for the incident. Default: Incidents.")], incident_details: Annotated[Optional[str], Field(default=None, description="The details (description) of the new incident.")], incident_owner: Annotated[Optional[str], Field(default=None, description="The owner of the new incident.")], incident_status: Annotated[Optional[str], Field(default=None, description="The status of the new incident.")], priority: Annotated[Optional[str], Field(default=None, description="The priority of the new incident.")], category: Annotated[Optional[str], Field(default=None, description="The category of the new incident.")], custom_fields: Annotated[Optional[str], Field(default=None, description="Specify a JSON object of fields that need to be used, when creating an incident . Example: {\u201cCategory\u201d:\u201cMalware\u201d}.")], custom_mapping_file: Annotated[Optional[str], Field(default=None, description="Specify an absolute path to the file that contains all of the required mapping. If \u201cRemote File\u201c is enabled, then provide a URL that contains the mapping file. Please refer to action documentation for the additional information.")], remote_file: Annotated[Optional[bool], Field(default=None, description="If enabled, action will treat value provided in \u201cCustom Mapping File\u201c as a URL and try to fetch a file from it.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create a new incident
 
         Returns:

@@ -11,18 +11,29 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import typing
 
 from mcp.server.mcpserver import Context
+from mcp.types import ToolAnnotations as _ToolAnnotations
 
 from .. import utils
 from ..server import server, vt_client
 
 
-@server.tool()
+@server.tool(
+    title="List Threat Profiles",
+    annotations=_ToolAnnotations(
+        title="List Threat Profiles",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def list_threat_profiles(
     ctx: Context, limit: int = 10
-) -> typing.List[typing.Dict[str, typing.Any]]:
+) -> list[dict[str, typing.Any]]:
   """List your Threat Profiles at Google Threat Intelligence.
 
   Threat Profiles filter all of Google TI's threat intelligence
@@ -44,17 +55,30 @@ async def list_threat_profiles(
   Returns:
     List of Threat Profiles.
   """
-  async with vt_client(ctx) as client:
-    res = await utils.consume_vt_iterator(
-        client, "/threat_profiles", limit=limit
-    )
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.consume_vt_iterator(
+          client, "/threat_profiles", limit=limit
+      )
+  except Exception as e:
+    logging.exception("Error listing threat profiles: %s", e)
+    return utils.tool_error_result(f"Failed to list threat profiles: {e}")  # type: ignore[return-value]
   return utils.sanitize_response([o.to_dict() for o in res])
 
 
-@server.tool()
+@server.tool(
+    title="Get Threat Profile",
+    annotations=_ToolAnnotations(
+        title="Get Threat Profile",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def get_threat_profile(
     profile_id: str, ctx: Context
-) -> typing.Dict[str, typing.Any]:
+) -> dict[str, typing.Any]:
   """Get Threat Profile object.
 
   A threat profile object contains the following attributes:
@@ -96,13 +120,24 @@ async def get_threat_profile(
         "threat_profile",
         profile_id,
     )
+  if utils.is_error_dict(res):
+    return utils.tool_error_result_from_dict(res)  # type: ignore[return-value]
   return utils.sanitize_response(res)
 
 
-@server.tool()
+@server.tool(
+    title="Get Threat Profile Recommendations",
+    annotations=_ToolAnnotations(
+        title="Get Threat Profile Recommendations",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def get_threat_profile_recommendations(
     profile_id: str, ctx: Context, limit: int = 10
-) -> typing.List[typing.Dict[str, typing.Any]]:
+) -> list[dict[str, typing.Any]]:
   """Returns the list of objects associated to a given Threat Profile.
 
   Each of these objects has one of the following types:
@@ -138,16 +173,29 @@ async def get_threat_profile_recommendations(
       List of Threat (collection) objects identifiers associated to 
       the Threat Profile. Use `get_collection_report` to retrieve the full objects.
   """
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object_relationships(
-        client, "threat_profiles", profile_id, ['recommendations'], limit=limit)
-  return utils.sanitize_response(res.get('recommendations', []))
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object_relationships(
+          client, "threat_profiles", profile_id, ["recommendations"], limit=limit)
+  except Exception as e:
+    logging.exception("Error fetching threat profile recommendations for %s: %s", profile_id, e)
+    return utils.tool_error_result(f"Failed to fetch threat profile recommendations: {e}")  # type: ignore[return-value]
+  return utils.sanitize_response(res.get("recommendations", []))
 
 
-@server.tool()
+@server.tool(
+    title="Get Threat Profile Associations Timeline",
+    annotations=_ToolAnnotations(
+        title="Get Threat Profile Associations Timeline",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def get_threat_profile_associations_timeline(
     profile_id: str, ctx: Context, limit: int = 10
-) -> typing.List[typing.Dict[str, typing.Any]]:
+) -> list[dict[str, typing.Any]]:
   """Retrieves the associations timeline for the given Threat Profile.
 
   Some important response attributes:
@@ -164,10 +212,14 @@ async def get_threat_profile_associations_timeline(
   Returns:
     List of dictionaries containing timeline associations.
   """
-  async with vt_client(ctx) as client:
-    res = await utils.consume_vt_iterator(
-        client,
-        f"/threat_profiles/{profile_id}/timeline/associations",
-        limit=limit,
-    )
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.consume_vt_iterator(
+          client,
+          f"/threat_profiles/{profile_id}/timeline/associations",
+          limit=limit,
+      )
+  except Exception as e:
+    logging.exception("Error fetching threat profile timeline for %s: %s", profile_id, e)
+    return utils.tool_error_result(f"Failed to fetch threat profile timeline: {e}")  # type: ignore[return-value]
   return utils.sanitize_response([o.to_dict() for o in res])

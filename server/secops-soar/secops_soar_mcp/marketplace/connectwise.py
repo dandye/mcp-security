@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the ConnectWise integration.
 
-    @mcp.tool()
-    async def connect_wise_create_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], company: Annotated[str, Field(..., description="Company identifier")], board: Annotated[str, Field(..., description="Board name")], summary: Annotated[str, Field(..., description="Specify the summary for the new ticket. Note: if the summary is more than 100 characters, it will be truncated.")], status: Annotated[str, Field(..., description="e.g. Unassigned")], priority: Annotated[str, Field(..., description="e.g. Priority 3 - Normal Response")], owner_name: Annotated[Optional[str], Field(default=None, description="ConnectWise member name to assign this ticket to, e.g. connectwise_user_1.")], email_note_cc: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of email addresses that should receive all of the notes via email.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Connect Wise: Create Ticket',
+        annotations=ToolAnnotations(
+            title='Connect Wise: Create Ticket',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def connect_wise_create_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], company: Annotated[str, Field(..., description="Company identifier")], board: Annotated[str, Field(..., description="Board name")], summary: Annotated[str, Field(..., description="Specify the summary for the new ticket. Note: if the summary is more than 100 characters, it will be truncated.")], status: Annotated[str, Field(..., description="e.g. Unassigned")], priority: Annotated[str, Field(..., description="e.g. Priority 3 - Normal Response")], owner_name: Annotated[Optional[str], Field(default=None, description="ConnectWise member name to assign this ticket to, e.g. connectwise_user_1.")], email_note_cc: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of email addresses that should receive all of the notes via email.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Create a ConnectWise ticket
 
@@ -113,8 +123,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for ConnectWise")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def connect_wise_add_comment_to_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="ConnectWise ticket id. e.g. 608718")], comment: Annotated[str, Field(..., description="Comment content to attach to a ticket")], internal: Annotated[Optional[bool], Field(default=None, description="If checked, put comment in internal section")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Connect Wise: Add Comment to Ticket',
+        annotations=ToolAnnotations(
+            title='Connect Wise: Add Comment to Ticket',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def connect_wise_add_comment_to_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="ConnectWise ticket id. e.g. 608718")], comment: Annotated[str, Field(..., description="Comment content to attach to a ticket")], internal: Annotated[Optional[bool], Field(default=None, description="If checked, put comment in internal section")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Add new comment to a ticket in ConnectWise
 
@@ -194,8 +213,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for ConnectWise")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def connect_wise_get_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Fetch ticket by ID")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Connect Wise: Get Ticket',
+        annotations=ToolAnnotations(
+            title='Connect Wise: Get Ticket',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def connect_wise_get_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Fetch ticket by ID")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Get ConnectWise ticket by ID and attach ticket JSON as a file
 
@@ -272,8 +300,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for ConnectWise")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def connect_wise_create_alerts_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], company: Annotated[str, Field(..., description="Company identifier")], board: Annotated[str, Field(..., description="Board name")], status: Annotated[str, Field(..., description="e.g. Unassigned")], priority: Annotated[str, Field(..., description="e.g. Priority 3 - Normal Response")], initial_description: Annotated[str, Field(..., description="")], owner_name: Annotated[Optional[str], Field(default=None, description="ConnectWise member name to assign this ticket to, e.g. connectwise_user_1.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Connect Wise: Create Alerts Ticket',
+        annotations=ToolAnnotations(
+            title='Connect Wise: Create Alerts Ticket',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def connect_wise_create_alerts_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], company: Annotated[str, Field(..., description="Company identifier")], board: Annotated[str, Field(..., description="Board name")], status: Annotated[str, Field(..., description="e.g. Unassigned")], priority: Annotated[str, Field(..., description="e.g. Priority 3 - Normal Response")], initial_description: Annotated[str, Field(..., description="")], owner_name: Annotated[Optional[str], Field(default=None, description="ConnectWise member name to assign this ticket to, e.g. connectwise_user_1.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Create a ConnectWise ticket for each new Siemplify alert
 
@@ -356,8 +393,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for ConnectWise")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def connect_wise_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Connect Wise: Ping',
+        annotations=ToolAnnotations(
+            title='Connect Wise: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def connect_wise_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test Connectivity
 
         Returns:
@@ -430,8 +476,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for ConnectWise")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def connect_wise_close_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="ConnectWise ticket id. e.g. 608718")], custom_close_status: Annotated[Optional[str], Field(default=None, description="If the specific system use a custom closed status (e.g. Completed)")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Connect Wise: Close Ticket',
+        annotations=ToolAnnotations(
+            title='Connect Wise: Close Ticket',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def connect_wise_close_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="ConnectWise ticket id. e.g. 608718")], custom_close_status: Annotated[Optional[str], Field(default=None, description="If the specific system use a custom closed status (e.g. Completed)")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Close ConnectWise ticket
 
@@ -510,8 +565,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for ConnectWise")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def connect_wise_add_attachment_to_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filename: Annotated[str, Field(..., description="Specify the filename behind the attachment. This value will be also used as a title. Note: action needs to provide the correct extension for the file.")], base64_encoded_file: Annotated[str, Field(..., description="Specify the base64 encoded file that needs to be added as an attachment.")], ticket_id: Annotated[str, Field(..., description="Specify the ID of the ticket to which the document would need to be added.")], allow_only_owner_update: Annotated[Optional[bool], Field(default=None, description="If enabled, action will only allow the owner to update the attachment.")], display_in_customer_portal: Annotated[Optional[bool], Field(default=None, description="If enabled, attachment will be shown in the customer portal.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Connect Wise: Add Attachment to Ticket',
+        annotations=ToolAnnotations(
+            title='Connect Wise: Add Attachment to Ticket',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def connect_wise_add_attachment_to_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filename: Annotated[str, Field(..., description="Specify the filename behind the attachment. This value will be also used as a title. Note: action needs to provide the correct extension for the file.")], base64_encoded_file: Annotated[str, Field(..., description="Specify the base64 encoded file that needs to be added as an attachment.")], ticket_id: Annotated[str, Field(..., description="Specify the ID of the ticket to which the document would need to be added.")], allow_only_owner_update: Annotated[Optional[bool], Field(default=None, description="If enabled, action will only allow the owner to update the attachment.")], display_in_customer_portal: Annotated[Optional[bool], Field(default=None, description="If enabled, attachment will be shown in the customer portal.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add an attachment to the ticket in ConnectWise.
 
         Returns:
@@ -591,8 +655,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for ConnectWise")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def connect_wise_update_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Ticket ID to be updated. e.g. 609620")], summary: Annotated[Optional[str], Field(default=None, description="Specify the summary for the updated ticket. Note: if the summary is more than 100 characters, it will be truncated.")], type_name: Annotated[Optional[str], Field(default=None, description="e.g. Application")], sub_type_name: Annotated[Optional[str], Field(default=None, description="e.g. Adobe")], item_name: Annotated[Optional[str], Field(default=None, description="e.g. Development")], owner_name: Annotated[Optional[str], Field(default=None, description="ConnectWise member name to assign this ticket to, e.g. connectwise_user_1.")], board: Annotated[Optional[str], Field(default=None, description="Board name.")], priority: Annotated[Optional[str], Field(default=None, description="e.g. Priority 3 - Normal Response.")], status: Annotated[Optional[str], Field(default=None, description="New ticket status, e.g. In Progress (plan of action)")], email_note_cc: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of email addresses that should receive all of the notes via email.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Connect Wise: Update Ticket',
+        annotations=ToolAnnotations(
+            title='Connect Wise: Update Ticket',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def connect_wise_update_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Ticket ID to be updated. e.g. 609620")], summary: Annotated[Optional[str], Field(default=None, description="Specify the summary for the updated ticket. Note: if the summary is more than 100 characters, it will be truncated.")], type_name: Annotated[Optional[str], Field(default=None, description="e.g. Application")], sub_type_name: Annotated[Optional[str], Field(default=None, description="e.g. Adobe")], item_name: Annotated[Optional[str], Field(default=None, description="e.g. Development")], owner_name: Annotated[Optional[str], Field(default=None, description="ConnectWise member name to assign this ticket to, e.g. connectwise_user_1.")], board: Annotated[Optional[str], Field(default=None, description="Board name.")], priority: Annotated[Optional[str], Field(default=None, description="e.g. Priority 3 - Normal Response.")], status: Annotated[Optional[str], Field(default=None, description="New ticket status, e.g. In Progress (plan of action)")], email_note_cc: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of email addresses that should receive all of the notes via email.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Update ticket details in ConnectWIse
 
@@ -687,8 +760,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for ConnectWise")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def connect_wise_delete_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Ticket ID to be deleted. e.g. 607167")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Connect Wise: Delete Ticket',
+        annotations=ToolAnnotations(
+            title='Connect Wise: Delete Ticket',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def connect_wise_delete_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Ticket ID to be deleted. e.g. 607167")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Delete ConnectWise ticket by ID
 

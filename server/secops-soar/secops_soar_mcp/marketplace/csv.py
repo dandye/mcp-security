@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the CSV integration.
 
-    @mcp.tool()
-    async def csv_csv_search_by_entity(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], csv_path: Annotated[str, Field(..., description="Specify the file path to the CSV file or a folder path that contains all of the CSV files. If folder is provide, action will iterate over all CSV files in the folder.")], file_encoding_types: Annotated[str, Field(..., description="A comma separated list CSV encoding types used for decoding your CSV files, e.g. utf-8, latin-1, iso-8859-1, utf-16... Order in which the encoding types are given sets the order in which they are used for decoding files, e.g.(from example above) the utf-8 has the highest priority and will be used primarily for decoding all the files, if there is a CSV file that uses some other encoding then the next in the order: latin-1 encoding will be used, and so on, until the last encoding is used.")], csv_column: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of columns that can contain entity information. If nothing is provided, action will search in all of the columns.")], days_back: Annotated[Optional[str], Field(default=None, description="Specify how many days backwards to process the CSV files.")], mark_as_suspicious: Annotated[Optional[bool], Field(default=None, description="If enabled, action will mark entity as suspicious, if it was found in file.")], return_the_first_row_only: Annotated[Optional[bool], Field(default=None, description="If enabled, action will only return 1 row in the first file that matched the entity.")], enrich_entities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will add information from CSV file and add it to the enrichment table of entity.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight, if entity was found in the file.")], fields_to_return: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of values that need to be returned.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='CSV: CSV Search by Entity',
+        annotations=ToolAnnotations(
+            title='CSV: CSV Search by Entity',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def csv_csv_search_by_entity(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], csv_path: Annotated[str, Field(..., description="Specify the file path to the CSV file or a folder path that contains all of the CSV files. If folder is provide, action will iterate over all CSV files in the folder.")], file_encoding_types: Annotated[str, Field(..., description="A comma separated list CSV encoding types used for decoding your CSV files, e.g. utf-8, latin-1, iso-8859-1, utf-16... Order in which the encoding types are given sets the order in which they are used for decoding files, e.g.(from example above) the utf-8 has the highest priority and will be used primarily for decoding all the files, if there is a CSV file that uses some other encoding then the next in the order: latin-1 encoding will be used, and so on, until the last encoding is used.")], csv_column: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of columns that can contain entity information. If nothing is provided, action will search in all of the columns.")], days_back: Annotated[Optional[str], Field(default=None, description="Specify how many days backwards to process the CSV files.")], mark_as_suspicious: Annotated[Optional[bool], Field(default=None, description="If enabled, action will mark entity as suspicious, if it was found in file.")], return_the_first_row_only: Annotated[Optional[bool], Field(default=None, description="If enabled, action will only return 1 row in the first file that matched the entity.")], enrich_entities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will add information from CSV file and add it to the enrichment table of entity.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight, if entity was found in the file.")], fields_to_return: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of values that need to be returned.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Search for entities in CSV files and enrich them.
 
         Returns:
@@ -117,8 +127,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CSV")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def csv_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='CSV: Ping',
+        annotations=ToolAnnotations(
+            title='CSV: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def csv_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test Connectivity
 
         Returns:
@@ -191,8 +210,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CSV")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def csv_save_json_to_csv(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], json_object: Annotated[Union[str, dict], Field(..., description="Specify the JSON object that needs to be saved as CSV.")], file_path: Annotated[str, Field(..., description="Specify the absolute file path for the newly created CSV file. If only the file name is provided, action will store the file in /tmp/ folder.")], overwrite: Annotated[Optional[bool], Field(default=None, description="If enabled, action will overwrite existing file.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='CSV: Save JSON to CSV',
+        annotations=ToolAnnotations(
+            title='CSV: Save JSON to CSV',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def csv_save_json_to_csv(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], json_object: Annotated[Union[str, dict], Field(..., description="Specify the JSON object that needs to be saved as CSV.")], file_path: Annotated[str, Field(..., description="Specify the absolute file path for the newly created CSV file. If only the file name is provided, action will store the file in /tmp/ folder.")], overwrite: Annotated[Optional[bool], Field(default=None, description="If enabled, action will overwrite existing file.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Save JSON object  to CSV.
 
         Returns:
@@ -269,8 +297,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CSV")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def csv_csv_search_by_string(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], csv_path: Annotated[str, Field(..., description="Specify the file path to the CSV file or a folder path that contains all of the CSV files. If folder is provide, action will iterate over all CSV files in the folder.")], search_value: Annotated[str, Field(..., description="Specify a string that needs to be searched. If 'Search Multiple Strings' is enabled, this parameter is treated as a comma-separated list of strings that need to be searched.")], file_encoding_types: Annotated[str, Field(..., description="A comma separated list CSV encoding types used for decoding your CSV files, e.g. utf-8, latin-1, iso-8859-1, utf-16... Order in which the encoding types are given sets the order in which they are used for decoding files, e.g.(from example above) the utf-8 has the highest priority and will be used primarily for decoding all the files, if there is a CSV file that uses some other encoding then the next in the order: latin-1 encoding will be used, and so on, until the last encoding is used.")], csv_column: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of columns that can contain entity information. If nothing is provided, action will search in all of the columns.")], days_back: Annotated[Optional[str], Field(default=None, description="Specify how many days backwards to process the CSV files.")], return_the_first_row_only: Annotated[Optional[bool], Field(default=None, description="If enabled, action will only return 1 row in the first file that matched the entity.")], fields_to_return: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of values that need to be returned.")], search_multiple_strings: Annotated[Optional[bool], Field(default=None, description="If enabled, 'Search Value' will work as a comma-separated list of values, instead of a single string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='CSV: CSV Search by String',
+        annotations=ToolAnnotations(
+            title='CSV: CSV Search by String',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def csv_csv_search_by_string(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], csv_path: Annotated[str, Field(..., description="Specify the file path to the CSV file or a folder path that contains all of the CSV files. If folder is provide, action will iterate over all CSV files in the folder.")], search_value: Annotated[str, Field(..., description="Specify a string that needs to be searched. If 'Search Multiple Strings' is enabled, this parameter is treated as a comma-separated list of strings that need to be searched.")], file_encoding_types: Annotated[str, Field(..., description="A comma separated list CSV encoding types used for decoding your CSV files, e.g. utf-8, latin-1, iso-8859-1, utf-16... Order in which the encoding types are given sets the order in which they are used for decoding files, e.g.(from example above) the utf-8 has the highest priority and will be used primarily for decoding all the files, if there is a CSV file that uses some other encoding then the next in the order: latin-1 encoding will be used, and so on, until the last encoding is used.")], csv_column: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of columns that can contain entity information. If nothing is provided, action will search in all of the columns.")], days_back: Annotated[Optional[str], Field(default=None, description="Specify how many days backwards to process the CSV files.")], return_the_first_row_only: Annotated[Optional[bool], Field(default=None, description="If enabled, action will only return 1 row in the first file that matched the entity.")], fields_to_return: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of values that need to be returned.")], search_multiple_strings: Annotated[Optional[bool], Field(default=None, description="If enabled, 'Search Value' will work as a comma-separated list of values, instead of a single string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Search for strings in CSV files.
 
         Returns:

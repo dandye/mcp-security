@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the SolarWindsOrion integration.
 
-    @mcp.tool()
-    async def solar_winds_orion_execute_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[str, Field(..., description="Specify the query that needs to be executed. Note: SolarWind queries don\u2019t support \u201c*\u201d notation.")], max_results_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many results should be returned.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Solar Winds Orion: Execute Query',
+        annotations=ToolAnnotations(
+            title='Solar Winds Orion: Execute Query',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def solar_winds_orion_execute_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[str, Field(..., description="Specify the query that needs to be executed. Note: SolarWind queries don\u2019t support \u201c*\u201d notation.")], max_results_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many results should be returned.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Execute query in SolarWinds Orion.
 
         Returns:
@@ -104,8 +114,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SolarWindsOrion")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def solar_winds_orion_enrich_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Solar Winds Orion: Enrich Endpoint',
+        annotations=ToolAnnotations(
+            title='Solar Winds Orion: Enrich Endpoint',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def solar_winds_orion_enrich_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Fetch endpoint's system information by its hostname or IP address.
 
         Returns:
@@ -178,8 +197,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SolarWindsOrion")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def solar_winds_orion_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Solar Winds Orion: Ping',
+        annotations=ToolAnnotations(
+            title='Solar Winds Orion: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def solar_winds_orion_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the SolarWinds Orion with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -252,8 +280,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SolarWindsOrion")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def solar_winds_orion_execute_entity_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[str, Field(..., description="Specify the query that needs to be executed. Note: SolarWind queries don\u2019t support \u201c*\u201d notation and you shouldn\u2019t have a WHERE clause in the query, because it is added by the action. Please refer to the action documentation for details.")], ip_entity_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used with IP entities in the WHERE clause of the query. Please refer to the action documentation for details. Default: IpAddress.")], hostname_entity_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used with Hostname entities in the WHERE clause of the query. Please refer to the action documentation for details. Default: Hostname")], max_results_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many results should be returned.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Solar Winds Orion: Execute Entity Query',
+        annotations=ToolAnnotations(
+            title='Solar Winds Orion: Execute Entity Query',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def solar_winds_orion_execute_entity_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[str, Field(..., description="Specify the query that needs to be executed. Note: SolarWind queries don\u2019t support \u201c*\u201d notation and you shouldn\u2019t have a WHERE clause in the query, because it is added by the action. Please refer to the action documentation for details.")], ip_entity_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used with IP entities in the WHERE clause of the query. Please refer to the action documentation for details. Default: IpAddress.")], hostname_entity_key: Annotated[Optional[str], Field(default=None, description="Specify what key should be used with Hostname entities in the WHERE clause of the query. Please refer to the action documentation for details. Default: Hostname")], max_results_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many results should be returned.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Execute query in SolarWinds Orion based on the IP and Hostname entities.
 
         Returns:

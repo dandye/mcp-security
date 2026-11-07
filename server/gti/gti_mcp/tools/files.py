@@ -18,6 +18,7 @@ import json
 import asyncio
 
 from mcp.server.mcpserver import Context
+from mcp.types import ToolAnnotations as _ToolAnnotations
 
 from .. import utils
 from ..server import server, vt_client
@@ -85,8 +86,17 @@ FILE_KEY_RELATIONSHIPS = [
 ]
 
 
-@server.tool()
-async def get_file_report(hash: str, ctx: Context) -> typing.Dict[str, typing.Any]:
+@server.tool(
+    title="Get File Threat Report",
+    annotations=_ToolAnnotations(
+        title="Get File Threat Report",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
+async def get_file_report(hash: str, ctx: Context) -> dict[str, typing.Any]:
   """Get a comprehensive file analysis report using its hash (MD5/SHA-1/SHA-256).
 
   Returns a concise summary of key threat details including
@@ -104,13 +114,24 @@ async def get_file_report(hash: str, ctx: Context) -> typing.Dict[str, typing.An
         relationships=FILE_KEY_RELATIONSHIPS,
         params={"exclude_attributes": "last_analysis_results"}
     )
+  if utils.is_error_dict(res):
+    return utils.tool_error_result_from_dict(res)  # type: ignore[return-value]
   return utils.sanitize_response(res)
 
 
-@server.tool()
+@server.tool(
+    title="Get Entities Related to File",
+    annotations=_ToolAnnotations(
+        title="Get Entities Related to File",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def get_entities_related_to_a_file(
     hash: str, relationship_name: str, descriptors_only: bool, ctx: Context, limit: int = 10,
-) -> typing.Union[typing.List[typing.Dict[str, typing.Any]], typing.Dict[str, str]]:
+) -> list[dict[str, typing.Any]]:
     """Retrieve entities related to the the given file hash.
 
     The following table shows a summary of available relationships for file objects.
@@ -171,29 +192,42 @@ async def get_entities_related_to_a_file(
       descriptors_only (required): Bool. Must be True when the target object type is one of file, domain, url, ip_address or collection.
       limit: Limit the number of files to retrieve. 10 by default.
     Returns:
-      List of objects related to the given file, or an error dictionary.
+      List of objects related to the given file.
     """
-    if not relationship_name in FILE_RELATIONSHIPS:
-        return {
-            "error": f"Relationship {relationship_name} does not exist. "
+    if relationship_name not in FILE_RELATIONSHIPS:
+        return utils.tool_error_result(  # type: ignore[return-value]
+            f"Relationship {relationship_name} does not exist. "
             f"Available relationships are: {','.join(FILE_RELATIONSHIPS)}"
-        }
+        )
 
-    async with vt_client(ctx) as client:
-      res = await utils.fetch_object_relationships(
-          client,
-          "files",
-          hash,
-          relationships=[relationship_name],
-          descriptors_only=descriptors_only,
-          limit=limit)
+    try:
+      async with vt_client(ctx) as client:
+        res = await utils.fetch_object_relationships(
+            client,
+            "files",
+            hash,
+            relationships=[relationship_name],
+            descriptors_only=descriptors_only,
+            limit=limit)
+    except Exception as e:
+      logging.exception("Error fetching relationships for file %s: %s", hash, e)
+      return utils.tool_error_result(f"Failed to fetch file relationships: {e}")  # type: ignore[return-value]
     return utils.sanitize_response(res.get(relationship_name, []))
 
 
-@server.tool()
+@server.tool(
+    title="Get File Sandbox Behavior Report",
+    annotations=_ToolAnnotations(
+        title="Get File Sandbox Behavior Report",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def get_file_behavior_report(
     file_behaviour_id: str, ctx: Context
-) -> typing.Dict[str, typing.Any]:
+) -> dict[str, typing.Any]:
   """Retrieve the file behaviour report of the given file behaviour identifier.
 
   You can get all the file behaviour of a given a file by calling `get_entities_related_to_a_file` as the file hash and the `behaviours` as relationship name.
@@ -222,11 +256,22 @@ async def get_file_behavior_report(
             "associations",
         ],
     )
+  if utils.is_error_dict(res):
+    return utils.tool_error_result_from_dict(res)  # type: ignore[return-value]
   return utils.sanitize_response(res)
 
 
-@server.tool()
-async def get_file_behavior_summary(hash: str, ctx: Context) -> typing.Dict[str, typing.Any]:
+@server.tool(
+    title="Get File Sandbox Behavior Summary",
+    annotations=_ToolAnnotations(
+        title="Get File Sandbox Behavior Summary",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
+async def get_file_behavior_summary(hash: str, ctx: Context) -> dict[str, typing.Any]:
   """Retrieve a summary of all the file behavior reports from all the sandboxes.
 
   Args:
@@ -234,22 +279,35 @@ async def get_file_behavior_summary(hash: str, ctx: Context) -> typing.Dict[str,
   Returns:
     The file behavior summary.
   """
-  async with vt_client(ctx) as client:
-    res = await client.get_async(f"/files/{hash}/behaviour_summary")
-    res = await res.json_async()
+  try:
+    async with vt_client(ctx) as client:
+      resp = await client.get_async(f"/files/{hash}/behaviour_summary")
+      res = await resp.json_async()
+  except Exception as e:
+    logging.exception("Error fetching file behavior summary for %s: %s", hash, e)
+    return utils.tool_error_result(f"Failed to fetch file behavior summary: {e}")  # type: ignore[return-value]
 
-  if "data" not in res:
-      if "error" in res:
-          logging.warning(f"VirusTotal API Error: {res['error']}")
-          return {"error": f"VirusTotal API Error: {res['error']}"}
-      logging.warning(f"Unexpected response format from VirusTotal API: {res}")
-      return {"error": f"Unexpected response format from VirusTotal API: {res}"}
+  if not isinstance(res, dict) or "data" not in res:
+      if isinstance(res, dict) and "error" in res:
+          logging.warning("VirusTotal API Error: %s", res["error"])
+          return utils.tool_error_result(f"VirusTotal API Error: {res['error']}")  # type: ignore[return-value]
+      logging.warning("Unexpected response format from VirusTotal API: %s", res)
+      return utils.tool_error_result(f"Unexpected response format from VirusTotal API: {res}")  # type: ignore[return-value]
 
   return utils.sanitize_response(res["data"])
 
 
-@server.tool()
-async def analyse_file(file_path: str, ctx: Context):
+@server.tool(
+    title="Upload and Analyze File",
+    annotations=_ToolAnnotations(
+        title="Upload and Analyze File",
+        read_only_hint=False,
+        destructive_hint=True,
+        idempotent_hint=False,
+        open_world_hint=True,
+    ),
+)
+async def analyse_file(file_path: str, ctx: Context) -> dict[str, typing.Any]:
   """Upload and analyse the file in VirusTotal.
 
   The file will be uploaded to VirusTotal and shared with the community.
@@ -259,16 +317,30 @@ async def analyse_file(file_path: str, ctx: Context):
   Returns:
     The analysis report.
   """
-  async with vt_client(ctx) as client:
-    with open(file_path, "rb") as f:    
-      analysis = await client.scan_file_async(file=f)
-      logging.info(f"File {file_path} uploaded.")
+  try:
+    async with vt_client(ctx) as client:
+      with open(file_path, "rb") as f:
+        analysis = await client.scan_file_async(file=f)
+        logging.info("File %s uploaded.", file_path)
 
-    res = await client.wait_for_analysis_completion(analysis)
-    logging.info(f"Analysis has completed with ID %s", res.id)
-    return utils.sanitize_response(res.to_dict())
+      res = await client.wait_for_analysis_completion(analysis)
+      logging.info("Analysis has completed with ID %s", res.id)
+      return utils.sanitize_response(res.to_dict())
+  except Exception as e:
+    logging.error("Error analysing file %s: %s", file_path, e)
+    return utils.tool_error_result(f"Failed to analyse file: {e}")  # type: ignore[return-value]
 
-@server.tool()
+
+@server.tool(
+    title="Search Digital Threat Monitoring",
+    annotations=_ToolAnnotations(
+        title="Search Digital Threat Monitoring",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def search_digital_threat_monitoring(
     query: str,
     ctx: Context,
@@ -278,7 +350,7 @@ async def search_digital_threat_monitoring(
     page: typing.Optional[str] = None,
     truncate: typing.Optional[str] = None,
     sanitize: bool = True,
-) -> dict:
+) -> dict[str, typing.Any]:
   """Search for historical data in Digital Threat Monitoring (DTM) using Lucene syntax.
 
   Digital theat monitoring is a collection of documents from surface, deep, and dark web sources.
@@ -411,19 +483,28 @@ async def search_digital_threat_monitoring(
       if "text/html" in res.headers.get("Content-Type", ""):
         response_text = await res.text_async()
         if "request timed out" in response_text.lower():
-          return {"error": "The request timed out. Please try reducing the scope of your query by using `since` and `until` parameters to add time delimiters"}
-        logging.error(response_text)
-        return {"error": f"API returned an HTML error page instead of JSON: {response_text}"}
-      
+          return utils.tool_error_result(  # type: ignore[return-value]
+              "The request timed out. Please try reducing the scope of your query by using `since` and `until` parameters to add time delimiters"
+          )
+        logging.error("DTM API returned HTML error response: %s", response_text)
+        return utils.tool_error_result(  # type: ignore[return-value]
+            f"API returned an HTML error page instead of JSON: {response_text}"
+        )
+
       res_json = await res.json_async()
-    except (asyncio.TimeoutError, TimeoutError): # Catch both
-      return {"error": "The request timed out. Please try reducing the scope of your query by using `since` and `until` parameters to add time delimiters"}
+    except (asyncio.TimeoutError, TimeoutError):  # Catch both
+      return utils.tool_error_result(  # type: ignore[return-value]
+          "The request timed out. Please try reducing the scope of your query by using `since` and `until` parameters to add time delimiters"
+      )
     except json.JSONDecodeError as json_error:
-      logging.error(f"Failed to parse JSON response: {json_error}")
-      return {"error": f"Failed to parse server response: {json_error}."}
+      logging.error("Failed to parse JSON response: %s", json_error)
+      return utils.tool_error_result(f"Failed to parse server response: {json_error}.")  # type: ignore[return-value]
     except Exception as e:
-      logging.error(f"An unexpected error occurred: {e} (type: {type(e)})")
-      return {"error": f"An unexpected error occurred: {e}"}
+      logging.error("An unexpected error occurred: %s (type: %s)", e, type(e))
+      return utils.tool_error_result(f"An unexpected error occurred: {e}")  # type: ignore[return-value]
+
+    if isinstance(res_json, dict) and "error" in res_json and "docs" not in res_json:
+      return utils.tool_error_result_from_dict(res_json)  # type: ignore[return-value]
 
     # Remove unnecessary information
     if "docs" in res_json:

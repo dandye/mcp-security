@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the ProofPointTAP integration.
 
-    @mcp.tool()
-    async def proof_point_tap_get_campaign(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], campaign_id: Annotated[str, Field(..., description="Specify a comma-separated list of campaign IDs for which you want to return info.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight containing information about the campaign.")], create_threat_campaign_entity: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create a threat campaign entity from the enriched campaigns.")], fetch_forensics_info: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return forensics information about the campaigns.")], forensic_evidence_type_filter: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of evidence types that need to be returned, when fetching forensic info. Possible values: attachment, cookie, dns, dropper, file, ids, mutex, network, process, registry, screenshot, url, redirect_chain, behavior.")], max_forensics_evidence_to_return: Annotated[Optional[str], Field(default=None, description="Specify how much evidence to return per campaign. Default: 50. Maximum: 1000.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Proof Point TAP: GetCampaign',
+        annotations=ToolAnnotations(
+            title='Proof Point TAP: GetCampaign',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def proof_point_tap_get_campaign(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], campaign_id: Annotated[str, Field(..., description="Specify a comma-separated list of campaign IDs for which you want to return info.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight containing information about the campaign.")], create_threat_campaign_entity: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create a threat campaign entity from the enriched campaigns.")], fetch_forensics_info: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return forensics information about the campaigns.")], forensic_evidence_type_filter: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of evidence types that need to be returned, when fetching forensic info. Possible values: attachment, cookie, dns, dropper, file, ids, mutex, network, process, registry, screenshot, url, redirect_chain, behavior.")], max_forensics_evidence_to_return: Annotated[Optional[str], Field(default=None, description="Specify how much evidence to return per campaign. Default: 50. Maximum: 1000.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Return information about campaigns in Proofpoint TAP.
 
@@ -115,8 +125,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for ProofPointTAP")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def proof_point_tap_decode_url(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], encoded_ur_ls: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of URLs that need to be decoded. Note: URL entities in the scope of the alert will be decoded together.")], create_url_entities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create URL entities that were successfully decoded.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Proof Point TAP: DecodeURL',
+        annotations=ToolAnnotations(
+            title='Proof Point TAP: DecodeURL',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def proof_point_tap_decode_url(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], encoded_ur_ls: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of URLs that need to be decoded. Note: URL entities in the scope of the alert will be decoded together.")], create_url_entities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create URL entities that were successfully decoded.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Decode URLs in Proofpoint TAP. Supported entities: URL.
 
         Returns:
@@ -193,8 +212,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for ProofPointTAP")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def proof_point_tap_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Proof Point TAP: Ping',
+        annotations=ToolAnnotations(
+            title='Proof Point TAP: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def proof_point_tap_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Proofpoint TAP with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:

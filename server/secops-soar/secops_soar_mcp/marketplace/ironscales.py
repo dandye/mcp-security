@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the IronScales integration.
 
-    @mcp.tool()
-    async def iron_scales_get_incident_mitigation_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], period: Annotated[List[str], Field(..., description="Specify the time period for which you would like to get incident mitigation details for.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Iron Scales: Get Incident Mitigation Details',
+        annotations=ToolAnnotations(
+            title='Iron Scales: Get Incident Mitigation Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def iron_scales_get_incident_mitigation_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], period: Annotated[List[str], Field(..., description="Specify the time period for which you would like to get incident mitigation details for.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Get latest company mitigation details. Results are limited to the latest 1000 incidents, a message will appear displaying if the amount of incidents in the period is over this limit.
 
@@ -105,8 +115,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for IronScales")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def iron_scales_get_mitigations_per_mailbox(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incidents_i_ds: Annotated[str, Field(..., description="Provide a comma separated list of incident IDs to search for.")], max_pages_to_fetch: Annotated[str, Field(..., description="Specify the maximum number of pages you would like to fetch.")], period: Annotated[Optional[List[str]], Field(default=None, description="Specify the time period for which you would like to get mitigations per mailbox for.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Iron Scales: Get Mitigations per Mailbox',
+        annotations=ToolAnnotations(
+            title='Iron Scales: Get Mitigations per Mailbox',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def iron_scales_get_mitigations_per_mailbox(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incidents_i_ds: Annotated[str, Field(..., description="Provide a comma separated list of incident IDs to search for.")], max_pages_to_fetch: Annotated[str, Field(..., description="Specify the maximum number of pages you would like to fetch.")], period: Annotated[Optional[List[str]], Field(default=None, description="Specify the time period for which you would like to get mitigations per mailbox for.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get details of mitigations per mailbox.
 
         Returns:
@@ -183,8 +202,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for IronScales")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def iron_scales_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Iron Scales: Ping',
+        annotations=ToolAnnotations(
+            title='Iron Scales: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def iron_scales_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the IronScales with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -257,8 +285,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for IronScales")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def iron_scales_get_incident_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incidents_i_ds: Annotated[str, Field(..., description="Specify IDs of incidents to fetch details for.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Iron Scales: Get Incident Details',
+        annotations=ToolAnnotations(
+            title='Iron Scales: Get Incident Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def iron_scales_get_incident_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incidents_i_ds: Annotated[str, Field(..., description="Specify IDs of incidents to fetch details for.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Get full incident details from IronScales.
 
@@ -335,8 +372,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for IronScales")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def iron_scales_get_mitigation_impersonation_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], period: Annotated[List[str], Field(..., description="Specify the time period for which you would like to get mitigation impersonation details for.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Iron Scales: Get Mitigation Impersonation Details',
+        annotations=ToolAnnotations(
+            title='Iron Scales: Get Mitigation Impersonation Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def iron_scales_get_mitigation_impersonation_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], period: Annotated[List[str], Field(..., description="Specify the time period for which you would like to get mitigation impersonation details for.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Get latest company impersonation incidents. Results are limited to the latest 1000 incidents, a message will appear displaying if the amount of incidents in the period is over this limit. Please note that the IDs returned here are of impersonation attempts, not incidents or reports, so searching these IDs in other endpoints will not return the expected incidents.
 
@@ -413,8 +459,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for IronScales")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def iron_scales_classify_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incidents_i_ds: Annotated[str, Field(..., description="Specify IDs of incidents to classify.")], new_classification: Annotated[List[str], Field(..., description="Specify the new classification for these incidents. Note: For Phishing Attack classification enter \u201cAttack\u201d, for False positive: \u201cFalse Positive\u201d, for spam: \u201cSpam\u201d.")], classifying_user_email: Annotated[str, Field(..., description="Specify which user is performing the classification by providing his mail address. Note: This email address should be recognized by IronScales.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Iron Scales: Classify Incident',
+        annotations=ToolAnnotations(
+            title='Iron Scales: Classify Incident',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def iron_scales_classify_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incidents_i_ds: Annotated[str, Field(..., description="Specify IDs of incidents to classify.")], new_classification: Annotated[List[str], Field(..., description="Specify the new classification for these incidents. Note: For Phishing Attack classification enter \u201cAttack\u201d, for False positive: \u201cFalse Positive\u201d, for spam: \u201cSpam\u201d.")], classifying_user_email: Annotated[str, Field(..., description="Specify which user is performing the classification by providing his mail address. Note: This email address should be recognized by IronScales.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Change incidents classification.
 

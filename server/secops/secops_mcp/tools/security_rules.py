@@ -18,20 +18,31 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
+from mcp.types import ToolAnnotations as _ToolAnnotations
 from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.utils import tool_error_result as _tool_error_result
 
 # Configure logging
 logger = logging.getLogger("secops-mcp")
 
 
-@server.tool()
+@server.tool(
+    title="List YARA-L Detection Rules",
+    annotations=_ToolAnnotations(
+        title="List YARA-L Detection Rules",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def list_security_rules(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
     page_size: int = 100,
     page_token: str | None = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """List security detection rules configured in Chronicle SIEM, with support for pagination.
 
     Retrieves the definitions of detection rules currently active or configured
@@ -79,17 +90,26 @@ async def list_security_rules(
         )
         return rules_response
     except Exception as e:
-        logger.error(f"Error listing security rules: {str(e)}", exc_info=True)
-        return {"error": str(e), "rules": []}
+        logger.error("Error listing security rules: %s", e, exc_info=True)
+        return _tool_error_result(str(e), rules=[])
 
 
-@server.tool()
+@server.tool(
+    title="Search YARA-L Detection Rules",
+    annotations=_ToolAnnotations(
+        title="Search YARA-L Detection Rules",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def search_security_rules(
     query: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Search security detection rules configured in Chronicle SIEM.
 
     Retrieves the definitions of detection rules currently active or configured
@@ -133,17 +153,26 @@ async def search_security_rules(
         rules_response = chronicle.search_rules(query)
         return rules_response
     except Exception as e:
-        logger.error(f"Error searching security rules: {str(e)}", exc_info=True)
-        return {"error": str(e), "rules": []}
+        logger.error("Error searching security rules: %s", e, exc_info=True)
+        return _tool_error_result(str(e), rules=[])
 
 
-@server.tool()
+@server.tool(
+    title="Get YARA-L Detection Rule",
+    annotations=_ToolAnnotations(
+        title="Get YARA-L Detection Rule",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_detection_rule(
     rule_id: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Retrieve the complete definition and metadata of a specific detection rule from Chronicle SIEM.
 
     Fetches the full rule content including YARA-L code, metadata, configuration,
@@ -204,28 +233,39 @@ async def get_detection_rule(
         - Document rule purpose and logic for operational teams and compliance audits.
     """
     try:
-        logger.info(f"Retrieving detection rule: {rule_id}")
+        logger.info("Retrieving detection rule: %s", rule_id)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # Get the rule using the client
         rule_response = chronicle.get_rule(rule_id)
 
-        logger.info(f"Successfully retrieved rule: {rule_id}")
+        logger.info("Successfully retrieved rule: %s", rule_id)
         return rule_response
 
     except Exception as e:
         logger.error(
-            f"Error retrieving detection rule {rule_id}: {str(e)}",
+            "Error retrieving detection rule %s: %s",
+            rule_id,
+            e,
             exc_info=True,
         )
-        return {
-            "error": f"Error retrieving detection rule: {str(e)}",
-            "rule": {},
-        }
+        return _tool_error_result(
+            f"Error retrieving detection rule: {e}",
+            rule={},
+        )
 
 
-@server.tool()
+@server.tool(
+    title="Get Rule Detections",
+    annotations=_ToolAnnotations(
+        title="Get Rule Detections",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_rule_detections(
     rule_id: str,
     alert_state: Optional[str] = None,
@@ -237,7 +277,7 @@ async def get_rule_detections(
     start_time: Optional[str] = None,
     end_time: Optional[str] = None,
     list_basis: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Retrieves historical detections generated by a specific Chronicle SIEM rule.
 
     This tool fetches detections based on a rule ID, allowing for investigation
@@ -303,16 +343,18 @@ async def get_rule_detections(
             logger.error(
                 "Chronicle client from get_chronicle_client is missing expected attributes (base_url, instance_id, session)."
             )
-            return {
-                "error": "Chronicle client misconfigured for direct session access.",
-                "detections": [],
-            }
+            return _tool_error_result(
+                "Chronicle client misconfigured for direct session access.",
+                detections=[],
+            )
 
         valid_alert_states = ["UNSPECIFIED", "NOT_ALERTING", "ALERTING"]
         if alert_state:
             if alert_state not in valid_alert_states:
                 logger.error(
-                    f"Invalid alert_state: {alert_state}. Must be one of {valid_alert_states}"
+                    "Invalid alert_state: %s. Must be one of %s",
+                    alert_state,
+                    valid_alert_states,
                 )
                 raise ValueError(
                     f"alert_state must be one of {valid_alert_states}, got {alert_state}"
@@ -340,31 +382,40 @@ async def get_rule_detections(
         )
 
         return detections_response
-    except (
-        ValueError
-    ) as ve:
+    except ValueError as ve:
         logger.error(
-            f"Validation error getting rule detections for rule {rule_id}: {str(ve)}",
+            "Validation error getting rule detections for rule %s: %s",
+            rule_id,
+            ve,
             exc_info=True,
         )
-        return {"error": str(ve), "detections": []}
+        return _tool_error_result(str(ve), detections=[])
     except Exception as e:
         logger.error(
-            f"Unexpected error getting rule detections for rule {rule_id}: {str(e)}",
+            "Unexpected error getting rule detections for rule %s: %s",
+            rule_id,
+            e,
             exc_info=True,
         )
-        return {"error": f"Unexpected error: {str(e)}", "detections": []}
+        return _tool_error_result(f"Unexpected error: {e}", detections=[])
 
 
-# Example of how list_errors might be defined as an MCP tool, if needed later.
-# This is based on the second function in the first code block provided by the user.
-@server.tool()
+@server.tool(
+    title="List Rule Execution Errors",
+    annotations=_ToolAnnotations(
+        title="List Rule Execution Errors",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def list_rule_errors(
     rule_id: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Lists execution errors for a specific Chronicle SIEM rule.
 
     Helps in troubleshooting rules that might not be generating detections as expected
@@ -410,31 +461,42 @@ async def list_rule_errors(
             logger.error(
                 "Chronicle client from get_chronicle_client is missing expected attributes (base_url, instance_id, session)."
             )
-            return {
-                "error": "Chronicle client misconfigured for direct session access.",
-                "errors": [],
-            }
+            return _tool_error_result(
+                "Chronicle client misconfigured for direct session access.",
+                errors=[],
+            )
 
-        logger.info(f"Requesting errors for rule_id: {rule_id}")
+        logger.info("Requesting errors for rule_id: %s", rule_id)
         response = chronicle.list_errors(rule_id)
 
         return response
 
     except Exception as e:
         logger.error(
-            f"Unexpected error listing rule errors for {rule_id}: {str(e)}",
+            "Unexpected error listing rule errors for %s: %s",
+            rule_id,
+            e,
             exc_info=True,
         )
-        return {"error": f"Unexpected error: {str(e)}", "errors": []}
+        return _tool_error_result(f"Unexpected error: {e}", errors=[])
 
 
-@server.tool()
+@server.tool(
+    title="Create YARA-L Detection Rule",
+    annotations=_ToolAnnotations(
+        title="Create YARA-L Detection Rule",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=False,
+    ),
+)
 async def create_rule(
     rule_text: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> str:
+) -> dict[str, Any]:
     """Create a new detection rule in Chronicle SIEM.
 
     Creates a new YARA-L 2.0 detection rule in Chronicle that can generate alerts when
@@ -519,36 +581,49 @@ async def create_rule(
         # Extract rule ID from the response
         rule_id = rule.get("name", "").split("/")[-1]
 
-        result = f"Successfully created detection rule.\n"
+        result = "Successfully created detection rule.\n"
         result += f"Rule ID: {rule_id}\n"
 
         # Extract rule name from the text if possible
-        lines = rule_text.strip().split("\n")
-        for line in lines:
-            if line.strip().startswith("rule "):
-                rule_name = (
-                    line.strip().replace("rule ", "").replace(" {", "").strip()
-                )
-                result += f"Rule Name: {rule_name}\n"
-                break
+        rule_name = ""
+        match = re.search(
+            r"^\s*rule\s+([A-Za-z0-9_]+)", rule_text, re.MULTILINE
+        )
+        if match:
+            rule_name = match.group(1)
+            result += f"Rule Name: {rule_name}\n"
 
         result += "Rule created successfully. Use test_rule to validate before enabling."
 
-        return result
+        return {
+            "status": "success",
+            "summary": result,
+            "rule_id": rule_id,
+            "rule_name": rule_name,
+        }
 
     except Exception as e:
-        logger.error(f"Error creating rule: {str(e)}", exc_info=True)
-        return f"Error creating rule: {str(e)}"
+        logger.error("Error creating rule: %s", e, exc_info=True)
+        return _tool_error_result(f"Error creating rule: {e}")
 
 
-@server.tool()
+@server.tool(
+    title="Update YARA-L Detection Rule",
+    annotations=_ToolAnnotations(
+        title="Update YARA-L Detection Rule",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def update_rule(
     rule_id: str,
     rule_text: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> str:
+) -> dict[str, Any]:
     """Update an existing detection rule in Chronicle SIEM.
 
     Replaces the text of an existing YARA-L 2.0 detection rule in place. Chronicle
@@ -636,34 +711,58 @@ async def update_rule(
 
         result = "Successfully updated detection rule.\n"
         result += f"Rule ID: {clean_rule_id}\n"
+        new_version = ""
         if "@" in version_id:
+            new_version = version_id
             result += f"New version: {version_id}\n"
         elif revision_id:
-            result += f"New version: {clean_rule_id}@{revision_id}\n"
+            new_version = f"{clean_rule_id}@{revision_id}"
+            result += f"New version: {new_version}\n"
 
+        resolved_rule_name = ""
         display_name = rule.get("displayName", "") if isinstance(rule, dict) else ""
         if display_name:
+            resolved_rule_name = display_name
             result += f"Rule Name: {display_name}\n"
         else:
             match = re.search(
                 r"^\s*rule\s+([A-Za-z0-9_]+)", rule_text, re.MULTILINE
             )
             if match:
-                result += f"Rule Name: {match.group(1)}\n"
+                resolved_rule_name = match.group(1)
+                result += f"Rule Name: {resolved_rule_name}\n"
 
         result += (
             "Deployment state (enabled/alerting) is unchanged. "
             "Use test_rule to validate the updated rule before relying on new alerts."
         )
 
-        return result
+        return {
+            "status": "success",
+            "summary": result,
+            "rule_id": clean_rule_id,
+            "rule_name": resolved_rule_name,
+            "version": new_version,
+        }
 
     except Exception as e:
         logger.error("Error updating rule %s: %s", clean_rule_id, e, exc_info=True)
-        return f"Error updating rule: {e}"
+        return _tool_error_result(
+            f"Error updating rule: {e}",
+            rule_id=clean_rule_id,
+        )
 
 
-@server.tool()
+@server.tool(
+    title="Test YARA-L Detection Rule",
+    annotations=_ToolAnnotations(
+        title="Test YARA-L Detection Rule",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def test_rule(
     rule_text: str,
     project_id: Optional[str] = None,
@@ -671,7 +770,7 @@ async def test_rule(
     region: Optional[str] = None,
     hours_back: int = 168,  # 7 days default
     max_results: int = 100,
-) -> str:
+) -> dict[str, Any]:
     """Test a detection rule against historical data in Chronicle SIEM.
 
     Tests a YARA-L 2.0 detection rule against historical data to validate its effectiveness
@@ -747,7 +846,8 @@ async def test_rule(
     """
     try:
         logger.info(
-            f"Testing detection rule against {hours_back} hours of historical data"
+            "Testing detection rule against %s hours of historical data",
+            hours_back,
         )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
@@ -850,20 +950,39 @@ async def test_rule(
                 f"  - Checking if the required event types exist in your data\n"
             )
 
-        return response
+        return {
+            "summary": response,
+            "total_detections": detection_count,
+            "detections": detections,
+            "errors": errors,
+            "hours_back": hours_back,
+        }
 
     except Exception as e:
-        logger.error(f"Error testing rule: {str(e)}", exc_info=True)
-        return f"Error testing rule: {str(e)}"
+        logger.error("Error testing rule: %s", e, exc_info=True)
+        return _tool_error_result(
+            f"Error testing rule: {e}",
+            total_detections=0,
+            detections=[],
+        )
 
 
-@server.tool()
+@server.tool(
+    title="Validate YARA-L Rule Syntax",
+    annotations=_ToolAnnotations(
+        title="Validate YARA-L Rule Syntax",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def validate_rule(
     rule_text: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> str:
+) -> dict[str, Any]:
     """Validate a YARA-L 2.0 detection rule syntax in Chronicle SIEM.
 
     Validates the syntax and structure of a YARA-L 2.0 detection rule without creating
@@ -943,10 +1062,14 @@ async def validate_rule(
         validation_result = chronicle.validate_rule(rule_text)
 
         # Format response based on validation result
-        response = f"Rule Validation Results:\n\n"
+        response = "Rule Validation Results:\n\n"
+        is_valid = False
+        validation_errors: list[str] = []
+        suggested_fields_out: list[str] = []
 
         if hasattr(validation_result, "success") and validation_result.success:
-            response += "✅ Rule validation PASSED\n"
+            is_valid = True
+            response += "Rule validation PASSED\n"
             response += "The rule syntax is correct and ready for testing or deployment.\n"
 
             # Include suggested fields if available
@@ -954,14 +1077,17 @@ async def validate_rule(
                 hasattr(validation_result, "suggested_fields")
                 and validation_result.suggested_fields
             ):
-                response += f'\nSuggested Fields: {", ".join(validation_result.suggested_fields)}'
+                suggested_fields_out = list(validation_result.suggested_fields)
+                response += f'\nSuggested Fields: {", ".join(suggested_fields_out)}'
 
         elif (
             hasattr(validation_result, "success")
             and not validation_result.success
         ):
-            response += "❌ Rule validation FAILED\n"
+            is_valid = False
+            response += "Rule validation FAILED\n"
             response += f"Error: {validation_result.message}\n"
+            validation_errors.append(str(validation_result.message))
 
             # Include position information if available
             if (
@@ -980,13 +1106,13 @@ async def validate_rule(
 
             # Try to determine if validation passed based on common response patterns
             if isinstance(validation_result, dict):
-                is_valid = validation_result.get("isValid", False)
+                is_valid = bool(validation_result.get("isValid", False))
                 if is_valid:
                     response += (
-                        "✅ Rule appears to be valid based on API response.\n"
+                        "Rule appears to be valid based on API response.\n"
                     )
                 else:
-                    response += "❌ Rule validation may have failed based on API response.\n"
+                    response += "Rule validation may have failed based on API response.\n"
 
                 # Include query type if available
                 query_type = validation_result.get("queryType", "")
@@ -996,18 +1122,33 @@ async def validate_rule(
                 # Include suggested fields if available
                 suggested_fields = validation_result.get("suggestedFields", [])
                 if suggested_fields:
+                    suggested_fields_out = list(suggested_fields)
                     response += (
-                        f'Suggested Fields: {", ".join(suggested_fields)}\n'
+                        f'Suggested Fields: {", ".join(suggested_fields_out)}\n'
                     )
 
-        return response
+        return {
+            "summary": response,
+            "valid": is_valid,
+            "errors": validation_errors,
+            "suggested_fields": suggested_fields_out,
+        }
 
     except Exception as e:
-        logger.error(f"Error validating rule: {str(e)}", exc_info=True)
-        return f"Error validating rule: {str(e)}"
+        logger.error("Error validating rule: %s", e, exc_info=True)
+        return _tool_error_result(f"Error validating rule: {e}")
 
 
-@server.tool()
+@server.tool(
+    title="Create Rule Retrohunt",
+    annotations=_ToolAnnotations(
+        title="Create Rule Retrohunt",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=False,
+    ),
+)
 async def create_retrohunt(
     rule_id: str,
     start_time: str,
@@ -1015,7 +1156,7 @@ async def create_retrohunt(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create a retrohunt to run detection rule against historical data.
 
     Retrohunts enable threat hunting by running detection rules against
@@ -1085,8 +1226,10 @@ async def create_retrohunt(
         from datetime import datetime, timezone
 
         logger.info(
-            f"Creating retrohunt for rule {rule_id} "
-            f"from {start_time} to {end_time}"
+            "Creating retrohunt for rule %s from %s to %s",
+            rule_id,
+            start_time,
+            end_time,
         )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
@@ -1120,15 +1263,15 @@ async def create_retrohunt(
                 "Failed to extract operation ID from retrohunt "
                 "response. Raw response available in error details."
             )
-            logger.error(f"{error_msg}. Response: {retrohunt}")
-            return {
-                "error": error_msg,
-                "rule_id": rule_id,
-                "start_time": start_time,
-                "end_time": end_time,
-                "status": "failed",
-                "raw_response": retrohunt,
-            }
+            logger.error("%s. Response: %s", error_msg, retrohunt)
+            return _tool_error_result(
+                error_msg,
+                rule_id=rule_id,
+                start_time=start_time,
+                end_time=end_time,
+                status="failed",
+                raw_response=retrohunt,
+            )
 
         result = {
             "operation_id": operation_id,
@@ -1148,33 +1291,44 @@ async def create_retrohunt(
         }
 
         logger.info(
-            f"Successfully created retrohunt with operation_id: "
-            f"{operation_id}"
+            "Successfully created retrohunt with operation_id: %s",
+            operation_id,
         )
         return result
 
     except Exception as e:
         logger.error(
-            f"Error creating retrohunt for rule {rule_id}: {str(e)}",
+            "Error creating retrohunt for rule %s: %s",
+            rule_id,
+            e,
             exc_info=True,
         )
-        return {
-            "error": str(e),
-            "rule_id": rule_id,
-            "start_time": start_time,
-            "end_time": end_time,
-            "status": "failed",
-        }
+        return _tool_error_result(
+            str(e),
+            rule_id=rule_id,
+            start_time=start_time,
+            end_time=end_time,
+            status="failed",
+        )
 
 
-@server.tool()
+@server.tool(
+    title="Get Rule Retrohunt Status",
+    annotations=_ToolAnnotations(
+        title="Get Rule Retrohunt Status",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_retrohunt(
     rule_id: str,
     operation_id: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get status and results of a retrohunt operation.
 
     Retrieves the current status, progress, and results of a previously
@@ -1237,8 +1391,9 @@ async def get_retrohunt(
     """
     try:
         logger.info(
-            f"Getting retrohunt status for rule {rule_id}, "
-            f"operation {operation_id}"
+            "Getting retrohunt status for rule %s, operation %s",
+            rule_id,
+            operation_id,
         )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
@@ -1274,26 +1429,38 @@ async def get_retrohunt(
         result["raw_response"] = retrohunt_status
 
         logger.info(
-            f"Retrohunt status retrieved. Complete: {is_complete}, "
-            f"Status: {result.get('status')}"
+            "Retrohunt status retrieved. Complete: %s, Status: %s",
+            is_complete,
+            result.get("status"),
         )
         return result
 
     except Exception as e:
         logger.error(
-            f"Error getting retrohunt status for rule {rule_id}, "
-            f"operation {operation_id}: {str(e)}",
+            "Error getting retrohunt status for rule %s, operation %s: %s",
+            rule_id,
+            operation_id,
+            e,
             exc_info=True,
         )
-        return {
-            "error": str(e),
-            "operation_id": operation_id,
-            "rule_id": rule_id,
-            "done": False,
-        }
+        return _tool_error_result(
+            str(e),
+            operation_id=operation_id,
+            rule_id=rule_id,
+            done=False,
+        )
 
 
-@server.tool()
+@server.tool(
+    title="Search Rule Alerts",
+    annotations=_ToolAnnotations(
+        title="Search Rule Alerts",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def search_rule_alerts(
     start_time: str,
     end_time: str,
@@ -1301,7 +1468,7 @@ async def search_rule_alerts(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Search for alerts generated by detection rules across time range.
 
     Retrieves alerts from all detection rules within specified time window.
@@ -1371,7 +1538,7 @@ async def search_rule_alerts(
     try:
         from datetime import datetime, timezone
 
-        logger.info(f"Searching rule alerts from {start_time} to {end_time}")
+        logger.info("Searching rule alerts from %s to %s", start_time, end_time)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -1411,16 +1578,17 @@ async def search_rule_alerts(
         rule_alerts = alerts_response.get("ruleAlerts", [])
         total_alerts = sum(len(ra.get("alerts", [])) for ra in rule_alerts)
         logger.info(
-            f"Found {len(rule_alerts)} rules with {total_alerts} "
-            f"total alerts"
+            "Found %s rules with %s total alerts",
+            len(rule_alerts),
+            total_alerts,
         )
 
         return alerts_response
 
     except Exception as e:
-        logger.error(f"Error searching rule alerts: {str(e)}", exc_info=True)
-        return {
-            "error": str(e),
-            "ruleAlerts": [],
-            "tooManyAlerts": False,
-        }
+        logger.error("Error searching rule alerts: %s", e, exc_info=True)
+        return _tool_error_result(
+            str(e),
+            ruleAlerts=[],
+            tooManyAlerts=False,
+        )

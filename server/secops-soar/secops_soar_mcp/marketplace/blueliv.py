@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the BlueLiv integration.
 
-    @mcp.tool()
-    async def blue_liv_add_labels_to_threats(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], module_type: Annotated[str, Field(..., description="Specify the module type the resource belongs to")], module_id: Annotated[str, Field(..., description="Specify the module ID the resource belongs to")], resource_id: Annotated[str, Field(..., description="Specify the Resource IDs, as a comma separated list, to add the labels to")], label_names: Annotated[str, Field(..., description="Specify the label names you would like to apply to the specified threats, as a comma separated list. Please pay attention to lowercase and uppercase.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Blue Liv: Add Labels to Threats',
+        annotations=ToolAnnotations(
+            title='Blue Liv: Add Labels to Threats',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def blue_liv_add_labels_to_threats(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], module_type: Annotated[str, Field(..., description="Specify the module type the resource belongs to")], module_id: Annotated[str, Field(..., description="Specify the module ID the resource belongs to")], resource_id: Annotated[str, Field(..., description="Specify the Resource IDs, as a comma separated list, to add the labels to")], label_names: Annotated[str, Field(..., description="Specify the label names you would like to apply to the specified threats, as a comma separated list. Please pay attention to lowercase and uppercase.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 The action will add the specified label name to the specified threat IDs
 
@@ -108,8 +118,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for BlueLiv")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def blue_liv_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Blue Liv: Ping',
+        annotations=ToolAnnotations(
+            title='Blue Liv: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def blue_liv_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the BlueLiv with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -182,8 +201,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for BlueLiv")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def blue_liv_add_comment_to_a_threat(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], module_type: Annotated[str, Field(..., description="Specify the module type the resource belongs to")], module_id: Annotated[str, Field(..., description="Specify the module ID the resource belongs to")], resource_id: Annotated[str, Field(..., description="Specify the Resource ID to add the comment to")], comment_text: Annotated[str, Field(..., description="Provide the comment you would like to add to the resource")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Blue Liv: Add Comment to a Threat',
+        annotations=ToolAnnotations(
+            title='Blue Liv: Add Comment to a Threat',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def blue_liv_add_comment_to_a_threat(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], module_type: Annotated[str, Field(..., description="Specify the module type the resource belongs to")], module_id: Annotated[str, Field(..., description="Specify the module ID the resource belongs to")], resource_id: Annotated[str, Field(..., description="Specify the Resource ID to add the comment to")], comment_text: Annotated[str, Field(..., description="Provide the comment you would like to add to the resource")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 The action will add a desired text comment to a specific threat.
 
@@ -263,8 +291,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for BlueLiv")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def blue_liv_list_entity_threats(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], label_filter: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of labels, that will be used to filter threats. Note: label filter works with \"OR\" logic.")], module_filter: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of modules, that will be used to filter threats.")], max_threats_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many threats to return per entity. If nothing is specified action will return 50 threats.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Blue Liv: List Entity Threats',
+        annotations=ToolAnnotations(
+            title='Blue Liv: List Entity Threats',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def blue_liv_list_entity_threats(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], label_filter: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of labels, that will be used to filter threats. Note: label filter works with \"OR\" logic.")], module_filter: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of modules, that will be used to filter threats.")], max_threats_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many threats to return per entity. If nothing is specified action will return 50 threats.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 List threats related to entities in Blueliv. Supported entities: All.
 
@@ -346,8 +383,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for BlueLiv")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def blue_liv_mark_threat_as_a_favorite(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], module_type: Annotated[str, Field(..., description="Specify the module type the resource belongs to")], module_id: Annotated[str, Field(..., description="Specify the module ID the resource belongs to")], resource_id: Annotated[str, Field(..., description="Specify the Resource ID to add the comment to")], favorite_status: Annotated[List[str], Field(..., description="Provide the Favorite status you would like to apply on the specified threat")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Blue Liv: Mark Threat as a Favorite',
+        annotations=ToolAnnotations(
+            title='Blue Liv: Mark Threat as a Favorite',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def blue_liv_mark_threat_as_a_favorite(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], module_type: Annotated[str, Field(..., description="Specify the module type the resource belongs to")], module_id: Annotated[str, Field(..., description="Specify the module ID the resource belongs to")], resource_id: Annotated[str, Field(..., description="Specify the Resource ID to add the comment to")], favorite_status: Annotated[List[str], Field(..., description="Provide the Favorite status you would like to apply on the specified threat")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 The action will mark the specified threat as a favorite threat in BlueLiv
 
@@ -427,8 +473,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for BlueLiv")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def blue_liv_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], lowest_score_to_mark_as_suspicious: Annotated[str, Field(..., description="Specify what should be the lowest score for the entity to be marked as suspicious. Maximum: 10.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create insights containing information about entities.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Blue Liv: Enrich Entities',
+        annotations=ToolAnnotations(
+            title='Blue Liv: Enrich Entities',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def blue_liv_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], lowest_score_to_mark_as_suspicious: Annotated[str, Field(..., description="Specify what should be the lowest score for the entity to be marked as suspicious. Maximum: 10.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create insights containing information about entities.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Enrich entities using information from Threat Context module of Blueliv. Supported entities: IP, Hash, URL, Threat Actor, Threat Campaign, Threat Signature, CVE. Note: only MD5, SHA1, SHA256 and SHA512 hashes are supported.
 
@@ -507,8 +562,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for BlueLiv")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def blue_liv_remove_labels_from_threats(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], module_type: Annotated[str, Field(..., description="Specify the module type the resource belongs to.")], module_id: Annotated[str, Field(..., description="Specify the module ID the resource belongs to.")], resource_id: Annotated[str, Field(..., description="Specify a comma-separated list of  resource IDs from which you want to remove labels.")], label_names: Annotated[str, Field(..., description="Specify a comma-separated list of labels that need to be removed. Please pay attention to lowercase and uppercase.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Blue Liv: Remove Labels from Threats',
+        annotations=ToolAnnotations(
+            title='Blue Liv: Remove Labels from Threats',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def blue_liv_remove_labels_from_threats(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], module_type: Annotated[str, Field(..., description="Specify the module type the resource belongs to.")], module_id: Annotated[str, Field(..., description="Specify the module ID the resource belongs to.")], resource_id: Annotated[str, Field(..., description="Specify a comma-separated list of  resource IDs from which you want to remove labels.")], label_names: Annotated[str, Field(..., description="Specify a comma-separated list of labels that need to be removed. Please pay attention to lowercase and uppercase.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """The action will remove the specified labels from the specified threat IDs.
 
         Returns:

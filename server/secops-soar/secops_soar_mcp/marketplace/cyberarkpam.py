@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the CyberArkPAM integration.
 
-    @mcp.tool()
-    async def cyber_ark_pam_list_accounts(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_query: Annotated[Optional[str], Field(default=None, description="Specify the search query to use in action.")], search_operator: Annotated[Optional[List[str]], Field(default=None, description="Specify the search operator action should use to search based on the provided search query.")], max_records_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many records to return. If nothing is provided, action will return 50 records (API default).")], records_offset: Annotated[Optional[str], Field(default=None, description="Specify the offset the action should use to return the values.")], filter_query: Annotated[Optional[str], Field(default=None, description="Specify the filter query action should use. Filter can be based on safeName or modificationTime parameters.")], saved_filter: Annotated[Optional[str], Field(default=None, description="Specify the saved filter query action should use. Takes priority over the Filter Query parameter.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Cyber Ark PAM: List Accounts',
+        annotations=ToolAnnotations(
+            title='Cyber Ark PAM: List Accounts',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cyber_ark_pam_list_accounts(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_query: Annotated[Optional[str], Field(default=None, description="Specify the search query to use in action.")], search_operator: Annotated[Optional[List[str]], Field(default=None, description="Specify the search operator action should use to search based on the provided search query.")], max_records_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many records to return. If nothing is provided, action will return 50 records (API default).")], records_offset: Annotated[Optional[str], Field(default=None, description="Specify the offset the action should use to return the values.")], filter_query: Annotated[Optional[str], Field(default=None, description="Specify the filter query action should use. Filter can be based on safeName or modificationTime parameters.")], saved_filter: Annotated[Optional[str], Field(default=None, description="Specify the saved filter query action should use. Takes priority over the Filter Query parameter.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List accounts available in the CyberArk PAM based on provided criteria. Note: This action doesn’t run on Chronicle SOAR entities.
 
         Returns:
@@ -113,8 +123,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CyberArkPAM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def cyber_ark_pam_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Cyber Ark PAM: Ping',
+        annotations=ToolAnnotations(
+            title='Cyber Ark PAM: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cyber_ark_pam_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the CyberArk PAM installation with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -187,8 +206,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CyberArkPAM")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def cyber_ark_pam_get_account_password_value(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], account: Annotated[str, Field(..., description="Specify the account id to retrieve the password value for. Note that you can get the account id from the List Accounts action.")], reason: Annotated[str, Field(..., description="Specify the reason that account password value is accessed.")], ticketing_system_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the ticketing system.")], ticket_id: Annotated[Optional[str], Field(default=None, description="Specify the ticketing system ticket id.")], version: Annotated[Optional[str], Field(default=None, description="Specify the account password value version to retrieve.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Cyber Ark PAM: Get Account Password Value',
+        annotations=ToolAnnotations(
+            title='Cyber Ark PAM: Get Account Password Value',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cyber_ark_pam_get_account_password_value(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], account: Annotated[str, Field(..., description="Specify the account id to retrieve the password value for. Note that you can get the account id from the List Accounts action.")], reason: Annotated[str, Field(..., description="Specify the reason that account password value is accessed.")], ticketing_system_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the ticketing system.")], ticket_id: Annotated[Optional[str], Field(default=None, description="Specify the ticketing system ticket id.")], version: Annotated[Optional[str], Field(default=None, description="Specify the account password value version to retrieve.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get account password value from CyberArk PAM. Note: Both password and SSH Key can be retrieved with this action.  Note 2: This action doesn’t run on Chronicle SOAR entities.
 
         Returns:

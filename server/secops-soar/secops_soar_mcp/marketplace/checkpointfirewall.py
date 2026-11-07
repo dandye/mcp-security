@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the CheckPointFirewall integration.
 
-    @mcp.tool()
-    async def check_point_firewall_run_script(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], script_text: Annotated[str, Field(..., description="Script to execute. For example, fw sam command: fw sam -t 600 -I src 8.9.10.12")], target: Annotated[str, Field(..., description="Specify CheckPoint device to execute script on, for example: gaia80.10. Parameter accepts multiple values as a comma separated list.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Check Point Firewall: Run Script',
+        annotations=ToolAnnotations(
+            title='Check Point Firewall: Run Script',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def check_point_firewall_run_script(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], script_text: Annotated[str, Field(..., description="Script to execute. For example, fw sam command: fw sam -t 600 -I src 8.9.10.12")], target: Annotated[str, Field(..., description="Specify CheckPoint device to execute script on, for example: gaia80.10. Parameter accepts multiple values as a comma separated list.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Run arbitrary script with CheckPoint run-script API call. Note: action is not using Siemplify entities to operate.
 
         Returns:
@@ -103,8 +113,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CheckPointFirewall")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def check_point_firewall_add_url_to_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ur_ls_group_name: Annotated[str, Field(..., description="Specify the name of the group to which you want to add URL.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Check Point Firewall: Add URL to Group',
+        annotations=ToolAnnotations(
+            title='Check Point Firewall: Add URL to Group',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def check_point_firewall_add_url_to_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ur_ls_group_name: Annotated[str, Field(..., description="Specify the name of the group to which you want to add URL.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add Url to the Checkpoint FireWall Group
 
         Returns:
@@ -178,8 +197,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CheckPointFirewall")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def check_point_firewall_download_log_attachment(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], log_i_ds: Annotated[str, Field(..., description="Specify the comma-separated list of log IDs from which you want to download attachments.")], download_folder_path: Annotated[str, Field(..., description="Specify the absolute path for the folder where the action should store the attachments.")], create_case_wall_attachment: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create a case wall attachment for each successfully downloaded file. Note: that attachment will only be created if it\u2019s size is less than 3 MB.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Check Point Firewall: Download Log Attachment',
+        annotations=ToolAnnotations(
+            title='Check Point Firewall: Download Log Attachment',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def check_point_firewall_download_log_attachment(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], log_i_ds: Annotated[str, Field(..., description="Specify the comma-separated list of log IDs from which you want to download attachments.")], download_folder_path: Annotated[str, Field(..., description="Specify the absolute path for the folder where the action should store the attachments.")], create_case_wall_attachment: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create a case wall attachment for each successfully downloaded file. Note: that attachment will only be created if it\u2019s size is less than 3 MB.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Download log attachments from CheckPoint FireWall.
 
         Returns:
@@ -256,8 +284,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CheckPointFirewall")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def check_point_firewall_add_a_sam_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], security_gateway_to_create_sam_rule_on: Annotated[str, Field(..., description="Specify the name of Security Gateway to create a rule for.")], action_for_the_matching_connections: Annotated[List[str], Field(..., description="Specify the action that should be executed for the matching connections.")], how_to_track_matching_connections: Annotated[List[str], Field(..., description="Specify how to track matching connections.")], source_ip: Annotated[Optional[str], Field(default=None, description="Specify the source IP to be added to the rule.")], source_netmask: Annotated[Optional[str], Field(default=None, description="Specify the source netmask to be added to the rule.")], destination_ip: Annotated[Optional[str], Field(default=None, description="Specify the destination IP to be added to the rule.")], destination_netmask: Annotated[Optional[str], Field(default=None, description="Specify the destination netmask to be added to the rule.")], port: Annotated[Optional[str], Field(default=None, description="Specify the port number to be added to the rule for example, 5005")], protocol: Annotated[Optional[str], Field(default=None, description="Specify the protocol name to be added to the rule for example, TCP")], expiration: Annotated[Optional[str], Field(default=None, description="Specify how long in seconds the newly added SAM rule should be active for example, 4. If nothing is specified - then the rule never expires.")], close_connections: Annotated[Optional[bool], Field(default=None, description="Specify if the existing matching connections should be closed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Check Point Firewall: Add a SAM Rule',
+        annotations=ToolAnnotations(
+            title='Check Point Firewall: Add a SAM Rule',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def check_point_firewall_add_a_sam_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], security_gateway_to_create_sam_rule_on: Annotated[str, Field(..., description="Specify the name of Security Gateway to create a rule for.")], action_for_the_matching_connections: Annotated[List[str], Field(..., description="Specify the action that should be executed for the matching connections.")], how_to_track_matching_connections: Annotated[List[str], Field(..., description="Specify how to track matching connections.")], source_ip: Annotated[Optional[str], Field(default=None, description="Specify the source IP to be added to the rule.")], source_netmask: Annotated[Optional[str], Field(default=None, description="Specify the source netmask to be added to the rule.")], destination_ip: Annotated[Optional[str], Field(default=None, description="Specify the destination IP to be added to the rule.")], destination_netmask: Annotated[Optional[str], Field(default=None, description="Specify the destination netmask to be added to the rule.")], port: Annotated[Optional[str], Field(default=None, description="Specify the port number to be added to the rule for example, 5005")], protocol: Annotated[Optional[str], Field(default=None, description="Specify the protocol name to be added to the rule for example, TCP")], expiration: Annotated[Optional[str], Field(default=None, description="Specify how long in seconds the newly added SAM rule should be active for example, 4. If nothing is specified - then the rule never expires.")], close_connections: Annotated[Optional[bool], Field(default=None, description="Specify if the existing matching connections should be closed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add a SAM (suspicious activity monitoring) rule for Checkpoint Firewall. Please refer to the Checkpoint fw_sam command criteria section documentation for available ip, netmask, port and protocol combinations - https://sc1.checkpoint.com/documents/R80.40/WebAdminGuides/EN/CP_R80.40_CLI_ReferenceGuide/Content/Topics-CLIG/MDSG/fw-sam.htm
 
         Returns:
@@ -349,8 +386,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CheckPointFirewall")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def check_point_firewall_add_ip_to_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], blacklist_group_name: Annotated[str, Field(..., description="Specify the name of the group to which you want to add IP address.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Check Point Firewall: Add IP to Group',
+        annotations=ToolAnnotations(
+            title='Check Point Firewall: Add IP to Group',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def check_point_firewall_add_ip_to_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], blacklist_group_name: Annotated[str, Field(..., description="Specify the name of the group to which you want to add IP address.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add IP to the Checkpoint FireWall Group
 
         Returns:
@@ -424,8 +470,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CheckPointFirewall")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def check_point_firewall_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Check Point Firewall: Ping',
+        annotations=ToolAnnotations(
+            title='Check Point Firewall: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def check_point_firewall_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test Connectivity
 
         Returns:
@@ -498,8 +553,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CheckPointFirewall")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def check_point_firewall_list_policies_on_site(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_policies_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many policies to return in the response. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Check Point Firewall: List Policies on Site',
+        annotations=ToolAnnotations(
+            title='Check Point Firewall: List Policies on Site',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def check_point_firewall_list_policies_on_site(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_policies_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many policies to return in the response. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Retrieve all existing policies
 
         Returns:
@@ -574,8 +638,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CheckPointFirewall")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def check_point_firewall_remove_sam_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], security_gateway: Annotated[str, Field(..., description="Specify the name of Security Gateway from where to remove SAM Rule")], action_for_the_matching_connections: Annotated[List[str], Field(..., description="Specify the action that should be executed for the matching connections.")], how_to_track_matching_connections: Annotated[List[str], Field(..., description="Specify how to track matching connections.")], source_ip: Annotated[Optional[str], Field(default=None, description="Specify the source IP to be added to the rule.")], source_netmask: Annotated[Optional[str], Field(default=None, description="Specify the source netmask to be added to the rule.")], destination_ip: Annotated[Optional[str], Field(default=None, description="Specify the destination IP to be added to the rule.")], destination_netmask: Annotated[Optional[str], Field(default=None, description="Specify the destination netmask to be added to the rule.")], port: Annotated[Optional[str], Field(default=None, description="Specify the port number to be added to the rule for example, 5005")], protocol: Annotated[Optional[str], Field(default=None, description="Specify the protocol name to be added to the rule for example, TCP")], close_connections: Annotated[Optional[bool], Field(default=None, description="Specify if the existing matching connections should be closed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Check Point Firewall: Remove SAM Rule',
+        annotations=ToolAnnotations(
+            title='Check Point Firewall: Remove SAM Rule',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def check_point_firewall_remove_sam_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], security_gateway: Annotated[str, Field(..., description="Specify the name of Security Gateway from where to remove SAM Rule")], action_for_the_matching_connections: Annotated[List[str], Field(..., description="Specify the action that should be executed for the matching connections.")], how_to_track_matching_connections: Annotated[List[str], Field(..., description="Specify how to track matching connections.")], source_ip: Annotated[Optional[str], Field(default=None, description="Specify the source IP to be added to the rule.")], source_netmask: Annotated[Optional[str], Field(default=None, description="Specify the source netmask to be added to the rule.")], destination_ip: Annotated[Optional[str], Field(default=None, description="Specify the destination IP to be added to the rule.")], destination_netmask: Annotated[Optional[str], Field(default=None, description="Specify the destination netmask to be added to the rule.")], port: Annotated[Optional[str], Field(default=None, description="Specify the port number to be added to the rule for example, 5005")], protocol: Annotated[Optional[str], Field(default=None, description="Specify the protocol name to be added to the rule for example, TCP")], close_connections: Annotated[Optional[bool], Field(default=None, description="Specify if the existing matching connections should be closed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove a SAM (suspicious activity monitoring) rule from Checkpoint Firewall. Note: you need to match the current rule in order to remove it. Please refer to the Checkpoint fw_sam command criteria section documentation for available ip, netmask, port and protocol combinations - https://sc1.checkpoint.com/documents/R81/WebAdminGuides/EN/CP_R81_CLI_ReferenceGuide/Topics-CLIG/MDSG/fw-sam.htm
 
         Returns:
@@ -665,8 +738,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CheckPointFirewall")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def check_point_firewall_show_logs(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], time_frame: Annotated[List[str], Field(..., description="Specify what time frame should be used for log retrieval.")], log_type: Annotated[List[str], Field(..., description="Specify what type of logs should be returned.")], query_filter: Annotated[Optional[str], Field(default=None, description="Specify the query filter that will be used to return logs.")], max_logs_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many logs to return. Maximum is 100. This is Checkpoint FireWall limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Check Point Firewall: Show Logs',
+        annotations=ToolAnnotations(
+            title='Check Point Firewall: Show Logs',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def check_point_firewall_show_logs(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], time_frame: Annotated[List[str], Field(..., description="Specify what time frame should be used for log retrieval.")], log_type: Annotated[List[str], Field(..., description="Specify what type of logs should be returned.")], query_filter: Annotated[Optional[str], Field(default=None, description="Specify the query filter that will be used to return logs.")], max_logs_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many logs to return. Maximum is 100. This is Checkpoint FireWall limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Retrieve logs from CheckPoint FireWall based on the filter.
 
         Returns:
@@ -745,8 +827,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CheckPointFirewall")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def check_point_firewall_remove_url_from_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ur_ls_group_name: Annotated[str, Field(..., description="Specify the name of the group from which you want to remove URL.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Check Point Firewall: Remove URL from Group',
+        annotations=ToolAnnotations(
+            title='Check Point Firewall: Remove URL from Group',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def check_point_firewall_remove_url_from_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ur_ls_group_name: Annotated[str, Field(..., description="Specify the name of the group from which you want to remove URL.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove URL from the Checkpoint FireWall Group
 
         Returns:
@@ -820,8 +911,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CheckPointFirewall")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def check_point_firewall_remove_ip_from_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], blacklist_group_name: Annotated[str, Field(..., description="Specify the name of the group from which you want to remove IP address.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Check Point Firewall: Remove IP from Group',
+        annotations=ToolAnnotations(
+            title='Check Point Firewall: Remove IP from Group',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def check_point_firewall_remove_ip_from_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], blacklist_group_name: Annotated[str, Field(..., description="Specify the name of the group from which you want to remove IP address.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove IP from the Checkpoint FireWall Group
 
         Returns:
@@ -895,8 +995,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CheckPointFirewall")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def check_point_firewall_list_layers_on_site(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_layers_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many layers to return in the response. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Check Point Firewall: List Layers on Site',
+        annotations=ToolAnnotations(
+            title='Check Point Firewall: List Layers on Site',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def check_point_firewall_list_layers_on_site(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_layers_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many layers to return in the response. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Retrieve all of the available Access Control and Threat Prevention layers
 
         Returns:

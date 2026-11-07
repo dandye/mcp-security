@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the GSuite integration.
 
-    @mcp.tool()
-    async def g_suite_create_ou(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], customer_id: Annotated[str, Field(..., description="The unique ID for the customer's G Suite account, 'my_customer' alias can also be used to represent your account's customerId.")], parent_ou_path: Annotated[str, Field(..., description="The full path to the organizational unit's parent OU.")], name: Annotated[Optional[str], Field(default=None, description="Display name of the new OU.")], description: Annotated[Optional[str], Field(default=None, description="Description of the new OU.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: Create OU',
+        annotations=ToolAnnotations(
+            title='G Suite: Create OU',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_create_ou(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], customer_id: Annotated[str, Field(..., description="The unique ID for the customer's G Suite account, 'my_customer' alias can also be used to represent your account's customerId.")], parent_ou_path: Annotated[str, Field(..., description="The full path to the organizational unit's parent OU.")], name: Annotated[Optional[str], Field(default=None, description="Display name of the new OU.")], description: Annotated[Optional[str], Field(default=None, description="Description of the new OU.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create a new organizational unit.
 
         Returns:
@@ -107,8 +117,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_revoke_user_session(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], user_email_addresses: Annotated[Optional[str], Field(default=None, description="A comma-separated list of users to sign out. The action runs the values from this parameter with User entities.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: Revoke User Session',
+        annotations=ToolAnnotations(
+            title='G Suite: Revoke User Session',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_revoke_user_session(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], user_email_addresses: Annotated[Optional[str], Field(default=None, description="A comma-separated list of users to sign out. The action runs the values from this parameter with User entities.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Use the Revoke User Sessions action to revoke the user web and device sessions and reset their sign-in cookies using Google Workspace. This action runs on the Google SecOps User entity.
 
         Returns:
@@ -183,8 +202,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_update_user(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], email_address: Annotated[str, Field(..., description="A comma-separated list of primary email addresses that will be used to identify users that need to be updated.")], change_password_at_next_login: Annotated[bool, Field(..., description="Whether to force the user to change his password on next login.")], given_name: Annotated[Optional[str], Field(default=None, description="The user's first name")], family_name: Annotated[Optional[str], Field(default=None, description="The user's last name")], password: Annotated[Optional[str], Field(default=None, description="The password of the user.")], phone: Annotated[Optional[str], Field(default=None, description="The phone number of the user.")], gender: Annotated[Optional[str], Field(default=None, description="The gender of the user. Valid values: female, male, other, unknown.")], department: Annotated[Optional[str], Field(default=None, description="The name of the department of the user.")], organization: Annotated[Optional[str], Field(default=None, description="The name of the organization of the user.")], user_status: Annotated[Optional[List[str]], Field(default=None, description="Specify if user status should be updated to blocked or unblocked. By default action is no changing the user status.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: Update User',
+        annotations=ToolAnnotations(
+            title='G Suite: Update User',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_update_user(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], email_address: Annotated[str, Field(..., description="A comma-separated list of primary email addresses that will be used to identify users that need to be updated.")], change_password_at_next_login: Annotated[bool, Field(..., description="Whether to force the user to change his password on next login.")], given_name: Annotated[Optional[str], Field(default=None, description="The user's first name")], family_name: Annotated[Optional[str], Field(default=None, description="The user's last name")], password: Annotated[Optional[str], Field(default=None, description="The password of the user.")], phone: Annotated[Optional[str], Field(default=None, description="The phone number of the user.")], gender: Annotated[Optional[str], Field(default=None, description="The gender of the user. Valid values: female, male, other, unknown.")], department: Annotated[Optional[str], Field(default=None, description="The name of the department of the user.")], organization: Annotated[Optional[str], Field(default=None, description="The name of the organization of the user.")], user_status: Annotated[Optional[List[str]], Field(default=None, description="Specify if user status should be updated to blocked or unblocked. By default action is no changing the user status.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update a Google Workspace Directory user. Note: action is not working on Google SecOps entities
 
         Returns:
@@ -275,8 +303,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_list_ou_of_account(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], customer_id: Annotated[str, Field(..., description="The unique ID for the customer's G Suite account, 'my_customer' alias can also be used to represent your account's customerId.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: List OU of Account',
+        annotations=ToolAnnotations(
+            title='G Suite: List OU of Account',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_list_ou_of_account(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], customer_id: Annotated[str, Field(..., description="The unique ID for the customer's G Suite account, 'my_customer' alias can also be used to represent your account's customerId.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List the organizational units of an account
 
         Returns:
@@ -350,8 +387,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_remove_members_from_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_email_address: Annotated[str, Field(..., description="Email of the group to remove the members from.")], user_email_addresses: Annotated[Optional[str], Field(default=None, description="A comma-separated list of users that you want to remove from the group. Note: values from this parameter will be executed alongside User Entities.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: Remove Members from Group',
+        annotations=ToolAnnotations(
+            title='G Suite: Remove Members from Group',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_remove_members_from_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_email_address: Annotated[str, Field(..., description="Email of the group to remove the members from.")], user_email_addresses: Annotated[Optional[str], Field(default=None, description="A comma-separated list of users that you want to remove from the group. Note: values from this parameter will be executed alongside User Entities.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove members from a group. Action runs on Google SecOps User entities.
 
         Returns:
@@ -427,8 +473,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_list_group_members(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_email_address: Annotated[str, Field(..., description="Email address of the group.")], include_derived_membership: Annotated[bool, Field(..., description="Whether to list indirect memberships.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: List Group Members',
+        annotations=ToolAnnotations(
+            title='G Suite: List Group Members',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_list_group_members(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_email_address: Annotated[str, Field(..., description="Email address of the group.")], include_derived_membership: Annotated[bool, Field(..., description="Whether to list indirect memberships.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List the members of a group
 
         Returns:
@@ -503,8 +558,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_delete_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_email_address: Annotated[str, Field(..., description="Email of the group to delete.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: Delete Group',
+        annotations=ToolAnnotations(
+            title='G Suite: Delete Group',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_delete_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_email_address: Annotated[str, Field(..., description="Email of the group to delete.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete a Google Workspace Directory Group.
 
         Returns:
@@ -578,8 +642,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_delete_ou(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], customer_id: Annotated[str, Field(..., description="The unique ID for the customer's G Suite account, 'my_customer' alias can also be used to represent your account's customerId.")], ou_path: Annotated[str, Field(..., description="The full path to the organizational unit. If organizational unit is located under root (/) path, provide just organizational unit name, without path.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: Delete OU',
+        annotations=ToolAnnotations(
+            title='G Suite: Delete OU',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_delete_ou(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], customer_id: Annotated[str, Field(..., description="The unique ID for the customer's G Suite account, 'my_customer' alias can also be used to represent your account's customerId.")], ou_path: Annotated[str, Field(..., description="The full path to the organizational unit. If organizational unit is located under root (/) path, provide just organizational unit name, without path.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete an organizational unit.
 
         Returns:
@@ -654,8 +727,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_create_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], email_address: Annotated[str, Field(..., description="Email address of the new group.")], name: Annotated[Optional[str], Field(default=None, description="Display name of the new group.")], description: Annotated[Optional[str], Field(default=None, description="Description of the new group.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: Create Group',
+        annotations=ToolAnnotations(
+            title='G Suite: Create Group',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_create_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], email_address: Annotated[str, Field(..., description="Email address of the new group.")], name: Annotated[Optional[str], Field(default=None, description="Display name of the new group.")], description: Annotated[Optional[str], Field(default=None, description="Description of the new group.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create a new group
 
         Returns:
@@ -733,8 +815,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: Ping',
+        annotations=ToolAnnotations(
+            title='G Suite: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to Google Workspace
 
         Returns:
@@ -807,8 +898,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_delete_user(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], email_address: Annotated[str, Field(..., description="The email address of the user to delete.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: Delete User',
+        annotations=ToolAnnotations(
+            title='G Suite: Delete User',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_delete_user(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], email_address: Annotated[str, Field(..., description="The email address of the user to delete.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete a user.
 
         Returns:
@@ -882,8 +982,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_add_members_to_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_email_address: Annotated[str, Field(..., description="Email of the group to add the members to.")], user_email_addresses: Annotated[Optional[str], Field(default=None, description="A comma-separated list of users that you want to remove from the group. Note: values from this parameter will be executed alongside User Entities.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: Add Members to Group',
+        annotations=ToolAnnotations(
+            title='G Suite: Add Members to Group',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_add_members_to_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_email_address: Annotated[str, Field(..., description="Email of the group to add the members to.")], user_email_addresses: Annotated[Optional[str], Field(default=None, description="A comma-separated list of users that you want to remove from the group. Note: values from this parameter will be executed alongside User Entities.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add members to a group. Action runs on Google SecOps User entities.
 
         Returns:
@@ -959,8 +1068,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: Enrich Entities',
+        annotations=ToolAnnotations(
+            title='G Suite: Enrich Entities',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enrich Google SecOps User entities with information from Google Workspace.
 
         Returns:
@@ -1033,8 +1151,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_update_ou(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], customer_id: Annotated[str, Field(..., description="The unique ID for the customer's G Suite account, 'my_customer' alias can also be used to represent your account's customerId.")], ou_path: Annotated[str, Field(..., description="The full path to the organizational unit. If organizational unit is located under root (/) path, provide just organizational unit name, without path.")], name: Annotated[Optional[str], Field(default=None, description="Display name of the OU.")], description: Annotated[Optional[str], Field(default=None, description="Description of the OU.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: Update OU',
+        annotations=ToolAnnotations(
+            title='G Suite: Update OU',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_update_ou(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], customer_id: Annotated[str, Field(..., description="The unique ID for the customer's G Suite account, 'my_customer' alias can also be used to represent your account's customerId.")], ou_path: Annotated[str, Field(..., description="The full path to the organizational unit. If organizational unit is located under root (/) path, provide just organizational unit name, without path.")], name: Annotated[Optional[str], Field(default=None, description="Display name of the OU.")], description: Annotated[Optional[str], Field(default=None, description="Description of the OU.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update an organizational unit.
 
         Returns:
@@ -1113,8 +1240,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_list_user_privileges(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_roles_to_return: Annotated[str, Field(..., description="Specify how many roles related to the user to return.")], max_privileges_to_return: Annotated[str, Field(..., description="Specify how many privileges related to the user to return.")], user_email_addresses: Annotated[Optional[str], Field(default=None, description="A comma-separated list of users that you want to remove from the group. Note: values from this parameter will be executed alongside User Entities.")], check_roles: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of roles that you want to check in relation to the user.")], check_privileges: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of permission that you want to check in relation to the user. Note: \"Expand Privileges\" needs to be enabled for this parameter to work. If there are values inside the \"Check Roles\" parameter, action will check the privileges only among those roles.")], include_inherited_roles: Annotated[Optional[bool], Field(default=None, description="If enabled, action will additionally return user roles that were inherited from groups.")], expand_privileges: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return information about all of the unique privileges related to the user.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: List User Privileges',
+        annotations=ToolAnnotations(
+            title='G Suite: List User Privileges',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_list_user_privileges(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_roles_to_return: Annotated[str, Field(..., description="Specify how many roles related to the user to return.")], max_privileges_to_return: Annotated[str, Field(..., description="Specify how many privileges related to the user to return.")], user_email_addresses: Annotated[Optional[str], Field(default=None, description="A comma-separated list of users that you want to remove from the group. Note: values from this parameter will be executed alongside User Entities.")], check_roles: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of roles that you want to check in relation to the user.")], check_privileges: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of permission that you want to check in relation to the user. Note: \"Expand Privileges\" needs to be enabled for this parameter to work. If there are values inside the \"Check Roles\" parameter, action will check the privileges only among those roles.")], include_inherited_roles: Annotated[Optional[bool], Field(default=None, description="If enabled, action will additionally return user roles that were inherited from groups.")], expand_privileges: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return information about all of the unique privileges related to the user.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List roles and privileges related to the user using Google Workspace. Supported entities: User.
 
         Returns:
@@ -1199,8 +1335,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_create_user(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], given_name: Annotated[str, Field(..., description="The user's first name")], family_name: Annotated[str, Field(..., description="The user's last name")], password: Annotated[str, Field(..., description="The password of the new user.")], email_address: Annotated[str, Field(..., description="The user's primary email address")], change_password_at_next_login: Annotated[bool, Field(..., description="Whether to force the user to change his password on next login.")], phone: Annotated[Optional[str], Field(default=None, description="The phone number of the user.")], gender: Annotated[Optional[str], Field(default=None, description="The gender of the user. Valid values: female, male, other, unknown.")], department: Annotated[Optional[str], Field(default=None, description="The name of the department of the user.")], organization: Annotated[Optional[str], Field(default=None, description="The name of the organization of the user.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: Create User',
+        annotations=ToolAnnotations(
+            title='G Suite: Create User',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_create_user(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], given_name: Annotated[str, Field(..., description="The user's first name")], family_name: Annotated[str, Field(..., description="The user's last name")], password: Annotated[str, Field(..., description="The password of the new user.")], email_address: Annotated[str, Field(..., description="The user's primary email address")], change_password_at_next_login: Annotated[bool, Field(..., description="Whether to force the user to change his password on next login.")], phone: Annotated[Optional[str], Field(default=None, description="The phone number of the user.")], gender: Annotated[Optional[str], Field(default=None, description="The gender of the user. Valid values: female, male, other, unknown.")], department: Annotated[Optional[str], Field(default=None, description="The name of the department of the user.")], organization: Annotated[Optional[str], Field(default=None, description="The name of the organization of the user.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create a new user.
 
         Returns:
@@ -1286,8 +1431,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_get_group_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_email_addresses: Annotated[str, Field(..., description="A comma-separated list of group emails that you want to examine.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: Get Group Details',
+        annotations=ToolAnnotations(
+            title='G Suite: Get Group Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_get_group_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_email_addresses: Annotated[str, Field(..., description="A comma-separated list of group emails that you want to examine.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Retrieve information about a group using Google Workspace.
 
         Returns:
@@ -1361,8 +1515,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_list_group_privileges(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_email_addresses: Annotated[str, Field(..., description="A comma-separated list of groups that you want to examine")], max_roles_to_return: Annotated[str, Field(..., description="Specify how many roles related to the group to return.")], max_privileges_to_return: Annotated[str, Field(..., description="Specify how many privileges related to the group to return.")], check_roles: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of roles that you want to check in relation to the group.")], check_privileges: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of permission that you want to check in relation to the group. Note: \"Expand Privileges\" needs to be enabled for this parameter to work. If there are values inside the \"Check Roles\" parameter, action will check the privileges only among those roles.")], expand_privileges: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return information about all of the unique privileges related to the group.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: List Group Privileges',
+        annotations=ToolAnnotations(
+            title='G Suite: List Group Privileges',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_list_group_privileges(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_email_addresses: Annotated[str, Field(..., description="A comma-separated list of groups that you want to examine")], max_roles_to_return: Annotated[str, Field(..., description="Specify how many roles related to the group to return.")], max_privileges_to_return: Annotated[str, Field(..., description="Specify how many privileges related to the group to return.")], check_roles: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of roles that you want to check in relation to the group.")], check_privileges: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of permission that you want to check in relation to the group. Note: \"Expand Privileges\" needs to be enabled for this parameter to work. If there are values inside the \"Check Roles\" parameter, action will check the privileges only among those roles.")], expand_privileges: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return information about all of the unique privileges related to the group.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List roles and privileges related to the group using Google Workspace.
 
         Returns:
@@ -1444,8 +1607,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for GSuite")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def g_suite_list_users(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], customer_id: Annotated[Optional[str], Field(default=None, description="The unique ID for the customer's G Suite account, 'my_customer' alias can also be used to represent your account's customerId.")], domain: Annotated[Optional[str], Field(default=None, description="Specify a domain to search for users in.")], manager_email: Annotated[Optional[str], Field(default=None, description="The email address of a user's direct manager")], return_only_admin_accounts: Annotated[Optional[bool], Field(default=None, description="Specify whether to return only admin accounts.")], return_only_delegated_admin_accounts: Annotated[Optional[bool], Field(default=None, description="Specify whether to return only delegated admin accounts.")], return_only_suspended_users: Annotated[Optional[bool], Field(default=None, description="Specify whether to return only suspended accounts.")], org_unit_path: Annotated[Optional[str], Field(default=None, description="The full path of an org unit to retrieve users from. This matches all org unit chains under the target.")], department: Annotated[Optional[str], Field(default=None, description="The department within the organization to retrieve users from.")], record_limit: Annotated[Optional[str], Field(default=None, description="Specify how many records can be returned by the action.")], custom_query_parameter: Annotated[Optional[str], Field(default=None, description="Optional. Specify custom query parameter you want to add to the list users search call. For example, orgName='Human Resources' For reference on which fields can be used see https://developers.google.com/admin-sdk/directory/v1/guides/search-users#fields. Note: when providing the 'Custom Query Parameter', make sure that you are not providing 'email' field alongside 'Email Addresses' parameter as the generated query will not work.")], return_only_users_without_2fa: Annotated[Optional[bool], Field(default=None, description="If enabled, action will only return users that don't have 2fa enabled.")], email_addresses: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of email addresses that need to be searched for. Note: if 'Email Addresses' parameter is used, then 'Record Limit' parameter is ignored.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='G Suite: List Users',
+        annotations=ToolAnnotations(
+            title='G Suite: List Users',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def g_suite_list_users(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], customer_id: Annotated[Optional[str], Field(default=None, description="The unique ID for the customer's G Suite account, 'my_customer' alias can also be used to represent your account's customerId.")], domain: Annotated[Optional[str], Field(default=None, description="Specify a domain to search for users in.")], manager_email: Annotated[Optional[str], Field(default=None, description="The email address of a user's direct manager")], return_only_admin_accounts: Annotated[Optional[bool], Field(default=None, description="Specify whether to return only admin accounts.")], return_only_delegated_admin_accounts: Annotated[Optional[bool], Field(default=None, description="Specify whether to return only delegated admin accounts.")], return_only_suspended_users: Annotated[Optional[bool], Field(default=None, description="Specify whether to return only suspended accounts.")], org_unit_path: Annotated[Optional[str], Field(default=None, description="The full path of an org unit to retrieve users from. This matches all org unit chains under the target.")], department: Annotated[Optional[str], Field(default=None, description="The department within the organization to retrieve users from.")], record_limit: Annotated[Optional[str], Field(default=None, description="Specify how many records can be returned by the action.")], custom_query_parameter: Annotated[Optional[str], Field(default=None, description="Optional. Specify custom query parameter you want to add to the list users search call. For example, orgName='Human Resources' For reference on which fields can be used see https://developers.google.com/admin-sdk/directory/v1/guides/search-users#fields. Note: when providing the 'Custom Query Parameter', make sure that you are not providing 'email' field alongside 'Email Addresses' parameter as the generated query will not work.")], return_only_users_without_2fa: Annotated[Optional[bool], Field(default=None, description="If enabled, action will only return users that don't have 2fa enabled.")], email_addresses: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of email addresses that need to be searched for. Note: if 'Email Addresses' parameter is used, then 'Record Limit' parameter is ignored.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List users present in account.
 
         Returns:

@@ -20,6 +20,7 @@ progress and errors through the secops-mcp logger and leave stdout alone.
 import logging
 from unittest.mock import MagicMock, patch
 
+from mcp.types import CallToolResult
 import pytest
 
 from secops_mcp.tools.investigation_management import (
@@ -83,7 +84,11 @@ async def test_list_investigations_logs_failure(
     with caplog.at_level(logging.INFO, logger=LOGGER_NAME):
         result = await list_investigations()
 
-    assert result == {"error": "Error listing investigations: boom"}
+    assert isinstance(result, CallToolResult)
+    assert result.is_error is True
+    assert result.structured_content == {
+        "error": "Error listing investigations: boom"
+    }
     assert capsys.readouterr().out == ""
     assert logs(caplog) == [
         ("INFO", "Listing investigations (page_size=50)..."),
@@ -120,7 +125,11 @@ async def test_get_investigation_logs_failure(
     with caplog.at_level(logging.INFO, logger=LOGGER_NAME):
         result = await get_investigation(investigation_id="inv-1")
 
-    assert result == {"error": "Error retrieving investigation inv-1: nope"}
+    assert isinstance(result, CallToolResult)
+    assert result.is_error is True
+    assert result.structured_content == {
+        "error": "Error retrieving investigation inv-1: nope"
+    }
     assert capsys.readouterr().out == ""
     assert logs(caplog) == [
         ("INFO", "Retrieving investigation: inv-1..."),
@@ -161,7 +170,9 @@ async def test_trigger_investigation_logs_failure(
     with caplog.at_level(logging.INFO, logger=LOGGER_NAME):
         result = await trigger_investigation(alert_id="alert-1")
 
-    assert result == {
+    assert isinstance(result, CallToolResult)
+    assert result.is_error is True
+    assert result.structured_content == {
         "error": "Error triggering investigation for alert alert-1: down"
     }
     assert capsys.readouterr().out == ""
@@ -218,7 +229,9 @@ async def test_fetch_associated_investigations_logs_failure(
             detection_type="CASE", case_ids=["case-1"]
         )
 
-    assert result == {
+    assert isinstance(result, CallToolResult)
+    assert result.is_error is True
+    assert result.structured_content == {
         "error": "Error fetching associated investigations: denied"
     }
     assert capsys.readouterr().out == ""

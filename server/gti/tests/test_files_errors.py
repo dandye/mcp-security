@@ -37,13 +37,16 @@ async def test_get_file_behavior_summary_api_error_handled():
 
     with mock.patch("gti_mcp.tools.files.vt_client", return_value=mock_vt_client):
         result = await files.get_file_behavior_summary(hash="non_existent_hash", ctx=mock_ctx)
-        assert "error" in result
-        assert "VirusTotal API Error" in result["error"]
-        assert "File not found" in result["error"]
+        assert isinstance(result, mcp.types.CallToolResult)
+        assert result.is_error is True
+        assert isinstance(result.structured_content, dict)
+        assert "error" in result.structured_content
+        assert "VirusTotal API Error" in result.structured_content["error"]
+        assert "File not found" in result.structured_content["error"]
 
 @pytest.mark.asyncio
 async def test_get_file_behavior_summary_unexpected_format_handled():
-    """Test get_file_behavior_summary returns error dict on unexpected response format."""
+    """Test get_file_behavior_summary returns CallToolResult(is_error=True) on unexpected response format."""
     mock_ctx = mock.MagicMock(spec=Context)
 
     mock_response = mock.MagicMock()
@@ -60,18 +63,16 @@ async def test_get_file_behavior_summary_unexpected_format_handled():
 
     with mock.patch("gti_mcp.tools.files.vt_client", return_value=mock_vt_client):
         result = await files.get_file_behavior_summary(hash="some_hash", ctx=mock_ctx)
-        assert "error" in result
-        assert "Unexpected response format" in result["error"]
+        assert isinstance(result, mcp.types.CallToolResult)
+        assert result.is_error is True
+        assert isinstance(result.structured_content, dict)
+        assert "error" in result.structured_content
+        assert "Unexpected response format" in result.structured_content["error"]
 
 
 @pytest.mark.asyncio
 async def test_get_entities_related_to_a_file_invalid_relationship_returns_error_dict():
-    """Invalid relationship_name returns an error dict via MCPServer call_tool.
-
-    Invoking through server.call_tool exercises MCPServer output_schema /
-    structured-output validation, so a regression that drops the Union return
-    annotation fails this test (ToolError / pydantic list_type).
-    """
+    """Invalid relationship_name returns CallToolResult(is_error=True) via MCPServer call_tool."""
     from gti_mcp.server import server
 
     result = await server.call_tool(
@@ -83,7 +84,7 @@ async def test_get_entities_related_to_a_file_invalid_relationship_returns_error
         },
     )
     assert isinstance(result, mcp.types.CallToolResult)
-    assert result.is_error is False
+    assert result.is_error is True
     structured = result.structured_content
     assert isinstance(structured, dict)
     payload = structured.get("result", structured)

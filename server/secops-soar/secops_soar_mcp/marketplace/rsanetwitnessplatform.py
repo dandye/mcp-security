@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the RSANetWitnessPlatform integration.
 
-    @mcp.tool()
-    async def rsa_net_witness_platform_update_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="Specify ID of the incident that needs to be updated.")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify new status for the incident.")], assignee: Annotated[Optional[str], Field(default=None, description="Specify new assignee for the incident.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Net Witness Platform: Update Incident',
+        annotations=ToolAnnotations(
+            title='RSA Net Witness Platform: Update Incident',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_net_witness_platform_update_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="Specify ID of the incident that needs to be updated.")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify new status for the incident.")], assignee: Annotated[Optional[str], Field(default=None, description="Specify new assignee for the incident.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update Incident in RSA Netwitness. Requires RSA Netwitness Respond license, configured Web Username and Web Password in the integration configuration.
 
         Returns:
@@ -106,8 +116,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for RSANetWitnessPlatform")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rsa_net_witness_platform_query_net_witness_for_events_around_ip(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_hours_backwards: Annotated[Optional[str], Field(default=None, description="Specify how many hours backwards to fetch events. Default is 1 hour.")], max_events_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many events to return. If nothing is specified, action will return 50 events.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Net Witness Platform: Query NetWitness for Events Around IP',
+        annotations=ToolAnnotations(
+            title='RSA Net Witness Platform: Query NetWitness for Events Around IP',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_net_witness_platform_query_net_witness_for_events_around_ip(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_hours_backwards: Annotated[Optional[str], Field(default=None, description="Specify how many hours backwards to fetch events. Default is 1 hour.")], max_events_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many events to return. If nothing is specified, action will return 50 events.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Run a query on RSA NetWitness to retreive all events for a specific query (conditions) for a given IP address in the alert
 
         Returns:
@@ -184,8 +203,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for RSANetWitnessPlatform")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rsa_net_witness_platform_query_net_witness_for_events_around_host(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_hours_backwards: Annotated[Optional[str], Field(default=None, description="Specify how many hours backwards to fetch events. Default is 1 hour.")], max_events_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many events to return. If nothing is specified, action will return 50 events.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Net Witness Platform: Query NetWitness for Events Around Host',
+        annotations=ToolAnnotations(
+            title='RSA Net Witness Platform: Query NetWitness for Events Around Host',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_net_witness_platform_query_net_witness_for_events_around_host(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_hours_backwards: Annotated[Optional[str], Field(default=None, description="Specify how many hours backwards to fetch events. Default is 1 hour.")], max_events_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many events to return. If nothing is specified, action will return 50 events.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Retrieve the latest events related to the hostnames in RSA Netwitness. Requires configuration of Broker API or Concentrator API
 
         Returns:
@@ -262,8 +290,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for RSANetWitnessPlatform")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rsa_net_witness_platform_run_general_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[str, Field(..., description="Custom query string.")], max_hours_backwards: Annotated[Optional[str], Field(default=None, description="Specify how many hours backwards to fetch events. Default is 1 hour.")], max_events_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many events to return. If nothing is specified, action will return 50 events.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Net Witness Platform: Run General Query',
+        annotations=ToolAnnotations(
+            title='RSA Net Witness Platform: Run General Query',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_net_witness_platform_run_general_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[str, Field(..., description="Custom query string.")], max_hours_backwards: Annotated[Optional[str], Field(default=None, description="Specify how many hours backwards to fetch events. Default is 1 hour.")], max_events_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many events to return. If nothing is specified, action will return 50 events.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Run free query and receive event and a PCAP file.
 
         Returns:
@@ -341,8 +378,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for RSANetWitnessPlatform")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rsa_net_witness_platform_enrich_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], risk_score_threshold: Annotated[Optional[str], Field(default=None, description="Specify risk threshold for the endpoint. If the endpoint exceeds the threshold, the related entity will be marked as suspicious. If nothing is specified, action won\u2019t check the risk score.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Net Witness Platform: Enrich Endpoint',
+        annotations=ToolAnnotations(
+            title='RSA Net Witness Platform: Enrich Endpoint',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_net_witness_platform_enrich_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], risk_score_threshold: Annotated[Optional[str], Field(default=None, description="Specify risk threshold for the endpoint. If the endpoint exceeds the threshold, the related entity will be marked as suspicious. If nothing is specified, action won\u2019t check the risk score.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Fetch endpoint's system information by its hostname or IP address. Requires RSA Netwitness Respond license, endpoint server service running in the background, configured Web Username and Web Password in the integration configuration.
 
         Returns:
@@ -417,8 +463,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for RSANetWitnessPlatform")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rsa_net_witness_platform_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Net Witness Platform: Ping',
+        annotations=ToolAnnotations(
+            title='RSA Net Witness Platform: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_net_witness_platform_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test Connectivity
 
         Returns:
@@ -491,8 +546,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for RSANetWitnessPlatform")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rsa_net_witness_platform_add_note_to_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="Specify ID of the incident that needs to be updated.")], note: Annotated[str, Field(..., description="Specify which note should be added to.")], author: Annotated[str, Field(..., description="Specify the author of the note.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Net Witness Platform: Add Note to Incident',
+        annotations=ToolAnnotations(
+            title='RSA Net Witness Platform: Add Note to Incident',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_net_witness_platform_add_note_to_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_id: Annotated[str, Field(..., description="Specify ID of the incident that needs to be updated.")], note: Annotated[str, Field(..., description="Specify which note should be added to.")], author: Annotated[str, Field(..., description="Specify the author of the note.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add Note to Incident in RSA Netwitness. Requires RSA Netwitness Respond license, configured Web Username and Web Password in the integration configuration.
 
         Returns:
@@ -568,8 +632,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for RSANetWitnessPlatform")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rsa_net_witness_platform_query_net_witness_for_events_around_user(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_hours_backwards: Annotated[Optional[str], Field(default=None, description="Specify how many hours backwards to fetch events. Default is 1 hour.")], max_events_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many events to return. If nothing is specified, action will return 50 events.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Net Witness Platform: Query NetWitness for Events Around User',
+        annotations=ToolAnnotations(
+            title='RSA Net Witness Platform: Query NetWitness for Events Around User',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_net_witness_platform_query_net_witness_for_events_around_user(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_hours_backwards: Annotated[Optional[str], Field(default=None, description="Specify how many hours backwards to fetch events. Default is 1 hour.")], max_events_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many events to return. If nothing is specified, action will return 50 events.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Run a query on RSA NetWitness to retreive all events for a specific query (conditions) for a given username in the alert
 
         Returns:
@@ -646,8 +719,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for RSANetWitnessPlatform")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rsa_net_witness_platform_isolate_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], comment: Annotated[str, Field(..., description="Add comment, which describes the reason behind the isolation request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Net Witness Platform: Isolate Endpoint',
+        annotations=ToolAnnotations(
+            title='RSA Net Witness Platform: Isolate Endpoint',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_net_witness_platform_isolate_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], comment: Annotated[str, Field(..., description="Add comment, which describes the reason behind the isolation request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Request endpoint isolation in RSA Netwitness. Requires RSA Netwitness Respond license, endpoint server service running in the background, configured Web Username and Web Password in the integration configuration.
 
         Returns:
@@ -721,8 +803,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for RSANetWitnessPlatform")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rsa_net_witness_platform_enrich_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], risk_score_threshold: Annotated[Optional[str], Field(default=None, description="Specify risk threshold for the file. If the file exceeds the threshold, the related entity will be marked as suspicious. If nothing is specified, action won\u2019t check the risk score.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Net Witness Platform: Enrich File',
+        annotations=ToolAnnotations(
+            title='RSA Net Witness Platform: Enrich File',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_net_witness_platform_enrich_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], risk_score_threshold: Annotated[Optional[str], Field(default=None, description="Specify risk threshold for the file. If the file exceeds the threshold, the related entity will be marked as suspicious. If nothing is specified, action won\u2019t check the risk score.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Fetch information about the file using hashes or file names. Only MD5 and SHA256 are supported. Requires RSA Netwitness Respond license, endpoint server service running in the background, configured Web Username and Web Password in the integration configuration.
 
         Returns:
@@ -797,8 +888,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for RSANetWitnessPlatform")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def rsa_net_witness_platform_unisolate_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], comment: Annotated[str, Field(..., description="Add comment, which describes the reason behind the unisolation request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Net Witness Platform: Unisolate Endpoint',
+        annotations=ToolAnnotations(
+            title='RSA Net Witness Platform: Unisolate Endpoint',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_net_witness_platform_unisolate_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], comment: Annotated[str, Field(..., description="Add comment, which describes the reason behind the unisolation request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Request endpoint unisolation in RSA Netwitness. Requires RSA Netwitness Respond license, endpoint server service running in the background, configured Web Username and Web Password in the integration configuration.
 
         Returns:

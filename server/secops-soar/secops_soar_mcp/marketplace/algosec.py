@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the AlgoSec integration.
 
-    @mcp.tool()
-    async def algo_sec_list_templates(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among record types and if \"Contains\" is selected, action will try to find items that contain that substring. If nothing is provided in this parameter, the filter will not be applied.")], max_templates_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many templates to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Algo Sec: List Templates',
+        annotations=ToolAnnotations(
+            title='Algo Sec: List Templates',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def algo_sec_list_templates(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among record types and if \"Contains\" is selected, action will try to find items that contain that substring. If nothing is provided in this parameter, the filter will not be applied.")], max_templates_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many templates to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List available templates in AlgoSec.
 
         Returns:
@@ -107,8 +117,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AlgoSec")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def algo_sec_wait_for_change_request_status_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="Specify the id of the request for which action needs to check the status.")], status: Annotated[str, Field(..., description="Specify a comma-separated list of change request statuses for which action should wait. Possible values: resolved, reconcile, open, check, implementation plan, implement, validate.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Algo Sec: Wait for Change Request Status Update',
+        annotations=ToolAnnotations(
+            title='Algo Sec: Wait for Change Request Status Update',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def algo_sec_wait_for_change_request_status_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="Specify the id of the request for which action needs to check the status.")], status: Annotated[str, Field(..., description="Specify a comma-separated list of change request statuses for which action should wait. Possible values: resolved, reconcile, open, check, implementation plan, implement, validate.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Wait for change request status update in AlgoSec. Note: Action is running as async, please adjust script timeout value in Siemplify IDE for action as needed. Only traffic change requests are supported.
 
         Returns:
@@ -183,8 +202,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AlgoSec")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def algo_sec_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Algo Sec: Ping',
+        annotations=ToolAnnotations(
+            title='Algo Sec: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def algo_sec_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the AlgoSec with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -257,8 +285,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AlgoSec")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def algo_sec_allow_ip(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], template: Annotated[str, Field(..., description="Specify the template for the change request.")], source: Annotated[str, Field(..., description="Specify a comma-separated list of sources for the allow rule. It can be an IP address, IP Set or special keyword like (all).")], service: Annotated[str, Field(..., description="Specify a comma-separated list of services that needs to be allowed. Values can have a look of {TCP/UDP}/{port} (tcp/80) or special reserved keyword (all).")], subject: Annotated[Optional[str], Field(default=None, description="Specify the subject for the change request. If nothing is provided action will put \"Siemplify Allow IP request\" in the subject.")], owner: Annotated[Optional[str], Field(default=None, description="Specify who should be the owner of the change request. If nothing is provided, the user that created the ticket will be the owner.")], due_date: Annotated[Optional[str], Field(default=None, description="Specify the due date for the change request. Format: ISO 8601. Example: 2021-08-13T08:16:10Z.")], expiration_date: Annotated[Optional[str], Field(default=None, description="Specify the expiration date for the change request. Format: ISO 8601. Example: 2021-08-13T08:16:10Z.")], custom_fields: Annotated[Optional[str], Field(default=None, description="Specify a JSON object containing information about all of the fields that need to be added to the change request. Note: this parameter has a priority over other fields")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Algo Sec: Allow IP',
+        annotations=ToolAnnotations(
+            title='Algo Sec: Allow IP',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def algo_sec_allow_ip(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], template: Annotated[str, Field(..., description="Specify the template for the change request.")], source: Annotated[str, Field(..., description="Specify a comma-separated list of sources for the allow rule. It can be an IP address, IP Set or special keyword like (all).")], service: Annotated[str, Field(..., description="Specify a comma-separated list of services that needs to be allowed. Values can have a look of {TCP/UDP}/{port} (tcp/80) or special reserved keyword (all).")], subject: Annotated[Optional[str], Field(default=None, description="Specify the subject for the change request. If nothing is provided action will put \"Siemplify Allow IP request\" in the subject.")], owner: Annotated[Optional[str], Field(default=None, description="Specify who should be the owner of the change request. If nothing is provided, the user that created the ticket will be the owner.")], due_date: Annotated[Optional[str], Field(default=None, description="Specify the due date for the change request. Format: ISO 8601. Example: 2021-08-13T08:16:10Z.")], expiration_date: Annotated[Optional[str], Field(default=None, description="Specify the expiration date for the change request. Format: ISO 8601. Example: 2021-08-13T08:16:10Z.")], custom_fields: Annotated[Optional[str], Field(default=None, description="Specify a JSON object containing information about all of the fields that need to be added to the change request. Note: this parameter has a priority over other fields")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Allow IPs in AlgoSec. Supported entities: IP address. Note: IP address entities are treated as destinations in the change request. This action creates a traffic change request to allow traffic to IP entities.
 
         Returns:
@@ -344,8 +381,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AlgoSec")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def algo_sec_block_ip(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], template: Annotated[str, Field(..., description="Specify the template for the change request.")], source: Annotated[str, Field(..., description="Specify a comma-separated list of sources for the block rule. It can be an IP address, IP Set or special keyword like (all).")], service: Annotated[str, Field(..., description="Specify a comma-separated list of services that needs to be blocked. Values can have a look of {TCP/UDP}/{port} (tcp/80) or special reserved keyword (all).")], subject: Annotated[Optional[str], Field(default=None, description="Specify the subject for the change request. If nothing is provided action will put \u201cSiemplify Block IP request\u201d in the subject.")], owner: Annotated[Optional[str], Field(default=None, description="Specify who should be the owner of the change request. If nothing is provided, the user that created the ticket will be the owner.")], due_date: Annotated[Optional[str], Field(default=None, description="Specify the due date for the change request. Format: ISO 8601. Example: 2021-08-13T08:16:10Z.")], expiration_date: Annotated[Optional[str], Field(default=None, description="Specify the expiration date for the change request. Format: ISO 8601. Example: 2021-08-13T08:16:10Z.")], custom_fields: Annotated[Optional[str], Field(default=None, description="Specify a JSON object containing information about all of the fields that need to be added to the change request. Note: this parameter has a priority over other fields")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Algo Sec: Block IP',
+        annotations=ToolAnnotations(
+            title='Algo Sec: Block IP',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def algo_sec_block_ip(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], template: Annotated[str, Field(..., description="Specify the template for the change request.")], source: Annotated[str, Field(..., description="Specify a comma-separated list of sources for the block rule. It can be an IP address, IP Set or special keyword like (all).")], service: Annotated[str, Field(..., description="Specify a comma-separated list of services that needs to be blocked. Values can have a look of {TCP/UDP}/{port} (tcp/80) or special reserved keyword (all).")], subject: Annotated[Optional[str], Field(default=None, description="Specify the subject for the change request. If nothing is provided action will put \u201cSiemplify Block IP request\u201d in the subject.")], owner: Annotated[Optional[str], Field(default=None, description="Specify who should be the owner of the change request. If nothing is provided, the user that created the ticket will be the owner.")], due_date: Annotated[Optional[str], Field(default=None, description="Specify the due date for the change request. Format: ISO 8601. Example: 2021-08-13T08:16:10Z.")], expiration_date: Annotated[Optional[str], Field(default=None, description="Specify the expiration date for the change request. Format: ISO 8601. Example: 2021-08-13T08:16:10Z.")], custom_fields: Annotated[Optional[str], Field(default=None, description="Specify a JSON object containing information about all of the fields that need to be added to the change request. Note: this parameter has a priority over other fields")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Block IPs in AlgoSec. Supported entities: IP address. Note: IP address entities are treated as destinations in the change request. This action creates a traffic change request to block traffic to IP entities.
 
         Returns:

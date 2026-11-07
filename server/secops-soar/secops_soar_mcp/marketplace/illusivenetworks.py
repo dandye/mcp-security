@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the IllusiveNetworks integration.
 
-    @mcp.tool()
-    async def illusive_networks_remove_deceptive_server(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], server_name: Annotated[str, Field(..., description="Specify the name of the deceptive server that needs to be removed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Illusive Networks: Remove Deceptive Server',
+        annotations=ToolAnnotations(
+            title='Illusive Networks: Remove Deceptive Server',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def illusive_networks_remove_deceptive_server(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], server_name: Annotated[str, Field(..., description="Specify the name of the deceptive server that needs to be removed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove deceptive server from Illusive Networks.
 
         Returns:
@@ -102,8 +112,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for IllusiveNetworks")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def illusive_networks_remove_deceptive_user(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], username: Annotated[str, Field(..., description="Specify the username of the deceptive user that needs to be removed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Illusive Networks: Remove Deceptive User',
+        annotations=ToolAnnotations(
+            title='Illusive Networks: Remove Deceptive User',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def illusive_networks_remove_deceptive_user(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], username: Annotated[str, Field(..., description="Specify the username of the deceptive user that needs to be removed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove deceptive user from Illusive Networks.
 
         Returns:
@@ -177,8 +196,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for IllusiveNetworks")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def illusive_networks_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Illusive Networks: Ping',
+        annotations=ToolAnnotations(
+            title='Illusive Networks: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def illusive_networks_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Illusive Networks with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -251,8 +279,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for IllusiveNetworks")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def illusive_networks_list_deceptive_items(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], deceptive_type: Annotated[List[str], Field(..., description="Specify what kind of deceptive items should be returned.")], deceptive_state: Annotated[List[str], Field(..., description="Specify what kind of deceptive items should be returned based on state.")], max_items_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many items to return. Default: 50. If nothing is specified, action will return all items.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Illusive Networks: List Deceptive Items',
+        annotations=ToolAnnotations(
+            title='Illusive Networks: List Deceptive Items',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def illusive_networks_list_deceptive_items(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], deceptive_type: Annotated[List[str], Field(..., description="Specify what kind of deceptive items should be returned.")], deceptive_state: Annotated[List[str], Field(..., description="Specify what kind of deceptive items should be returned based on state.")], max_items_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many items to return. Default: 50. If nothing is specified, action will return all items.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List available deceptive items in Illusive Networks.
 
         Returns:
@@ -329,8 +366,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for IllusiveNetworks")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def illusive_networks_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Illusive Networks: Enrich Entities',
+        annotations=ToolAnnotations(
+            title='Illusive Networks: Enrich Entities',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def illusive_networks_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enrich entities using information from Illusive Networks. Supported entities: Hostname.
 
         Returns:
@@ -403,8 +449,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for IllusiveNetworks")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def illusive_networks_add_deceptive_user(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], username: Annotated[str, Field(..., description="Specify the username for the new deceptive user.")], password: Annotated[str, Field(..., description="Specify the password for the new deceptive user.")], dns_domain: Annotated[Optional[str], Field(default=None, description="Specify the domain name for the new deceptive user.")], policy_names: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of policies that need to be applied to the new deceptive user. If nothing is provided action will use by default all policies.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Illusive Networks: Add Deceptive User',
+        annotations=ToolAnnotations(
+            title='Illusive Networks: Add Deceptive User',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def illusive_networks_add_deceptive_user(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], username: Annotated[str, Field(..., description="Specify the username for the new deceptive user.")], password: Annotated[str, Field(..., description="Specify the password for the new deceptive user.")], dns_domain: Annotated[Optional[str], Field(default=None, description="Specify the domain name for the new deceptive user.")], policy_names: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of policies that need to be applied to the new deceptive user. If nothing is provided action will use by default all policies.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add deceptive users in Illusive Networks.
 
         Returns:
@@ -483,8 +538,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for IllusiveNetworks")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def illusive_networks_run_forensic_scan(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], include_system_information: Annotated[bool, Field(..., description="If enabled, action will return system information.")], include_prefetch_files_information: Annotated[bool, Field(..., description="If enabled, action will return information about prefetch files.")], include_add_remove_programs_information: Annotated[bool, Field(..., description="If enabled, action will return information about add-remove programs.")], include_startup_processes_information: Annotated[bool, Field(..., description="If enabled, action will return information about startup processes.")], include_user_assist_programs_information: Annotated[bool, Field(..., description="If enabled, action will return information about user-assist programs.")], include_powershell_history_information: Annotated[bool, Field(..., description="If enabled, action will return information about powershell history.")], include_running_processes_information: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return information about running processes.")], max_items_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many items to return. If nothing is provided, action will return everything.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Illusive Networks: Run Forensic Scan',
+        annotations=ToolAnnotations(
+            title='Illusive Networks: Run Forensic Scan',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def illusive_networks_run_forensic_scan(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], include_system_information: Annotated[bool, Field(..., description="If enabled, action will return system information.")], include_prefetch_files_information: Annotated[bool, Field(..., description="If enabled, action will return information about prefetch files.")], include_add_remove_programs_information: Annotated[bool, Field(..., description="If enabled, action will return information about add-remove programs.")], include_startup_processes_information: Annotated[bool, Field(..., description="If enabled, action will return information about startup processes.")], include_user_assist_programs_information: Annotated[bool, Field(..., description="If enabled, action will return information about user-assist programs.")], include_powershell_history_information: Annotated[bool, Field(..., description="If enabled, action will return information about powershell history.")], include_running_processes_information: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return information about running processes.")], max_items_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many items to return. If nothing is provided, action will return everything.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Run forensic scan on the endpoint in the Illusive Networks. Works with IP and Hostname entities.
 
         Returns:
@@ -567,8 +631,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for IllusiveNetworks")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def illusive_networks_add_deceptive_server(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], server_name: Annotated[str, Field(..., description="Specify what kind of deceptive items should be returned.")], service_types: Annotated[str, Field(..., description="Specify a comma-separated list of service types for new deceptive server.")], policy_names: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of policies that need to be applied to the new deceptive server. If nothing is provided action will use by default all policies.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Illusive Networks: Add Deceptive Server',
+        annotations=ToolAnnotations(
+            title='Illusive Networks: Add Deceptive Server',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def illusive_networks_add_deceptive_server(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], server_name: Annotated[str, Field(..., description="Specify what kind of deceptive items should be returned.")], service_types: Annotated[str, Field(..., description="Specify a comma-separated list of service types for new deceptive server.")], policy_names: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of policies that need to be applied to the new deceptive server. If nothing is provided action will use by default all policies.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add deceptive servers in Illusive Networks.
 
         Returns:

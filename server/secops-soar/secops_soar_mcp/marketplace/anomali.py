@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the Anomali integration.
 
-    @mcp.tool()
-    async def anomali_get_threat_info(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], limit: Annotated[str, Field(..., description="Specify how many records to return per entity.")], severity_threshold: Annotated[Optional[List[str]], Field(default=None, description="Specify what should be the severity threshold for the entity, in order to mark it as suspicious. If multiple records are found for the same entity, action will take the highest severity out of all available records.")], confidence_threshold: Annotated[Optional[str], Field(default=None, description="Specify what should be the confidence threshold for the entity, in order to mark it as suspicious. Note: Maximum is 100. If multiple records are found for the entity, action will take the average. Active records have priority. Default: 50.")], ignore_false_positive_status: Annotated[Optional[bool], Field(default=None, description="If enabled, action will ignore the false positive status and mark the entity as suspicious based on the \"Severity Threshold\" and \"Confidence Threshold\". If disabled, action will never label false positive entities as suspicious, regardless, if they pass the \"Severity Threshold\" and \"Confidence Threshold\" conditions or not.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Anomali: GetThreatInfo',
+        annotations=ToolAnnotations(
+            title='Anomali: GetThreatInfo',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def anomali_get_threat_info(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], limit: Annotated[str, Field(..., description="Specify how many records to return per entity.")], severity_threshold: Annotated[Optional[List[str]], Field(default=None, description="Specify what should be the severity threshold for the entity, in order to mark it as suspicious. If multiple records are found for the same entity, action will take the highest severity out of all available records.")], confidence_threshold: Annotated[Optional[str], Field(default=None, description="Specify what should be the confidence threshold for the entity, in order to mark it as suspicious. Note: Maximum is 100. If multiple records are found for the entity, action will take the average. Active records have priority. Default: 50.")], ignore_false_positive_status: Annotated[Optional[bool], Field(default=None, description="If enabled, action will ignore the false positive status and mark the entity as suspicious based on the \"Severity Threshold\" and \"Confidence Threshold\". If disabled, action will never label false positive entities as suspicious, regardless, if they pass the \"Severity Threshold\" and \"Confidence Threshold\" conditions or not.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enrich entities using information from Anomali ThreatStream. Supported entities: IP, URL, Hash, Email Addresses (User entities that match email regex).
 
         Returns:
@@ -108,8 +118,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Anomali")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def anomali_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Anomali: Ping',
+        annotations=ToolAnnotations(
+            title='Anomali: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def anomali_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to Anomali ThreatStream
 
         Returns:
@@ -182,8 +201,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Anomali")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def anomali_get_related_associations(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], return_campaigns: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related campaigns and details about them.")], return_threat_bulletins: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related threat bulletins and details about them.")], return_actors: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related actors and details about them.")], return_attack_patterns: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related attack patterns and details about them.")], return_courses_of_action: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related courses of action and details about them.")], return_identities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related identities and details about them.")], return_incidents: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related incidents and details about them.")], return_infrastructure: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related infrastructure and details about them.")], return_intrusion_sets: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related intrusion sets and details about them.")], return_malware: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related malware and details about them.")], return_signatures: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related signatures and details about them.")], return_tools: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related tools and details about them.")], return_tt_ps: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related TTPs and details about them.")], return_vulnerabilities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related vulnerabilities and details about them.")], create_campaign_entity: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an entity out of available \"Campaign\" associations.")], create_actors_entity: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an entity out of available \"Actor\" associations.")], create_signature_entity: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an entity out of available \"Signature\" associations.")], create_vulnerability_entity: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an entity out of available \"Vulnerability\" associations.")], max_associations_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many associations to return per type. Default: 5")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Anomali: Get Related Associations',
+        annotations=ToolAnnotations(
+            title='Anomali: Get Related Associations',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def anomali_get_related_associations(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], return_campaigns: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related campaigns and details about them.")], return_threat_bulletins: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related threat bulletins and details about them.")], return_actors: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related actors and details about them.")], return_attack_patterns: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related attack patterns and details about them.")], return_courses_of_action: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related courses of action and details about them.")], return_identities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related identities and details about them.")], return_incidents: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related incidents and details about them.")], return_infrastructure: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related infrastructure and details about them.")], return_intrusion_sets: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related intrusion sets and details about them.")], return_malware: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related malware and details about them.")], return_signatures: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related signatures and details about them.")], return_tools: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related tools and details about them.")], return_tt_ps: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related TTPs and details about them.")], return_vulnerabilities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related vulnerabilities and details about them.")], create_campaign_entity: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an entity out of available \"Campaign\" associations.")], create_actors_entity: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an entity out of available \"Actor\" associations.")], create_signature_entity: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an entity out of available \"Signature\" associations.")], create_vulnerability_entity: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an entity out of available \"Vulnerability\" associations.")], max_associations_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many associations to return per type. Default: 5")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Retrieve entity related associations from Anomali ThreatStream.
 
         Returns:

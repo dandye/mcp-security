@@ -18,14 +18,25 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
+from mcp.types import ToolAnnotations as _ToolAnnotations
 from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.utils import tool_error_result as _tool_error_result
 
 
 # Configure logging
 logger = logging.getLogger("secops-mcp")
 
 
-@server.tool()
+@server.tool(
+    title="Create Custom Log Parser",
+    annotations=_ToolAnnotations(
+        title="Create Custom Log Parser",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=False,
+    ),
+)
 async def create_parser(
     log_type: str,
     parser_code: str,
@@ -33,7 +44,7 @@ async def create_parser(
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
     validated_on_empty_logs: bool = True,
-) -> str:
+) -> dict[str, Any]:
     """Create a new parser for a specific log type in Chronicle.
 
     Creates a custom parser using Chronicle's parser configuration language to transform
@@ -113,7 +124,7 @@ async def create_parser(
         - Create detection rules that leverage the parsed UDM fields.
     """
     try:
-        logger.info(f"Creating parser for log type: {log_type}")
+        logger.info("Creating parser for log type: %s", log_type)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -135,23 +146,44 @@ async def create_parser(
         if validated_on_empty_logs:
             result += "Parser was validated on empty logs during creation."
 
-        return result
+        return {
+            "status": "success",
+            "summary": result,
+            "log_type": log_type,
+            "parser_id": parser_id,
+            "state": state,
+        }
 
     except Exception as e:
         logger.error(
-            f"Error creating parser for log type {log_type}: {str(e)}", exc_info=True
+            "Error creating parser for log type %s: %s",
+            log_type,
+            e,
+            exc_info=True,
         )
-        return f"Error creating parser for log type {log_type}: {str(e)}"
+        return _tool_error_result(
+            f"Error creating parser for log type {log_type}: {e}",
+            log_type=log_type,
+        )
 
 
-@server.tool()
+@server.tool(
+    title="Get Chronicle Parser Details",
+    annotations=_ToolAnnotations(
+        title="Get Chronicle Parser Details",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_parser(
     log_type: str,
     parser_id: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> str:
+) -> dict[str, Any]:
     """Get details of a specific parser in Chronicle.
 
     Retrieves the configuration and metadata for a specific parser, including its current
@@ -200,7 +232,7 @@ async def get_parser(
         - Activate or deactivate the parser based on your requirements.
     """
     try:
-        logger.info(f"Getting parser {parser_id} for log type: {log_type}")
+        logger.info("Getting parser %s for log type: %s", parser_id, log_type)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -211,7 +243,7 @@ async def get_parser(
         state = parser.get("state", "Unknown")
         create_time = parser.get("createTime", "Unknown")
 
-        result = f"Parser Details:\n\n"
+        result = "Parser Details:\n\n"
         result += f"Parser ID: {parser_name}\n"
         result += f"Log Type: {log_type}\n"
         result += f"State: {state}\n"
@@ -224,7 +256,7 @@ async def get_parser(
             try:
                 parser_code = base64.b64decode(parser["cbn"]).decode("utf-8")
             except Exception as decode_error:
-                logger.warning(f"Failed to decode parser code: {decode_error}")
+                logger.warning("Failed to decode parser code: %s", decode_error)
                 parser_code = "Could not decode parser code"
 
         if parser_code:
@@ -232,17 +264,40 @@ async def get_parser(
         else:
             result += "Parser code not available in response.\n"
 
-        return result
+        return {
+            "summary": result,
+            "parser_id": parser_name,
+            "log_type": log_type,
+            "state": state,
+            "create_time": create_time,
+            "parser_code": parser_code,
+        }
 
     except Exception as e:
         logger.error(
-            f"Error getting parser {parser_id} for log type {log_type}: {str(e)}",
+            "Error getting parser %s for log type %s: %s",
+            parser_id,
+            log_type,
+            e,
             exc_info=True,
         )
-        return f"Error getting parser {parser_id} for log type {log_type}: {str(e)}"
+        return _tool_error_result(
+            f"Error getting parser {parser_id} for log type {log_type}: {e}",
+            parser_id=parser_id,
+            log_type=log_type,
+        )
 
 
-@server.tool()
+@server.tool(
+    title="List Chronicle Log Parsers",
+    annotations=_ToolAnnotations(
+        title="List Chronicle Log Parsers",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def list_parsers(
     log_type: str = "-",
     page_size: Optional[int] = None,
@@ -251,7 +306,7 @@ async def list_parsers(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """List parsers in Chronicle, optionally filtered by log type.
 
     Enumerates parsers deployed in the Chronicle tenant without needing a parser ID
@@ -312,7 +367,7 @@ async def list_parsers(
         - Use `activate_parser` / `deactivate_parser` to manage parser lifecycle.
     """
     try:
-        logger.info(f"Listing parsers for log type: {log_type}")
+        logger.info("Listing parsers for log type: %s", log_type)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -337,22 +392,34 @@ async def list_parsers(
 
     except Exception as e:
         logger.error(
-            f"Error listing parsers for log type {log_type}: {str(e)}", exc_info=True
+            "Error listing parsers for log type %s: %s",
+            log_type,
+            e,
+            exc_info=True,
         )
-        return {
-            "error": f"Error listing parsers for log type {log_type}: {str(e)}",
-            "parsers": [],
-        }
+        return _tool_error_result(
+            f"Error listing parsers for log type {log_type}: {e}",
+            parsers=[],
+        )
 
 
-@server.tool()
+@server.tool(
+    title="Activate Chronicle Log Parser",
+    annotations=_ToolAnnotations(
+        title="Activate Chronicle Log Parser",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def activate_parser(
     log_type: str,
     parser_id: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> str:
+) -> dict[str, Any]:
     """Activate a parser for a specific log type in Chronicle.
 
     Activates a parser, making it the active parser for the specified log type. Once activated,
@@ -401,7 +468,7 @@ async def activate_parser(
         - Set up monitoring for the log type to ensure continued parsing success.
     """
     try:
-        logger.info(f"Activating parser {parser_id} for log type: {log_type}")
+        logger.info("Activating parser %s for log type: %s", parser_id, log_type)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -414,24 +481,46 @@ async def activate_parser(
             "The parser is now active and will process incoming logs of this type."
         )
 
-        return result
+        return {
+            "status": "success",
+            "summary": result,
+            "log_type": log_type,
+            "parser_id": parser_id,
+            "state": "ACTIVE",
+        }
 
     except Exception as e:
         logger.error(
-            f"Error activating parser {parser_id} for log type {log_type}: {str(e)}",
+            "Error activating parser %s for log type %s: %s",
+            parser_id,
+            log_type,
+            e,
             exc_info=True,
         )
-        return f"Error activating parser {parser_id} for log type {log_type}: {str(e)}"
+        return _tool_error_result(
+            f"Error activating parser {parser_id} for log type {log_type}: {e}",
+            parser_id=parser_id,
+            log_type=log_type,
+        )
 
 
-@server.tool()
+@server.tool(
+    title="Deactivate Chronicle Log Parser",
+    annotations=_ToolAnnotations(
+        title="Deactivate Chronicle Log Parser",
+        read_only_hint=False,
+        destructive_hint=True,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def deactivate_parser(
     log_type: str,
     parser_id: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> str:
+) -> dict[str, Any]:
     """Deactivate a parser for a specific log type in Chronicle.
 
     Deactivates a parser, stopping it from processing incoming logs of the specified type.
@@ -484,7 +573,7 @@ async def deactivate_parser(
         - Document the reason for deactivation for operational tracking.
     """
     try:
-        logger.info(f"Deactivating parser {parser_id} for log type: {log_type}")
+        logger.info("Deactivating parser %s for log type: %s", parser_id, log_type)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -495,19 +584,39 @@ async def deactivate_parser(
         result += f"Parser ID: {parser_id}\n"
         result += "WARNING: Incoming logs of this type will not be parsed until a parser is activated."
 
-        return result
+        return {
+            "status": "success",
+            "summary": result,
+            "log_type": log_type,
+            "parser_id": parser_id,
+            "state": "INACTIVE",
+        }
 
     except Exception as e:
         logger.error(
-            f"Error deactivating parser {parser_id} for log type {log_type}: {str(e)}",
+            "Error deactivating parser %s for log type %s: %s",
+            parser_id,
+            log_type,
+            e,
             exc_info=True,
         )
-        return (
-            f"Error deactivating parser {parser_id} for log type {log_type}: {str(e)}"
+        return _tool_error_result(
+            f"Error deactivating parser {parser_id} for log type {log_type}: {e}",
+            parser_id=parser_id,
+            log_type=log_type,
         )
 
 
-@server.tool()
+@server.tool(
+    title="Run Parser Against Sample Logs",
+    annotations=_ToolAnnotations(
+        title="Run Parser Against Sample Logs",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def run_parser_against_sample_logs(
     log_type: str,
     parser_code: str,
@@ -517,7 +626,7 @@ async def run_parser_against_sample_logs(
     region: Optional[str] = None,
     parser_extension_code: Optional[str] = None,
     statedump_allowed: bool = False,
-) -> str:
+) -> dict[str, Any]:
     """Run a parser against sample logs to test parsing logic.
 
     Tests parser configuration against sample log entries to validate parsing logic before
@@ -613,20 +722,31 @@ async def run_parser_against_sample_logs(
     """
     try:
         logger.info(
-            f"Running parser test for log type: {log_type} with {len(sample_logs)} sample logs"
+            "Running parser test for log type: %s with %s sample logs",
+            log_type,
+            len(sample_logs),
         )
 
         # Validate input constraints
         if len(sample_logs) > 1000:
-            return "Error: Maximum of 1000 sample logs allowed per test."
+            return _tool_error_result(
+                "Error: Maximum of 1000 sample logs allowed per test.",
+                log_type=log_type,
+            )
 
         total_size = sum(len(log.encode("utf-8")) for log in sample_logs)
         if total_size > 50 * 1024 * 1024:  # 50MB
-            return "Error: Total sample logs size exceeds 50MB limit."
+            return _tool_error_result(
+                "Error: Total sample logs size exceeds 50MB limit.",
+                log_type=log_type,
+            )
 
         for i, log in enumerate(sample_logs):
             if len(log.encode("utf-8")) > 10 * 1024 * 1024:  # 10MB
-                return f"Error: Sample log {i+1} exceeds 10MB size limit."
+                return _tool_error_result(
+                    f"Error: Sample log {i+1} exceeds 10MB size limit.",
+                    log_type=log_type,
+                )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -681,11 +801,21 @@ async def run_parser_against_sample_logs(
         else:
             response += f"Unexpected result format: {result}"
 
-        return response
+        return {
+            "summary": response,
+            "log_type": log_type,
+            "sample_count": len(sample_logs),
+            "results": result.get("runParserResults", []) if isinstance(result, dict) else [],
+        }
 
     except Exception as e:
         logger.error(
-            f"Error running parser test for log type {log_type}: {str(e)}",
+            "Error running parser test for log type %s: %s",
+            log_type,
+            e,
             exc_info=True,
         )
-        return f"Error running parser test for log type {log_type}: {str(e)}"
+        return _tool_error_result(
+            f"Error running parser test for log type {log_type}: {e}",
+            log_type=log_type,
+        )

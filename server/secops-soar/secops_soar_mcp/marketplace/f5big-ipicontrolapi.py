@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the F5BIGIPiControlAPI integration.
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_add_ip_to_data_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], data_group_name: Annotated[str, Field(..., description="Specify the name of the data group to which you want to add IP addresses.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: Add IP to Data Group',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: Add IP to Data Group',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_add_ip_to_data_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], data_group_name: Annotated[str, Field(..., description="Specify the name of the data group to which you want to add IP addresses.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add IP to the data group in F5 BIG-IP. Supported entities: IP address. Note: action only supports internal data groups.
 
         Returns:
@@ -102,8 +112,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_create_data_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], type: Annotated[List[str], Field(..., description="Specify the type for the data group.")], name: Annotated[str, Field(..., description="Specify the name of the data group that needs to be created.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: Create Data Group',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: Create Data Group',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_create_data_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], type: Annotated[List[str], Field(..., description="Specify the type for the data group.")], name: Annotated[str, Field(..., description="Specify the name of the data group that needs to be created.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create a data group in F5 BIG-IP. Note: action only supports internal data groups.
 
         Returns:
@@ -178,8 +197,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_add_ip_to_address_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], address_list_name: Annotated[str, Field(..., description="Specify the name of the address list to which you want to add IP addresses.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: Add IP to Address List',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: Add IP to Address List',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_add_ip_to_address_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], address_list_name: Annotated[str, Field(..., description="Specify the name of the address list to which you want to add IP addresses.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add IP to the address list in F5 BIG-IP. Supported entities: IP address.
 
         Returns:
@@ -253,8 +281,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_add_port_to_port_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], port_list_name: Annotated[str, Field(..., description="Specify the name of the port list to which you want to add ports.")], ports: Annotated[str, Field(..., description="Specify a comma-separated list of ports that need to be added.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: Add Port to Port List',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: Add Port to Port List',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_add_port_to_port_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], port_list_name: Annotated[str, Field(..., description="Specify the name of the port list to which you want to add ports.")], ports: Annotated[str, Field(..., description="Specify a comma-separated list of ports that need to be added.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add port to the port list in F5 BIG-IP.
 
         Returns:
@@ -329,8 +366,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_remove_port_from_port_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], port_list_name: Annotated[str, Field(..., description="Specify the name of the port list from which you want to remove ports.")], ports: Annotated[str, Field(..., description="Specify a comma-separated list of ports that need to be removed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: Remove Port from Port List',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: Remove Port from Port List',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_remove_port_from_port_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], port_list_name: Annotated[str, Field(..., description="Specify the name of the port list from which you want to remove ports.")], ports: Annotated[str, Field(..., description="Specify a comma-separated list of ports that need to be removed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove port from the port list in F5 BIG-IP.
 
         Returns:
@@ -405,8 +451,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_create_i_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the iRule that needs to be created.")], rule: Annotated[str, Field(..., description="Specify the rule that needs to be executed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: Create IRule',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: Create IRule',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_create_i_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the iRule that needs to be created.")], rule: Annotated[str, Field(..., description="Specify the rule that needs to be executed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create an iRule in F5 BIG-IP.
 
         Returns:
@@ -481,8 +536,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_list_address_lists(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain that substring. If nothing is provided in this parameter, the filter will not be applied.")], max_address_lists_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many address lists to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: List Address Lists',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: List Address Lists',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_list_address_lists(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain that substring. If nothing is provided in this parameter, the filter will not be applied.")], max_address_lists_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many address lists to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List available address lists in F5 BIG-IP.
 
         Returns:
@@ -561,8 +625,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_update_i_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the iRule that needs to be updated.")], rule: Annotated[str, Field(..., description="Specify the new rule that needs to be executed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: Update IRule',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: Update IRule',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_update_i_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the iRule that needs to be updated.")], rule: Annotated[str, Field(..., description="Specify the new rule that needs to be executed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update an iRule in F5 BIG-IP.
 
         Returns:
@@ -637,8 +710,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_remove_ip_from_address_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], address_list_name: Annotated[str, Field(..., description="Specify the name of the address list from which you want to remove IP addresses.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: Remove IP from Address List',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: Remove IP from Address List',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_remove_ip_from_address_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], address_list_name: Annotated[str, Field(..., description="Specify the name of the address list from which you want to remove IP addresses.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove IP from the address list in F5 BIG-IP. Supported entities: IP address.
 
         Returns:
@@ -712,8 +794,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_delete_i_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the iRule that needs to be deleted.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: Delete IRule',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: Delete IRule',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_delete_i_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the iRule that needs to be deleted.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete an iRule in F5 BIG-IP.
 
         Returns:
@@ -787,8 +878,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: Ping',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the F5 BIG-IP with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -861,8 +961,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_delete_data_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the data group that needs to be deleted.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: Delete Data Group',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: Delete Data Group',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_delete_data_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the data group that needs to be deleted.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete a data group in F5 BIG-IP. Note: action only supports internal data groups.
 
         Returns:
@@ -936,8 +1045,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_create_address_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the address list that needs to be created.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: Create Address List',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: Create Address List',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_create_address_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the address list that needs to be created.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create an address list in F5 BIG-IP. Supported entities: IP address. Note: address list requires 1 IP address to be available during creation.
 
         Returns:
@@ -1011,8 +1129,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_list_port_lists(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among record types and if \"Contains\" is selected, action will try to find items that contain that substring. If nothing is provided in this parameter, the filter will not be applied.")], max_port_lists_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many port lists to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: List Port Lists',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: List Port Lists',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_list_port_lists(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among record types and if \"Contains\" is selected, action will try to find items that contain that substring. If nothing is provided in this parameter, the filter will not be applied.")], max_port_lists_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many port lists to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List available port lists in F5 BIG-IP.
 
         Returns:
@@ -1091,8 +1218,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_create_port_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the port list that needs to be created. Note: name shouldn't contain whitespace. This is F5 BIG-IP limitation.")], ports: Annotated[str, Field(..., description="Specify a comma-separated list of ports that will be a part of the new port list.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: Create Port List',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: Create Port List',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_create_port_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the port list that needs to be created. Note: name shouldn't contain whitespace. This is F5 BIG-IP limitation.")], ports: Annotated[str, Field(..., description="Specify a comma-separated list of ports that will be a part of the new port list.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create a port list in F5 BIG-IP.
 
         Returns:
@@ -1167,8 +1303,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_delete_port_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the port list that needs to be deleted.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: Delete Port List',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: Delete Port List',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_delete_port_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the port list that needs to be deleted.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete a port list in F5 BIG-IP.
 
         Returns:
@@ -1242,8 +1387,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_delete_address_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the address list that needs to be deleted.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: Delete Address List',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: Delete Address List',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_delete_address_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the address list that needs to be deleted.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete an address list in F5 BIG-IP.
 
         Returns:
@@ -1317,8 +1471,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_list_i_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain that substring. If nothing is provided in this parameter, the filter will not be applied.")], max_i_rules_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many iRules to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: List IRules',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: List IRules',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_list_i_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain that substring. If nothing is provided in this parameter, the filter will not be applied.")], max_i_rules_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many iRules to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List available iRules in F5 BIG-IP.
 
         Returns:
@@ -1397,8 +1560,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_list_data_groups(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among record types and if \"Contains\" is selected, action will try to find items that contain that substring. If nothing is provided in this parameter, the filter will not be applied.")], max_data_groups_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many data groups to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: List Data Groups',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: List Data Groups',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_list_data_groups(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among record types and if \"Contains\" is selected, action will try to find items that contain that substring. If nothing is provided in this parameter, the filter will not be applied.")], max_data_groups_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many data groups to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List available data groups in F5 BIG-IP. Note: action only supports internal data groups.
 
         Returns:
@@ -1477,8 +1649,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for F5BIGIPiControlAPI")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def f5_bigi_pi_control_api_remove_ip_from_data_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], data_group_name: Annotated[str, Field(..., description="Specify the name of the data group from which you want to remove IP addresses.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='F5 BIGI Pi Control API: Remove IP from Data Group',
+        annotations=ToolAnnotations(
+            title='F5 BIGI Pi Control API: Remove IP from Data Group',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def f5_bigi_pi_control_api_remove_ip_from_data_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], data_group_name: Annotated[str, Field(..., description="Specify the name of the data group from which you want to remove IP addresses.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove IP from the data group in F5 BIG-IP. Supported entities: IP address. Note: action only supports internal data groups.
 
         Returns:

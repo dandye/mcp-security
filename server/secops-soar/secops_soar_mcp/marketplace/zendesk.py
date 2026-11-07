@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the Zendesk integration.
 
-    @mcp.tool()
-    async def zendesk_create_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], subject: Annotated[str, Field(..., description="")], description: Annotated[str, Field(..., description="")], assigned_user: Annotated[Optional[str], Field(default=None, description="User full name.")], assignment_group: Annotated[Optional[str], Field(default=None, description="Group name.")], priority: Annotated[Optional[str], Field(default=None, description="Priority will be one of the following: urgent, high, normal or low.")], ticket_type: Annotated[Optional[str], Field(default=None, description="The ticket type will be one of the following: problem, incident, question or task.")], tag: Annotated[Optional[str], Field(default=None, description="")], internal_note: Annotated[Optional[bool], Field(default=None, description="Specify whether the comment should be public, or internal. Unchecked means it will be public, checked means it will be internal only.")], email_c_cs: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of email addresses, which should also receive the notification of the ticket creation. Note: at max 48 email CCs can be added. This is Zendesk limitation.")], validate_email_c_cs: Annotated[Optional[bool], Field(default=None, description="If enabled, action will try to check that users with emails provided in \u201cEmail CCs\u201c parameter exist. If at least one user doesn\u2019t exist, action will fail. If this parameter is disabled, action will not perform this check.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Zendesk: Create Ticket',
+        annotations=ToolAnnotations(
+            title='Zendesk: Create Ticket',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def zendesk_create_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], subject: Annotated[str, Field(..., description="")], description: Annotated[str, Field(..., description="")], assigned_user: Annotated[Optional[str], Field(default=None, description="User full name.")], assignment_group: Annotated[Optional[str], Field(default=None, description="Group name.")], priority: Annotated[Optional[str], Field(default=None, description="Priority will be one of the following: urgent, high, normal or low.")], ticket_type: Annotated[Optional[str], Field(default=None, description="The ticket type will be one of the following: problem, incident, question or task.")], tag: Annotated[Optional[str], Field(default=None, description="")], internal_note: Annotated[Optional[bool], Field(default=None, description="Specify whether the comment should be public, or internal. Unchecked means it will be public, checked means it will be internal only.")], email_c_cs: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of email addresses, which should also receive the notification of the ticket creation. Note: at max 48 email CCs can be added. This is Zendesk limitation.")], validate_email_c_cs: Annotated[Optional[bool], Field(default=None, description="If enabled, action will try to check that users with emails provided in \u201cEmail CCs\u201c parameter exist. If at least one user doesn\u2019t exist, action will fail. If this parameter is disabled, action will not perform this check.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Create a ticket with specific properties
 
@@ -122,8 +132,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Zendesk")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def zendesk_get_ticket_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="The ID f the ticket.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Zendesk: Get Ticket Details',
+        annotations=ToolAnnotations(
+            title='Zendesk: Get Ticket Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def zendesk_get_ticket_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="The ID f the ticket.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Get ticket details, comments, and attachments by ticket id
 
@@ -200,8 +219,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Zendesk")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def zendesk_add_comment_to_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Specify the Zendesk Ticket ID for which you would like to add a comment.")], comment_body: Annotated[str, Field(..., description="Provide the text you would like to be contained in the comment body")], internal_note: Annotated[bool, Field(..., description="Specify whether the comment should be public, or internal. Unchecked means it will be public, checked means it will be internal only.")], author_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the author, please make sure this name exists on Zendesk")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Zendesk: Add Comment to Ticket',
+        annotations=ToolAnnotations(
+            title='Zendesk: Add Comment to Ticket',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def zendesk_add_comment_to_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Specify the Zendesk Ticket ID for which you would like to add a comment.")], comment_body: Annotated[str, Field(..., description="Provide the text you would like to be contained in the comment body")], internal_note: Annotated[bool, Field(..., description="Specify whether the comment should be public, or internal. Unchecked means it will be public, checked means it will be internal only.")], author_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the author, please make sure this name exists on Zendesk")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Add a comment to an existing ticket
 
@@ -282,8 +310,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Zendesk")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def zendesk_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Zendesk: Ping',
+        annotations=ToolAnnotations(
+            title='Zendesk: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def zendesk_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test Connectivity
 
         Returns:
@@ -356,8 +393,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Zendesk")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def zendesk_apply_macros_on_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Ticket number.")], macro_title: Annotated[str, Field(..., description="")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Zendesk: Apply Macros on Ticket',
+        annotations=ToolAnnotations(
+            title='Zendesk: Apply Macros on Ticket',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def zendesk_apply_macros_on_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Ticket number.")], macro_title: Annotated[str, Field(..., description="")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Apply macro to a ticket
 
@@ -435,8 +481,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Zendesk")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def zendesk_update_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Ticket number.")], subject: Annotated[Optional[str], Field(default=None, description="The subject of the ticket.")], assigned_user: Annotated[Optional[str], Field(default=None, description="User full name.")], assignment_group: Annotated[Optional[str], Field(default=None, description="Group name.")], priority: Annotated[Optional[str], Field(default=None, description="Priority will be one of the following: urgent, high, normal or low.")], ticket_type: Annotated[Optional[str], Field(default=None, description="The ticket type will be one of the following: problem, incident, question or task.")], tag: Annotated[Optional[str], Field(default=None, description="Tag to add to the ticket.")], status: Annotated[Optional[str], Field(default=None, description="The status will be one of the following: new, open, pending, hold, solved or closed.")], internal_note: Annotated[Optional[bool], Field(default=None, description="Specify whether the comment should be public, or internal. Unchecked means it will be public, checked means it will be internal only.")], additional_comment: Annotated[Optional[str], Field(default=None, description="If you want to add a comment to the ticket, specify the text you would like to add as a comment here.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Zendesk: Update Ticket',
+        annotations=ToolAnnotations(
+            title='Zendesk: Update Ticket',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def zendesk_update_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Ticket number.")], subject: Annotated[Optional[str], Field(default=None, description="The subject of the ticket.")], assigned_user: Annotated[Optional[str], Field(default=None, description="User full name.")], assignment_group: Annotated[Optional[str], Field(default=None, description="Group name.")], priority: Annotated[Optional[str], Field(default=None, description="Priority will be one of the following: urgent, high, normal or low.")], ticket_type: Annotated[Optional[str], Field(default=None, description="The ticket type will be one of the following: problem, incident, question or task.")], tag: Annotated[Optional[str], Field(default=None, description="Tag to add to the ticket.")], status: Annotated[Optional[str], Field(default=None, description="The status will be one of the following: new, open, pending, hold, solved or closed.")], internal_note: Annotated[Optional[bool], Field(default=None, description="Specify whether the comment should be public, or internal. Unchecked means it will be public, checked means it will be internal only.")], additional_comment: Annotated[Optional[str], Field(default=None, description="If you want to add a comment to the ticket, specify the text you would like to add as a comment here.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update existing ticket details
 
         Returns:
@@ -528,8 +583,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for Zendesk")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def zendesk_search_tickets(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_query: Annotated[str, Field(..., description="Query content(e.g: type:ticket status:pending).")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Zendesk: Search Tickets',
+        annotations=ToolAnnotations(
+            title='Zendesk: Search Tickets',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def zendesk_search_tickets(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_query: Annotated[str, Field(..., description="Query content(e.g: type:ticket status:pending).")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Search tickets by keyword
 
         Returns:

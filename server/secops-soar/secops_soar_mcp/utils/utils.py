@@ -11,7 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import re
+from typing import Any
+
+from mcp.types import CallToolResult, TextContent
+
+
+def tool_error_result(error: str, **details: Any) -> CallToolResult:
+    """Build a structured MCP CallToolResult with is_error=True."""
+    payload: dict[str, Any] = {"error": error, **details}
+    return CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(payload))],
+        structured_content=payload,
+        is_error=True,
+    )
 
 PYTHON_KEYWORDS = [
     "False",

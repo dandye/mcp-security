@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the ExchangeExtensionPack integration.
 
-    @mcp.tool()
-    async def exchange_extension_pack_add_senders_to_exchange_siemplify_mail_flow_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_to_add_senders_to: Annotated[List[str], Field(..., description="Specify the rule to add the sender to. If the rule doesn't exist - action will create it where it's missing.")], email_addresses: Annotated[Optional[str], Field(default=None, description="Specify the email addresses you would like to add to the rule, in a comma separated list. If no parameter will be provided, action will work with User entities.")], should_add_senders_domain_to_the_corresponding_domains_list_rule_as_well: Annotated[Optional[bool], Field(default=None, description="Specify whether the action should automatically take the domains of the provided email addresses and add them as well to the corresponding domain rules (same rule action for domains)")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Exchange Extension Pack: Add Senders to Exchange-Siemplify Mail Flow Rule',
+        annotations=ToolAnnotations(
+            title='Exchange Extension Pack: Add Senders to Exchange-Siemplify Mail Flow Rule',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def exchange_extension_pack_add_senders_to_exchange_siemplify_mail_flow_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_to_add_senders_to: Annotated[List[str], Field(..., description="Specify the rule to add the sender to. If the rule doesn't exist - action will create it where it's missing.")], email_addresses: Annotated[Optional[str], Field(default=None, description="Specify the email addresses you would like to add to the rule, in a comma separated list. If no parameter will be provided, action will work with User entities.")], should_add_senders_domain_to_the_corresponding_domains_list_rule_as_well: Annotated[Optional[bool], Field(default=None, description="Specify whether the action should automatically take the domains of the provided email addresses and add them as well to the corresponding domain rules (same rule action for domains)")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Action will get as a parameter a list of Email Addresses, or will work on User entities with Email regexes (if parameters are not provided), and will be able to create a new rule,filtering the senders from your Exchange Server. Actions can be modified in the parameters using the rule parameter. Note - to use this action, please make sure you have Organization Management permissions, as stated here: https://docs.microsoft.com/en-us/exchange/permissions-exo/feature-permissions
 
         Returns:
@@ -106,8 +116,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ExchangeExtensionPack")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def exchange_extension_pack_fetch_compliance_search_results(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], compliance_search_name: Annotated[str, Field(..., description="Name for the Compliance Search. Note that name shouldn't contain special characters.")], max_emails_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many emails action can return.")], remove_compliance_search_once_action_completes: Annotated[Optional[bool], Field(default=None, description="Specify whether action should remove from Exchange server the search action and any related fetch or purge tasks once the action completes.")], create_case_wall_output_table: Annotated[Optional[bool], Field(default=None, description="Specify if action should create case wall output table. If Max Emails To Return is set to a bigger number, its recommended to uncheck this to increase action performance.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Exchange Extension Pack: Fetch Compliance Search Results',
+        annotations=ToolAnnotations(
+            title='Exchange Extension Pack: Fetch Compliance Search Results',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def exchange_extension_pack_fetch_compliance_search_results(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], compliance_search_name: Annotated[str, Field(..., description="Name for the Compliance Search. Note that name shouldn't contain special characters.")], max_emails_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many emails action can return.")], remove_compliance_search_once_action_completes: Annotated[Optional[bool], Field(default=None, description="Specify whether action should remove from Exchange server the search action and any related fetch or purge tasks once the action completes.")], create_case_wall_output_table: Annotated[Optional[bool], Field(default=None, description="Specify if action should create case wall output table. If Max Emails To Return is set to a bigger number, its recommended to uncheck this to increase action performance.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Fetch results for the completed Compliance Search. Note: Action is not working on Siemplify entities. Note2: Maximum of 200 elements will be displayed, but actual search can have more findings that are shown.
 
         Returns:
@@ -187,8 +206,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ExchangeExtensionPack")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def exchange_extension_pack_remove_domains_from_exchange_siemplify_mail_flow_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_to_remove_domains_from: Annotated[List[str], Field(..., description="Specify the rule to remove the Domains from. If the rule doesn't exist - action will do nothing.")], domains: Annotated[Optional[str], Field(default=None, description="Specify the Domains you would like to remove from the rule, in a comma separated list.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Exchange Extension Pack: Remove Domains from Exchange-Siemplify Mail Flow Rules',
+        annotations=ToolAnnotations(
+            title='Exchange Extension Pack: Remove Domains from Exchange-Siemplify Mail Flow Rules',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def exchange_extension_pack_remove_domains_from_exchange_siemplify_mail_flow_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_to_remove_domains_from: Annotated[List[str], Field(..., description="Specify the rule to remove the Domains from. If the rule doesn't exist - action will do nothing.")], domains: Annotated[Optional[str], Field(default=None, description="Specify the Domains you would like to remove from the rule, in a comma separated list.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Action will get as a parameter a list of Domains, and will be able to remove the provided domains from the existing rules. Note - to use this action, please make sure you have Organization Management permissions, as stated here: https://docs.microsoft.com/en-us/exchange/permissions-exo/feature-permissions
 
         Returns:
@@ -264,8 +292,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ExchangeExtensionPack")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def exchange_extension_pack_delete_compliance_search(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], compliance_search_name: Annotated[str, Field(..., description="Name for the Compliance Search. Note that name shouldn't contain special characters.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Exchange Extension Pack: Delete Compliance Search',
+        annotations=ToolAnnotations(
+            title='Exchange Extension Pack: Delete Compliance Search',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def exchange_extension_pack_delete_compliance_search(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], compliance_search_name: Annotated[str, Field(..., description="Name for the Compliance Search. Note that name shouldn't contain special characters.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete Compliance Search and any associated with it fetch results or purge emails tasks. Note: Action is not working on Siemplify entities.
 
         Returns:
@@ -339,8 +376,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ExchangeExtensionPack")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def exchange_extension_pack_purge_compliance_search_results(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], compliance_search_name: Annotated[str, Field(..., description="Name for the Compliance Search. Note that name shouldn't contain special characters.")], perform_a_hard_delete_for_deleted_emails: Annotated[Optional[bool], Field(default=None, description="Specify whether HardDelete should be performed. This option is applies only to O365 and mark emails for permanent removal from the mailbox.")], remove_compliance_search_once_action_completes: Annotated[Optional[bool], Field(default=None, description="Specify whether action should remove from Exchange server the search action and any related fetch or purge tasks once the action completes.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Exchange Extension Pack: Purge Compliance Search Results',
+        annotations=ToolAnnotations(
+            title='Exchange Extension Pack: Purge Compliance Search Results',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def exchange_extension_pack_purge_compliance_search_results(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], compliance_search_name: Annotated[str, Field(..., description="Name for the Compliance Search. Note that name shouldn't contain special characters.")], perform_a_hard_delete_for_deleted_emails: Annotated[Optional[bool], Field(default=None, description="Specify whether HardDelete should be performed. This option is applies only to O365 and mark emails for permanent removal from the mailbox.")], remove_compliance_search_once_action_completes: Annotated[Optional[bool], Field(default=None, description="Specify whether action should remove from Exchange server the search action and any related fetch or purge tasks once the action completes.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Purge emails found by the completed Compliance Search. Note: Action is not working on Siemplify entities.
 
         Returns:
@@ -418,8 +464,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ExchangeExtensionPack")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def exchange_extension_pack_add_domains_to_exchange_siemplify_mail_flow_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_to_add_domains_to: Annotated[List[str], Field(..., description="Specify the rule to add the Domains to. If the rule doesn't exist - action will create it where it's missing.")], domains: Annotated[Optional[str], Field(default=None, description="Specify the Domains you would like to add to the rule, in a comma separated list.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Exchange Extension Pack: Add Domains to Exchange-Siemplify Mail Flow Rules',
+        annotations=ToolAnnotations(
+            title='Exchange Extension Pack: Add Domains to Exchange-Siemplify Mail Flow Rules',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def exchange_extension_pack_add_domains_to_exchange_siemplify_mail_flow_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_to_add_domains_to: Annotated[List[str], Field(..., description="Specify the rule to add the Domains to. If the rule doesn't exist - action will create it where it's missing.")], domains: Annotated[Optional[str], Field(default=None, description="Specify the Domains you would like to add to the rule, in a comma separated list.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Action will get as a parameter a list of Domains, and will be able to create a new rule, filtering the domains from your Exchange Server. Actions to take can be modified in the parameters using rule parameters. Note - to use this action, please make sure you have Organization Management permissions, as stated here: https://docs.microsoft.com/en-us/exchange/permissions-exo/feature-permissions
 
         Returns:
@@ -495,8 +550,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ExchangeExtensionPack")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def exchange_extension_pack_remove_senders_from_exchange_siemplify_mail_flow_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_to_remove_senders_from: Annotated[List[str], Field(..., description="Specify the rule to remove the Senders from. If the rule doesn't exist - action will do nothing.")], email_addresses: Annotated[Optional[str], Field(default=None, description="Specify the email addresses you would like to remove from the rule, in a comma separated list. If no parameter will be provided, action will work with entities.")], should_remove_senders_domains_from_the_corresponding_domains_list_rule_as_well: Annotated[Optional[bool], Field(default=None, description="Specify whether the action should automatically take the domains of the provided email addresses and remove them as well from the corresponding domain rules (same rule action for domains)")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Exchange Extension Pack: Remove Senders from Exchange-Siemplify Mail Flow Rules',
+        annotations=ToolAnnotations(
+            title='Exchange Extension Pack: Remove Senders from Exchange-Siemplify Mail Flow Rules',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def exchange_extension_pack_remove_senders_from_exchange_siemplify_mail_flow_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_to_remove_senders_from: Annotated[List[str], Field(..., description="Specify the rule to remove the Senders from. If the rule doesn't exist - action will do nothing.")], email_addresses: Annotated[Optional[str], Field(default=None, description="Specify the email addresses you would like to remove from the rule, in a comma separated list. If no parameter will be provided, action will work with entities.")], should_remove_senders_domains_from_the_corresponding_domains_list_rule_as_well: Annotated[Optional[bool], Field(default=None, description="Specify whether the action should automatically take the domains of the provided email addresses and remove them as well from the corresponding domain rules (same rule action for domains)")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Action will get as a parameter a list of Senders, or will work on User entities (if parameters are not provided), and will be able to remove the provided Senders from the existing rules. Note - to use this action, please make sure you have Organization Management permissions, as stated here: https://docs.microsoft.com/en-us/exchange/permissions-exo/feature-permissions
 
         Returns:
@@ -574,8 +638,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ExchangeExtensionPack")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def exchange_extension_pack_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Exchange Extension Pack: Ping',
+        annotations=ToolAnnotations(
+            title='Exchange Extension Pack: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def exchange_extension_pack_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Exchange or O365 server with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -648,8 +721,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ExchangeExtensionPack")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def exchange_extension_pack_run_compliance_search(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], compliance_search_name: Annotated[str, Field(..., description="Name for the Compliance Search. Note that name shouldn't contain special characters.")], location_to_search_emails_in: Annotated[str, Field(..., description="Location to search emails in, can be one of the following: Comma separate list of mailboxes. A distribution group or mail-enabled security group All - for all mailboxes in organization.")], subject_filter: Annotated[Optional[str], Field(default=None, description="Filter condition, specify what subject to search for emails")], sender_filter: Annotated[Optional[str], Field(default=None, description="Filter condition, specify who should be the sender of needed emails")], recipient_filter: Annotated[Optional[str], Field(default=None, description="Filter condition, specify who should be the recipient of needed emails")], operator: Annotated[Optional[List[str]], Field(default=None, description="Operator to use to construct query from conditions above.")], time_frame_hours: Annotated[Optional[str], Field(default=None, description="Time frame interval in hours to search for emails.")], fetch_compliance_search_results: Annotated[Optional[bool], Field(default=None, description="Specify whether the action should immediately fetch the compliance search results. Note that maximum of 200 elements will be displayed, but actual search can have more findings that are shown.")], max_emails_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many emails action can return.")], create_case_wall_output_table: Annotated[Optional[bool], Field(default=None, description="Specify if action should create case wall output table. If Max Emails To Return is set to a bigger number, its recommended to uncheck this to increase action performance.")], advanced_query: Annotated[Optional[str], Field(default=None, description="Instead of subject, sender or recipient filters, provide a query you want to run compliance search on. Consider https://docs.microsoft.com/en-us/sharepoint/dev/general-development/keyword-query-language-kql-syntax-reference and https://docs.microsoft.com/en-us/exchange/message-properties-indexed-by-exchange-search-exchange-2013-help?redirectedfrom=MSDN for reference on query syntax.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Exchange Extension Pack: Run Compliance Search',
+        annotations=ToolAnnotations(
+            title='Exchange Extension Pack: Run Compliance Search',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def exchange_extension_pack_run_compliance_search(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], compliance_search_name: Annotated[str, Field(..., description="Name for the Compliance Search. Note that name shouldn't contain special characters.")], location_to_search_emails_in: Annotated[str, Field(..., description="Location to search emails in, can be one of the following: Comma separate list of mailboxes. A distribution group or mail-enabled security group All - for all mailboxes in organization.")], subject_filter: Annotated[Optional[str], Field(default=None, description="Filter condition, specify what subject to search for emails")], sender_filter: Annotated[Optional[str], Field(default=None, description="Filter condition, specify who should be the sender of needed emails")], recipient_filter: Annotated[Optional[str], Field(default=None, description="Filter condition, specify who should be the recipient of needed emails")], operator: Annotated[Optional[List[str]], Field(default=None, description="Operator to use to construct query from conditions above.")], time_frame_hours: Annotated[Optional[str], Field(default=None, description="Time frame interval in hours to search for emails.")], fetch_compliance_search_results: Annotated[Optional[bool], Field(default=None, description="Specify whether the action should immediately fetch the compliance search results. Note that maximum of 200 elements will be displayed, but actual search can have more findings that are shown.")], max_emails_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many emails action can return.")], create_case_wall_output_table: Annotated[Optional[bool], Field(default=None, description="Specify if action should create case wall output table. If Max Emails To Return is set to a bigger number, its recommended to uncheck this to increase action performance.")], advanced_query: Annotated[Optional[str], Field(default=None, description="Instead of subject, sender or recipient filters, provide a query you want to run compliance search on. Consider https://docs.microsoft.com/en-us/sharepoint/dev/general-development/keyword-query-language-kql-syntax-reference and https://docs.microsoft.com/en-us/exchange/message-properties-indexed-by-exchange-search-exchange-2013-help?redirectedfrom=MSDN for reference on query syntax.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Run Exchange Compliance Search based on the provided search conditions. If the fetch compliance search results checkbox is set, action returns the search results similarly to the fetch compliance search results action. Exchange Compliance Search provides a fast mechanism to search in multiple mailboxes that will be most useful for large Organizations with 1000+ mailboxes. Note: Action is not working on Siemplify entities.  Note2: If "Fetch Compliance Search Results?" checkbox is checked, maximum of 200 elements will be displayed, but actual search can have more findings that are shown.
 
         Returns:
@@ -742,8 +824,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ExchangeExtensionPack")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def exchange_extension_pack_list_exchange_siemplify_mail_flow_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_name_to_list: Annotated[List[str], Field(..., description="Specify the Rule name you would like to list")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Exchange Extension Pack: List Exchange-Siemplify Mail Flow Rules',
+        annotations=ToolAnnotations(
+            title='Exchange Extension Pack: List Exchange-Siemplify Mail Flow Rules',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def exchange_extension_pack_list_exchange_siemplify_mail_flow_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_name_to_list: Annotated[List[str], Field(..., description="Specify the Rule name you would like to list")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Action will get as a parameter a rule name and will list it. Note - to use this action, please make sure you have Organization Management permissions, as stated here: https://docs.microsoft.com/en-us/exchange/permissions-exo/feature-permissions
 
         Returns:
@@ -817,8 +908,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for ExchangeExtensionPack")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def exchange_extension_pack_delete_exchange_siemplify_mail_flow_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_name_to_delete: Annotated[List[str], Field(..., description="Specify the Rule name you would like to completely delete")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Exchange Extension Pack: Delete Exchange-Siemplify Mail Flow Rules',
+        annotations=ToolAnnotations(
+            title='Exchange Extension Pack: Delete Exchange-Siemplify Mail Flow Rules',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def exchange_extension_pack_delete_exchange_siemplify_mail_flow_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_name_to_delete: Annotated[List[str], Field(..., description="Specify the Rule name you would like to completely delete")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Action will get as a parameter a rule name and will delete it. Note - to use this action, please make sure you have Organization Management permissions, as stated here: https://docs.microsoft.com/en-us/exchange/permissions-exo/feature-permissions
 
         Returns:

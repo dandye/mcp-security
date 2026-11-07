@@ -16,13 +16,24 @@
 import logging
 from typing import Any, Dict, Optional
 
+from mcp.types import ToolAnnotations as _ToolAnnotations
 from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.utils import tool_error_result as _tool_error_result
 
 # Configure logging
 logger = logging.getLogger("secops-mcp")
 
 
-@server.tool()
+@server.tool(
+    title="Create Chronicle Watchlist",
+    annotations=_ToolAnnotations(
+        title="Create Chronicle Watchlist",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=False,
+    ),
+)
 async def create_watchlist(
     name: str,
     display_name: str,
@@ -31,7 +42,7 @@ async def create_watchlist(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create a new watchlist in Chronicle SIEM.
 
     Creates a watchlist for managing entity risk scores and monitoring
@@ -101,8 +112,9 @@ async def create_watchlist(
     """
     try:
         logger.info(
-            f"Creating watchlist: {name} with multiplier "
-            f"{multiplying_factor}"
+            "Creating watchlist: %s with multiplier %s",
+            name,
+            multiplying_factor,
         )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
@@ -116,13 +128,22 @@ async def create_watchlist(
         )
 
     except Exception as e:
-        logger.error(
-            f"Error creating watchlist {name}: {str(e)}", exc_info=True
+        logger.error("Error creating watchlist %s: %s", name, e, exc_info=True)
+        return _tool_error_result(
+            f"Error creating watchlist {name}: {e}", name=name
         )
-        return {"error": f"Error creating watchlist {name}: {str(e)}"}
 
 
-@server.tool()
+@server.tool(
+    title="Update Chronicle Watchlist",
+    annotations=_ToolAnnotations(
+        title="Update Chronicle Watchlist",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def update_watchlist(
     watchlist_id: str,
     display_name: Optional[str] = None,
@@ -133,7 +154,7 @@ async def update_watchlist(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Update an existing watchlist in Chronicle SIEM.
 
     Updates watchlist properties including display name, description,
@@ -202,7 +223,7 @@ async def update_watchlist(
         - Communicate significant changes to security team members.
     """
     try:
-        logger.info(f"Updating watchlist: {watchlist_id}")
+        logger.info("Updating watchlist: %s", watchlist_id)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -218,19 +239,31 @@ async def update_watchlist(
 
     except Exception as e:
         logger.error(
-            f"Error updating watchlist {watchlist_id}: {str(e)}", exc_info=True
+            "Error updating watchlist %s: %s", watchlist_id, e, exc_info=True
         )
-        return {"error": f"Error updating watchlist {watchlist_id}: {str(e)}"}
+        return _tool_error_result(
+            f"Error updating watchlist {watchlist_id}: {e}",
+            watchlist_id=watchlist_id,
+        )
 
 
-@server.tool()
+@server.tool(
+    title="Delete Chronicle Watchlist",
+    annotations=_ToolAnnotations(
+        title="Delete Chronicle Watchlist",
+        read_only_hint=False,
+        destructive_hint=True,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def delete_watchlist(
     watchlist_id: str,
     force: bool = False,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Delete a watchlist from Chronicle SIEM.
 
     Permanently removes a watchlist from Chronicle. Use the force parameter
@@ -294,7 +327,7 @@ async def delete_watchlist(
         - Review entity risk scores after watchlist removal.
     """
     try:
-        logger.info(f"Deleting watchlist: {watchlist_id} (force={force})")
+        logger.info("Deleting watchlist: %s (force=%s)", watchlist_id, force)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -313,18 +346,30 @@ async def delete_watchlist(
 
     except Exception as e:
         logger.error(
-            f"Error deleting watchlist {watchlist_id}: {str(e)}", exc_info=True
+            "Error deleting watchlist %s: %s", watchlist_id, e, exc_info=True
         )
-        return {"error": f"Error deleting watchlist {watchlist_id}: {str(e)}"}
+        return _tool_error_result(
+            f"Error deleting watchlist {watchlist_id}: {e}",
+            watchlist_id=watchlist_id,
+        )
 
 
-@server.tool()
+@server.tool(
+    title="Get Chronicle Watchlist",
+    annotations=_ToolAnnotations(
+        title="Get Chronicle Watchlist",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_watchlist(
     watchlist_id: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get detailed information about a specific watchlist.
 
     Retrieves complete configuration and details for a watchlist by its ID,
@@ -381,7 +426,7 @@ async def get_watchlist(
         - Export watchlist data for reporting or analysis.
     """
     try:
-        logger.info(f"Getting watchlist details: {watchlist_id}")
+        logger.info("Getting watchlist details: %s", watchlist_id)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -389,17 +434,31 @@ async def get_watchlist(
         watchlist = chronicle.get_watchlist(watchlist_id)
 
         if not watchlist:
-            return {"error": f"Watchlist with ID {watchlist_id} not found"}
+            return _tool_error_result(
+                f"Watchlist with ID {watchlist_id} not found",
+                watchlist_id=watchlist_id,
+            )
 
         return watchlist
 
     except Exception as e:
-        error_msg = f"Error getting watchlist {watchlist_id}: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        return {"error": error_msg}
+        error_msg = f"Error getting watchlist {watchlist_id}: {e}"
+        logger.error(
+            "Error getting watchlist %s: %s", watchlist_id, e, exc_info=True
+        )
+        return _tool_error_result(error_msg, watchlist_id=watchlist_id)
 
 
-@server.tool()
+@server.tool(
+    title="List Chronicle Watchlists",
+    annotations=_ToolAnnotations(
+        title="List Chronicle Watchlists",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def list_watchlists(
     page_size: Optional[int] = None,
     page_token: Optional[str] = None,
@@ -407,7 +466,7 @@ async def list_watchlists(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """List all watchlists in Chronicle SIEM.
 
     Retrieves a list of all watchlists configured in Chronicle with their
@@ -508,6 +567,6 @@ async def list_watchlists(
             return result
 
     except Exception as e:
-        error_msg = f"Error listing watchlists: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        return {"error": error_msg}
+        error_msg = f"Error listing watchlists: {e}"
+        logger.error("Error listing watchlists: %s", e, exc_info=True)
+        return _tool_error_result(error_msg, watchlists=[])

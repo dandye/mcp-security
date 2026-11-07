@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the TrendVisionOne integration.
 
-    @mcp.tool()
-    async def trend_vision_one_execute_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], message_id: Annotated[str, Field(..., description="Specify the ID of the message that needs to be used in the action.")], action: Annotated[Optional[List[str]], Field(default=None, description="Specify the action for the email.")], mailbox: Annotated[Optional[str], Field(default=None, description="Specify the mailbox related to the message.")], description: Annotated[Optional[str], Field(default=None, description="Specify a description for the performed action.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Trend Vision One: Execute Email',
+        annotations=ToolAnnotations(
+            title='Trend Vision One: Execute Email',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def trend_vision_one_execute_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], message_id: Annotated[str, Field(..., description="Specify the ID of the message that needs to be used in the action.")], action: Annotated[Optional[List[str]], Field(default=None, description="Specify the action for the email.")], mailbox: Annotated[Optional[str], Field(default=None, description="Specify the mailbox related to the message.")], description: Annotated[Optional[str], Field(default=None, description="Specify a description for the performed action.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Execute email action on the endpoint in Trend Vision One. Action is running as async, please adjust script timeout value in Chronicle SOAR IDE for action as needed.
 
         Returns:
@@ -108,8 +118,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for TrendVisionOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def trend_vision_one_execute_custom_script(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], script_name: Annotated[str, Field(..., description="Specify the name of the script that needs to be executed on the endpoints.")], script_parameters: Annotated[Optional[str], Field(default=None, description="Specify the parameters for the script.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Trend Vision One: Execute Custom Script',
+        annotations=ToolAnnotations(
+            title='Trend Vision One: Execute Custom Script',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def trend_vision_one_execute_custom_script(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], script_name: Annotated[str, Field(..., description="Specify the name of the script that needs to be executed on the endpoints.")], script_parameters: Annotated[Optional[str], Field(default=None, description="Specify the parameters for the script.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Execute custom script on the endpoint in Trend Vision One. Supported entities: Hostname, IP address. Action is running as async, please adjust script timeout value in Chronicle SOAR IDE for action as needed.
 
         Returns:
@@ -185,8 +204,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for TrendVisionOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def trend_vision_one_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Trend Vision One: Ping',
+        annotations=ToolAnnotations(
+            title='Trend Vision One: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def trend_vision_one_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Trend Vision One with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -259,8 +287,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for TrendVisionOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def trend_vision_one_submit_url(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Trend Vision One: Submit URL',
+        annotations=ToolAnnotations(
+            title='Trend Vision One: Submit URL',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def trend_vision_one_submit_url(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Submit url in Trend Vision One. Supported entities: URL. Note: Action is running as async, please adjust script timeout value in Chronicle SOAR IDE for action as needed.
 
         Returns:
@@ -333,8 +370,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for TrendVisionOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def trend_vision_one_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Trend Vision One: Enrich Entities',
+        annotations=ToolAnnotations(
+            title='Trend Vision One: Enrich Entities',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def trend_vision_one_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enrich entities using information from Trend Vision One. Supported entities: Hostname, IP address.
 
         Returns:
@@ -407,8 +453,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for TrendVisionOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def trend_vision_one_update_workbench_alert(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_id: Annotated[str, Field(..., description="Specify the ID of the alert needs to be updated.")], status: Annotated[List[str], Field(..., description="Specify what status to set for the alert.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Trend Vision One: Update Workbench Alert',
+        annotations=ToolAnnotations(
+            title='Trend Vision One: Update Workbench Alert',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def trend_vision_one_update_workbench_alert(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_id: Annotated[str, Field(..., description="Specify the ID of the alert needs to be updated.")], status: Annotated[List[str], Field(..., description="Specify what status to set for the alert.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update a workbench alert in Trend Vision One.
 
         Returns:
@@ -483,8 +538,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for TrendVisionOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def trend_vision_one_isolate_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], description: Annotated[Optional[str], Field(default=None, description="Specify the reasoning for the isolation of the endpoints.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Trend Vision One: Isolate Endpoint',
+        annotations=ToolAnnotations(
+            title='Trend Vision One: Isolate Endpoint',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def trend_vision_one_isolate_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], description: Annotated[Optional[str], Field(default=None, description="Specify the reasoning for the isolation of the endpoints.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Isolate endpoints in Trend Vision One. Supported entities: IP Address, Hostname. Note: Action is running as async, please adjust script timeout value in Chronicle SOAR IDE for action as needed.
 
         Returns:
@@ -559,8 +623,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for TrendVisionOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def trend_vision_one_submit_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_paths: Annotated[str, Field(..., description="Specify a comma-separated list of paths for the files that need to be submitted.")], archive_password: Annotated[Optional[str], Field(default=None, description="Specify the password for the archive.")], document_password: Annotated[Optional[str], Field(default=None, description="Specify the password for the document.")], arguments: Annotated[Optional[str], Field(default=None, description="Specify the arguments for the submitted file.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Trend Vision One: Submit File',
+        annotations=ToolAnnotations(
+            title='Trend Vision One: Submit File',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def trend_vision_one_submit_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], file_paths: Annotated[str, Field(..., description="Specify a comma-separated list of paths for the files that need to be submitted.")], archive_password: Annotated[Optional[str], Field(default=None, description="Specify the password for the archive.")], document_password: Annotated[Optional[str], Field(default=None, description="Specify the password for the document.")], arguments: Annotated[Optional[str], Field(default=None, description="Specify the arguments for the submitted file.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Submit file in Trend Vision One. Note: Action is running as async, please adjust script timeout value in Chronicle SOAR IDE for action as needed.
 
         Returns:
@@ -640,8 +713,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for TrendVisionOne")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def trend_vision_one_unisolate_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], description: Annotated[Optional[str], Field(default=None, description="Specify the reasoning for the unisolation of the endpoints.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Trend Vision One: Unisolate Endpoint',
+        annotations=ToolAnnotations(
+            title='Trend Vision One: Unisolate Endpoint',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def trend_vision_one_unisolate_endpoint(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], description: Annotated[Optional[str], Field(default=None, description="Specify the reasoning for the unisolation of the endpoints.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Unisolate endpoints in Trend Vision One. Supported entities: IP Address, Hostname. Action is running as async, please adjust script timeout value in Chronicle SOAR IDE for action as needed.
 
         Returns:

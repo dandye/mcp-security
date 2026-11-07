@@ -15,15 +15,26 @@
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
+from mcp.types import ToolAnnotations as _ToolAnnotations
 from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.utils import tool_error_result as _tool_error_result
 
 
 logger = logging.getLogger("secops-mcp")
 
 
-@server.tool()
+@server.tool(
+    title="List Curated Detection Rules",
+    annotations=_ToolAnnotations(
+        title="List Curated Detection Rules",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def list_curated_rules(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
@@ -31,7 +42,7 @@ async def list_curated_rules(
     page_size: int = 100,
     page_token: Optional[str] = None,
     as_list: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """List all curated detection rules available in Chronicle.
 
     Retrieves pre-built detection rules provided by Google Chronicle
@@ -88,7 +99,7 @@ async def list_curated_rules(
         - Deploy rule sets containing multiple curated rules.
     """
     try:
-        logger.info(f"Listing curated rules (page_size={page_size})")
+        logger.info("Listing curated rules (page_size=%s)", page_size)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -101,17 +112,26 @@ async def list_curated_rules(
             )
 
     except Exception as e:
-        logger.error(f"Error listing curated rules: {str(e)}", exc_info=True)
-        return {"error": str(e), "curatedRules": []}
+        logger.error("Error listing curated rules: %s", e, exc_info=True)
+        return _tool_error_result(str(e), curatedRules=[])
 
 
-@server.tool()
+@server.tool(
+    title="Get Curated Detection Rule",
+    annotations=_ToolAnnotations(
+        title="Get Curated Detection Rule",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_curated_rule(
     rule_id: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Retrieve specific curated rule details by rule ID.
 
     Fetches the complete definition and metadata for a specific
@@ -156,32 +176,43 @@ async def get_curated_rule(
         - Configure alerting settings for the rule.
     """
     try:
-        logger.info(f"Retrieving curated rule: {rule_id}")
+        logger.info("Retrieving curated rule: %s", rule_id)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
         rule = chronicle.get_curated_rule(rule_id)
 
-        logger.info(f"Successfully retrieved curated rule: {rule_id}")
+        logger.info("Successfully retrieved curated rule: %s", rule_id)
         return rule
 
     except Exception as e:
         logger.error(
-            f"Error retrieving curated rule {rule_id}: {str(e)}",
+            "Error retrieving curated rule %s: %s",
+            rule_id,
+            e,
             exc_info=True,
         )
-        return {
-            "error": f"Error retrieving curated rule: {str(e)}",
-            "rule": {},
-        }
+        return _tool_error_result(
+            f"Error retrieving curated rule: {e}",
+            rule={},
+        )
 
 
-@server.tool()
+@server.tool(
+    title="Get Curated Rule by Display Name",
+    annotations=_ToolAnnotations(
+        title="Get Curated Rule by Display Name",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_curated_rule_by_name(
     display_name: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Find curated rule by display name.
 
     Searches for a curated rule matching the specified display name.
@@ -218,32 +249,43 @@ async def get_curated_rule_by_name(
         - Search for detections using `search_curated_detections`.
     """
     try:
-        logger.info(f"Searching for curated rule by name: {display_name}")
+        logger.info("Searching for curated rule by name: %s", display_name)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
         rule = chronicle.get_curated_rule_by_name(display_name)
 
         if rule:
-            logger.info(f"Found curated rule: {display_name}")
+            logger.info("Found curated rule: %s", display_name)
             return rule
         else:
-            return {
-                "error": f"Curated rule not found: {display_name}",
-                "rule": {},
-            }
+            return _tool_error_result(
+                f"Curated rule not found: {display_name}",
+                rule={},
+            )
 
     except Exception as e:
         logger.error(
-            f"Error finding curated rule by name {display_name}: " f"{str(e)}",
+            "Error finding curated rule by name %s: %s",
+            display_name,
+            e,
             exc_info=True,
         )
-        return {
-            "error": f"Error finding curated rule: {str(e)}",
-            "rule": {},
-        }
+        return _tool_error_result(
+            f"Error finding curated rule: {e}",
+            rule={},
+        )
 
 
-@server.tool()
+@server.tool(
+    title="Search Curated Rule Detections",
+    annotations=_ToolAnnotations(
+        title="Search Curated Rule Detections",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def search_curated_detections(
     rule_id: str,
     start_time: str,
@@ -255,7 +297,7 @@ async def search_curated_detections(
     alert_state: Optional[str] = None,
     page_size: int = 100,
     page_token: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Search detections generated by a specific curated rule.
 
     Retrieves detections from a curated rule within a specified time
@@ -312,8 +354,10 @@ async def search_curated_detections(
     """
     try:
         logger.info(
-            f"Searching curated detections for rule {rule_id} "
-            f"from {start_time} to {end_time}"
+            "Searching curated detections for rule %s from %s to %s",
+            rule_id,
+            start_time,
+            end_time,
         )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
@@ -332,32 +376,43 @@ async def search_curated_detections(
         )
 
         detection_count = len(result.get("curatedDetections", []))
-        logger.info(f"Found {detection_count} curated detections")
+        logger.info("Found %s curated detections", detection_count)
 
         return result
 
     except ValueError as ve:
         logger.error(
-            f"Invalid time format for curated detections search: " f"{str(ve)}",
+            "Invalid time format for curated detections search: %s",
+            ve,
             exc_info=True,
         )
-        return {
-            "error": f"Invalid time format: {str(ve)}",
-            "curatedDetections": [],
-        }
+        return _tool_error_result(
+            f"Invalid time format: {ve}",
+            curatedDetections=[],
+        )
     except Exception as e:
         logger.error(
-            f"Error searching curated detections for rule {rule_id}: "
-            f"{str(e)}",
+            "Error searching curated detections for rule %s: %s",
+            rule_id,
+            e,
             exc_info=True,
         )
-        return {
-            "error": str(e),
-            "curatedDetections": [],
-        }
+        return _tool_error_result(
+            str(e),
+            curatedDetections=[],
+        )
 
 
-@server.tool()
+@server.tool(
+    title="List Curated Rule Sets",
+    annotations=_ToolAnnotations(
+        title="List Curated Rule Sets",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def list_curated_rule_sets(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
@@ -365,7 +420,7 @@ async def list_curated_rule_sets(
     page_size: int = 100,
     page_token: Optional[str] = None,
     as_list: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """List all curated rule sets available in Chronicle.
 
     Retrieves collections of related curated rules grouped by threat
@@ -424,7 +479,7 @@ async def list_curated_rule_sets(
         - Review rules within a set using `list_curated_rules`.
     """
     try:
-        logger.info(f"Listing curated rule sets (page_size={page_size})")
+        logger.info("Listing curated rule sets (page_size=%s)", page_size)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -439,19 +494,29 @@ async def list_curated_rule_sets(
 
     except Exception as e:
         logger.error(
-            f"Error listing curated rule sets: {str(e)}",
+            "Error listing curated rule sets: %s",
+            e,
             exc_info=True,
         )
-        return {"error": str(e), "curatedRuleSets": []}
+        return _tool_error_result(str(e), curatedRuleSets=[])
 
 
-@server.tool()
+@server.tool(
+    title="Get Curated Rule Set",
+    annotations=_ToolAnnotations(
+        title="Get Curated Rule Set",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_curated_rule_set(
     rule_set_id: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Retrieve specific curated rule set details by ID.
 
     Fetches complete configuration and metadata for a specific curated
@@ -497,26 +562,37 @@ async def get_curated_rule_set(
         - Configure alerting settings for the rule set.
     """
     try:
-        logger.info(f"Retrieving curated rule set: {rule_set_id}")
+        logger.info("Retrieving curated rule set: %s", rule_set_id)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
         rule_set = chronicle.get_curated_rule_set(rule_set_id)
 
-        logger.info(f"Successfully retrieved curated rule set: {rule_set_id}")
+        logger.info("Successfully retrieved curated rule set: %s", rule_set_id)
         return rule_set
 
     except Exception as e:
         logger.error(
-            f"Error retrieving curated rule set {rule_set_id}: " f"{str(e)}",
+            "Error retrieving curated rule set %s: %s",
+            rule_set_id,
+            e,
             exc_info=True,
         )
-        return {
-            "error": f"Error retrieving curated rule set: {str(e)}",
-            "ruleSet": {},
-        }
+        return _tool_error_result(
+            f"Error retrieving curated rule set: {e}",
+            ruleSet={},
+        )
 
 
-@server.tool()
+@server.tool(
+    title="List Curated Rule Set Deployments",
+    annotations=_ToolAnnotations(
+        title="List Curated Rule Set Deployments",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def list_curated_rule_set_deployments(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
@@ -524,7 +600,7 @@ async def list_curated_rule_set_deployments(
     page_size: int = 100,
     page_token: Optional[str] = None,
     as_list: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """List deployment status of all curated rule sets.
 
     Retrieves deployment configuration for curated rule sets,
@@ -584,7 +660,7 @@ async def list_curated_rule_set_deployments(
     """
     try:
         logger.info(
-            f"Listing curated rule set deployments " f"(page_size={page_size})"
+            "Listing curated rule set deployments (page_size=%s)", page_size
         )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
@@ -602,13 +678,23 @@ async def list_curated_rule_set_deployments(
 
     except Exception as e:
         logger.error(
-            f"Error listing curated rule set deployments: {str(e)}",
+            "Error listing curated rule set deployments: %s",
+            e,
             exc_info=True,
         )
-        return {"error": str(e), "curatedRuleSetDeployments": []}
+        return _tool_error_result(str(e), curatedRuleSetDeployments=[])
 
 
-@server.tool()
+@server.tool(
+    title="Update Curated Rule Set Deployment",
+    annotations=_ToolAnnotations(
+        title="Update Curated Rule Set Deployment",
+        read_only_hint=False,
+        destructive_hint=True,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def update_curated_rule_set_deployment(
     category_id: str,
     rule_set_id: str,
@@ -618,7 +704,7 @@ async def update_curated_rule_set_deployment(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Update deployment configuration for a curated rule set.
 
     Enables or disables a curated rule set, configures precision level
@@ -674,21 +760,25 @@ async def update_curated_rule_set_deployment(
     """
     try:
         logger.info(
-            f"Updating curated rule set deployment: {rule_set_id} "
-            f"(enabled={enabled}, precision={precision}, "
-            f"alerting={alerting})"
+            "Updating curated rule set deployment: %s (enabled=%s, precision=%s, alerting=%s)",
+            rule_set_id,
+            enabled,
+            precision,
+            alerting,
         )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         valid_precision_values = ["broad", "precise"]
         if precision not in valid_precision_values:
-            error_msg = (
-                f"Invalid precision value: {precision}. "
-                f"Must be one of {valid_precision_values}"
+            logger.error(
+                "Invalid precision value: %s. Must be one of %s",
+                precision,
+                valid_precision_values,
             )
-            logger.error(error_msg)
-            return {"error": error_msg}
+            return _tool_error_result(
+                f"Invalid precision value: {precision}. Must be one of {valid_precision_values}"
+            )
 
         deployment_config = {
             "category_id": category_id,
@@ -701,17 +791,18 @@ async def update_curated_rule_set_deployment(
         result = chronicle.update_curated_rule_set_deployment(deployment_config)
 
         logger.info(
-            f"Successfully updated curated rule set deployment: "
-            f"{rule_set_id}"
+            "Successfully updated curated rule set deployment: %s",
+            rule_set_id,
         )
         return result
 
     except Exception as e:
         logger.error(
-            f"Error updating curated rule set deployment "
-            f"{rule_set_id}: {str(e)}",
+            "Error updating curated rule set deployment %s: %s",
+            rule_set_id,
+            e,
             exc_info=True,
         )
-        return {
-            "error": (f"Error updating curated rule set deployment: {str(e)}"),
-        }
+        return _tool_error_result(
+            f"Error updating curated rule set deployment: {e}",
+        )

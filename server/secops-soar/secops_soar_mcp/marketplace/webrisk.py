@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the WebRisk integration.
 
-    @mcp.tool()
-    async def web_risk_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Web Risk: Ping',
+        annotations=ToolAnnotations(
+            title='Web Risk: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def web_risk_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Use the Ping action to test the connectivity to Web Risk.
 
         Returns:
@@ -101,8 +111,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for WebRisk")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def web_risk_submit_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], abuse_type: Annotated[Optional[List[str]], Field(default=None, description="The abuse type that is associated with the submission. For more information about abuse types, see AbuseType (https://cloud.google.com/web-risk/docs/reference/rest/v1/projects.uris/submit#abusetype).")], confidence_level: Annotated[Optional[List[str]], Field(default=None, description="The confidence level for the submission. For more information about confidence levels, see Confidence (https://cloud.google.com/web-risk/docs/reference/rest/v1/projects.uris/submit#confidence) and ConfidenceLevel (https://cloud.google.com/web-risk/docs/reference/rest/v1/projects.uris/submit#confidencelevel).")], justification: Annotated[Optional[List[str]], Field(default=None, description="The justification for the submission. For more information about justification options, see JustificationLabel (https://cloud.google.com/web-risk/docs/reference/rest/v1/projects.uris/submit#justificationlabel).")], comment: Annotated[Optional[str], Field(default=None, description="A comment to explain the submission justification.")], region_code: Annotated[Optional[str], Field(default=None, description="A comma-separated list of the Common Locale Data Repository (CLDR) codes for countries or regions that associate with the submission. For more information about submissions, see Submission (https://cloud.google.com/web-risk/docs/reference/rest/v1/projects.uris/submit#submission).")], platform: Annotated[Optional[List[str]], Field(default=None, description="A platform type on which the submission was detected.")], skip_waiting: Annotated[Optional[bool], Field(default=None, description="If enabled, action will just initialize the submission and not wait for it to be finished.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Web Risk: Submit Entities',
+        annotations=ToolAnnotations(
+            title='Web Risk: Submit Entities',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def web_risk_submit_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], abuse_type: Annotated[Optional[List[str]], Field(default=None, description="The abuse type that is associated with the submission. For more information about abuse types, see AbuseType (https://cloud.google.com/web-risk/docs/reference/rest/v1/projects.uris/submit#abusetype).")], confidence_level: Annotated[Optional[List[str]], Field(default=None, description="The confidence level for the submission. For more information about confidence levels, see Confidence (https://cloud.google.com/web-risk/docs/reference/rest/v1/projects.uris/submit#confidence) and ConfidenceLevel (https://cloud.google.com/web-risk/docs/reference/rest/v1/projects.uris/submit#confidencelevel).")], justification: Annotated[Optional[List[str]], Field(default=None, description="The justification for the submission. For more information about justification options, see JustificationLabel (https://cloud.google.com/web-risk/docs/reference/rest/v1/projects.uris/submit#justificationlabel).")], comment: Annotated[Optional[str], Field(default=None, description="A comment to explain the submission justification.")], region_code: Annotated[Optional[str], Field(default=None, description="A comma-separated list of the Common Locale Data Repository (CLDR) codes for countries or regions that associate with the submission. For more information about submissions, see Submission (https://cloud.google.com/web-risk/docs/reference/rest/v1/projects.uris/submit#submission).")], platform: Annotated[Optional[List[str]], Field(default=None, description="A platform type on which the submission was detected.")], skip_waiting: Annotated[Optional[bool], Field(default=None, description="If enabled, action will just initialize the submission and not wait for it to be finished.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Use the Submit Entities action to submit entities to Web Risk for analysis. This action runs on the Google SecOps URL entity. This action is asynchronous. Adjust the script timeout value in the Google SecOps IDE for the action as needed.
 
         Returns:
@@ -189,8 +208,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for WebRisk")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def web_risk_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Web Risk: Enrich Entities',
+        annotations=ToolAnnotations(
+            title='Web Risk: Enrich Entities',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def web_risk_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Use the Enrich Entities action to return information about Google SecOps entities from Web Risk. This action runs on the following Google SecOps entities: URL.
 
         Returns:

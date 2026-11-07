@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the SonicWall-Beta integration.
 
-    @mcp.tool()
-    async def sonic_wall_beta_add_ip_to_address_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_name: Annotated[str, Field(..., description="Specify to which group you want to add IP address. Groups that contain unicode characters are not supported. This is a SonicWall limitation.")], ip_zone: Annotated[str, Field(..., description="Specify the zone of the IP address that you want to add.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sonic Wall-Beta: Add IP to Address Group',
+        annotations=ToolAnnotations(
+            title='Sonic Wall-Beta: Add IP to Address Group',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sonic_wall_beta_add_ip_to_address_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_name: Annotated[str, Field(..., description="Specify to which group you want to add IP address. Groups that contain unicode characters are not supported. This is a SonicWall limitation.")], ip_zone: Annotated[str, Field(..., description="Specify the zone of the IP address that you want to add.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add IP address to specific SonicWall Address Group. Caution: Successful action execution commits all uncommitted changes. This is a SonicWall limitation.
 
         Returns:
@@ -103,8 +113,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SonicWall-Beta")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sonic_wall_beta_list_uri_groups(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_uri_groups_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many URI Groups to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sonic Wall-Beta: List URI Groups',
+        annotations=ToolAnnotations(
+            title='Sonic Wall-Beta: List URI Groups',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sonic_wall_beta_list_uri_groups(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_uri_groups_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many URI Groups to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List SonicWall URI Groups. Requires SonicOS 6.5.3 or higher.
 
         Returns:
@@ -179,8 +198,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SonicWall-Beta")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sonic_wall_beta_list_address_groups(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], address_type: Annotated[Optional[List[str]], Field(default=None, description="Specify which address type should be using for address groups.")], max_address_groups_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many address groups to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sonic Wall-Beta: List Address Groups',
+        annotations=ToolAnnotations(
+            title='Sonic Wall-Beta: List Address Groups',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sonic_wall_beta_list_address_groups(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], address_type: Annotated[Optional[List[str]], Field(default=None, description="Specify which address type should be using for address groups.")], max_address_groups_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many address groups to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List SonicWall Address Groups.
 
         Returns:
@@ -257,8 +285,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SonicWall-Beta")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sonic_wall_beta_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sonic Wall-Beta: Ping',
+        annotations=ToolAnnotations(
+            title='Sonic Wall-Beta: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sonic_wall_beta_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the SonicWall with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -331,8 +368,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SonicWall-Beta")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sonic_wall_beta_add_uri_list_to_uri_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], uri_list_name: Annotated[str, Field(..., description="Specify which URI List you want to add the URI Group. URI Lists that contain unicode characters are not supported. This is a SonicWall limitation.")], uri_group_name: Annotated[str, Field(..., description="Specify to which URI Group you want to add the URI List. URI Groups that contain unicode characters are not supported. This is a SonicWall limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sonic Wall-Beta: Add URI List to URI Group',
+        annotations=ToolAnnotations(
+            title='Sonic Wall-Beta: Add URI List to URI Group',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sonic_wall_beta_add_uri_list_to_uri_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], uri_list_name: Annotated[str, Field(..., description="Specify which URI List you want to add the URI Group. URI Lists that contain unicode characters are not supported. This is a SonicWall limitation.")], uri_group_name: Annotated[str, Field(..., description="Specify to which URI Group you want to add the URI List. URI Groups that contain unicode characters are not supported. This is a SonicWall limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add URI List to SonicWall URI Group. Caution: Successful action execution commits all uncommitted changes. This is a SonicWall limitation. Requires SonicOS 6.5.3 or higher.
 
         Returns:
@@ -407,8 +453,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SonicWall-Beta")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sonic_wall_beta_remove_ip_from_address_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_name: Annotated[str, Field(..., description="Specify from which group you want to remove the IP address. Groups that contain unicode characters are not supported. This is a SonicWall limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sonic Wall-Beta: Remove IP from Address Group',
+        annotations=ToolAnnotations(
+            title='Sonic Wall-Beta: Remove IP from Address Group',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sonic_wall_beta_remove_ip_from_address_group(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_name: Annotated[str, Field(..., description="Specify from which group you want to remove the IP address. Groups that contain unicode characters are not supported. This is a SonicWall limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove IP address from specific SonicWall Address Group. Caution: Successful action execution commits all uncommitted changes. This is a SonicWall limitation.
 
         Returns:
@@ -482,8 +537,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SonicWall-Beta")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sonic_wall_beta_remove_url_from_uri_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], uri_list_name: Annotated[str, Field(..., description="Specify to which URI List you want to add the URL. URI lists that contain unicode characters are not supported. This is a SonicWall limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sonic Wall-Beta: Remove URL from URI List',
+        annotations=ToolAnnotations(
+            title='Sonic Wall-Beta: Remove URL from URI List',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sonic_wall_beta_remove_url_from_uri_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], uri_list_name: Annotated[str, Field(..., description="Specify to which URI List you want to add the URL. URI lists that contain unicode characters are not supported. This is a SonicWall limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove URL from specific SonicWall URI List. Caution: Successful action execution commits all uncommitted changes. This is a SonicWall limitation. Requires SonicOS 6.5.3 or higher.
 
         Returns:
@@ -557,8 +621,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SonicWall-Beta")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sonic_wall_beta_create_cfs_profile(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the CFS Profile. Unicode characters are not supported. This is a SonicWall limitation.")], search_order: Annotated[List[str], Field(..., description="Specify the search order for the CFS Profile.")], operation_for_forbidden_uri: Annotated[List[str], Field(..., description="Specify the operation for forbidden URI for the CFS Profile.")], enable_smart_filter: Annotated[bool, Field(..., description="Enable Smart Filter.")], enable_google_safe_search: Annotated[bool, Field(..., description="Enable Google Safe Search.")], enable_youtube_restricted_mode: Annotated[bool, Field(..., description="Enable Youtube Restricted Mode.")], enable_bing_safe_search: Annotated[bool, Field(..., description="Enable Bing Safe Search.")], allowed_uri_list_or_group: Annotated[Optional[str], Field(default=None, description="Specify the allowed URI list or group for the CFS Profile. URI List with unicode characters is not supported. This is a SonicWall limitation.")], forbidden_uri_list_or_group: Annotated[Optional[str], Field(default=None, description="Specify the forbidden URI list or group for the CFS Profile. Unicode characters are not supported. This is a SonicWall limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sonic Wall-Beta: Create CFS Profile',
+        annotations=ToolAnnotations(
+            title='Sonic Wall-Beta: Create CFS Profile',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def sonic_wall_beta_create_cfs_profile(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name of the CFS Profile. Unicode characters are not supported. This is a SonicWall limitation.")], search_order: Annotated[List[str], Field(..., description="Specify the search order for the CFS Profile.")], operation_for_forbidden_uri: Annotated[List[str], Field(..., description="Specify the operation for forbidden URI for the CFS Profile.")], enable_smart_filter: Annotated[bool, Field(..., description="Enable Smart Filter.")], enable_google_safe_search: Annotated[bool, Field(..., description="Enable Google Safe Search.")], enable_youtube_restricted_mode: Annotated[bool, Field(..., description="Enable Youtube Restricted Mode.")], enable_bing_safe_search: Annotated[bool, Field(..., description="Enable Bing Safe Search.")], allowed_uri_list_or_group: Annotated[Optional[str], Field(default=None, description="Specify the allowed URI list or group for the CFS Profile. URI List with unicode characters is not supported. This is a SonicWall limitation.")], forbidden_uri_list_or_group: Annotated[Optional[str], Field(default=None, description="Specify the forbidden URI list or group for the CFS Profile. Unicode characters are not supported. This is a SonicWall limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create SonicWall CFS Profile. Caution: Successful action execution commits all uncommitted changes. This is a SonicWall limitation. Requires SonicOS 6.5.3 or higher.
 
         Returns:
@@ -642,8 +715,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SonicWall-Beta")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sonic_wall_beta_add_url_to_uri_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], uri_list_name: Annotated[str, Field(..., description="Specify to which URI List you want to add the URL. URI lists that contain unicode characters are not supported. This is a SonicWall limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sonic Wall-Beta: Add URL to URI List',
+        annotations=ToolAnnotations(
+            title='Sonic Wall-Beta: Add URL to URI List',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sonic_wall_beta_add_url_to_uri_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], uri_list_name: Annotated[str, Field(..., description="Specify to which URI List you want to add the URL. URI lists that contain unicode characters are not supported. This is a SonicWall limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add URL to specific SonicWall URI List. Caution: Successful action execution commits all uncommitted changes. This is a SonicWall limitation. Requires SonicOS 6.5.3 or higher.
 
         Returns:
@@ -717,8 +799,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for SonicWall-Beta")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def sonic_wall_beta_list_uri_lists(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_uri_lists_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many URI Lists to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Sonic Wall-Beta: List URI Lists',
+        annotations=ToolAnnotations(
+            title='Sonic Wall-Beta: List URI Lists',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def sonic_wall_beta_list_uri_lists(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], max_uri_lists_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many URI Lists to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List SonicWall URI Lists. Requires SonicOS 6.5.3 or higher.
 
         Returns:

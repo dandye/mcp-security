@@ -17,13 +17,24 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, Optional
 
+from mcp.types import ToolAnnotations as _ToolAnnotations
 from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.utils import tool_error_result as _tool_error_result
 
 # Configure logging
 logger = logging.getLogger("secops-mcp")
 
 
-@server.tool()
+@server.tool(
+    title="Create Detection Rule Exclusion",
+    annotations=_ToolAnnotations(
+        title="Create Detection Rule Exclusion",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=False,
+    ),
+)
 async def create_rule_exclusion(
     display_name: str,
     refinement_type: str,
@@ -31,7 +42,7 @@ async def create_rule_exclusion(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create a new rule exclusion in Chronicle SIEM.
 
     Creates a rule exclusion to filter out false positives or exclude
@@ -103,8 +114,9 @@ async def create_rule_exclusion(
     """
     try:
         logger.info(
-            f"Creating rule exclusion: {display_name} with type "
-            f"{refinement_type}"
+            "Creating rule exclusion: %s with type %s",
+            display_name,
+            refinement_type,
         )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
@@ -118,22 +130,32 @@ async def create_rule_exclusion(
 
     except Exception as e:
         logger.error(
-            f"Error creating rule exclusion {display_name}: {str(e)}",
+            "Error creating rule exclusion %s: %s",
+            display_name,
+            e,
             exc_info=True,
         )
-        return {
-            "error": f"Error creating rule exclusion {display_name}: "
-            f"{str(e)}"
-        }
+        return _tool_error_result(
+            f"Error creating rule exclusion {display_name}: {e}"
+        )
 
 
-@server.tool()
+@server.tool(
+    title="Get Detection Rule Exclusion",
+    annotations=_ToolAnnotations(
+        title="Get Detection Rule Exclusion",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_rule_exclusion(
     exclusion_id: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get detailed information about a specific rule exclusion.
 
     Retrieves complete configuration and details for a rule exclusion
@@ -194,7 +216,7 @@ async def get_rule_exclusion(
         - Export exclusion data for documentation or analysis.
     """
     try:
-        logger.info(f"Getting rule exclusion details: {exclusion_id}")
+        logger.info("Getting rule exclusion details: %s", exclusion_id)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -202,27 +224,36 @@ async def get_rule_exclusion(
         exclusion = chronicle.get_rule_exclusion(exclusion_id)
 
         if not exclusion:
-            return {
-                "error": f"Rule exclusion with ID {exclusion_id} not "
-                "found"
-            }
+            return _tool_error_result(
+                f"Rule exclusion with ID {exclusion_id} not found",
+                exclusion_id=exclusion_id,
+            )
 
         return exclusion
 
     except Exception as e:
-        error_msg = f"Error getting rule exclusion {exclusion_id}: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        return {"error": error_msg}
+        error_msg = f"Error getting rule exclusion {exclusion_id}: {e}"
+        logger.error("Error getting rule exclusion %s: %s", exclusion_id, e, exc_info=True)
+        return _tool_error_result(error_msg, exclusion_id=exclusion_id)
 
 
-@server.tool()
+@server.tool(
+    title="List Detection Rule Exclusions",
+    annotations=_ToolAnnotations(
+        title="List Detection Rule Exclusions",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def list_rule_exclusions(
     page_size: Optional[int] = None,
     page_token: Optional[str] = None,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """List all rule exclusions in Chronicle SIEM.
 
     Retrieves a list of all rule exclusions configured in Chronicle
@@ -309,12 +340,21 @@ async def list_rule_exclusions(
         return result
 
     except Exception as e:
-        error_msg = f"Error listing rule exclusions: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        return {"error": error_msg}
+        error_msg = f"Error listing rule exclusions: {e}"
+        logger.error("Error listing rule exclusions: %s", e, exc_info=True)
+        return _tool_error_result(error_msg, findingsRefinements=[])
 
 
-@server.tool()
+@server.tool(
+    title="Update Detection Rule Exclusion",
+    annotations=_ToolAnnotations(
+        title="Update Detection Rule Exclusion",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def patch_rule_exclusion(
     exclusion_id: str,
     display_name: Optional[str] = None,
@@ -323,7 +363,7 @@ async def patch_rule_exclusion(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Update an existing rule exclusion in Chronicle SIEM.
 
     Updates exclusion properties including display name and query.
@@ -393,7 +433,7 @@ async def patch_rule_exclusion(
         - Test exclusion effectiveness with sample events.
     """
     try:
-        logger.info(f"Patching rule exclusion: {exclusion_id}")
+        logger.info("Patching rule exclusion: %s", exclusion_id)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -407,16 +447,27 @@ async def patch_rule_exclusion(
 
     except Exception as e:
         logger.error(
-            f"Error patching rule exclusion {exclusion_id}: {str(e)}",
+            "Error patching rule exclusion %s: %s",
+            exclusion_id,
+            e,
             exc_info=True,
         )
-        return {
-            "error": f"Error patching rule exclusion {exclusion_id}: "
-            f"{str(e)}"
-        }
+        return _tool_error_result(
+            f"Error patching rule exclusion {exclusion_id}: {e}",
+            exclusion_id=exclusion_id,
+        )
 
 
-@server.tool()
+@server.tool(
+    title="Update Rule Exclusion Deployment",
+    annotations=_ToolAnnotations(
+        title="Update Rule Exclusion Deployment",
+        read_only_hint=False,
+        destructive_hint=True,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def update_rule_exclusion_deployment(
     exclusion_id: str,
     enabled: bool,
@@ -425,7 +476,7 @@ async def update_rule_exclusion_deployment(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Manage deployment settings for a rule exclusion.
 
     Updates exclusion deployment configuration including enable/disable
@@ -508,8 +559,10 @@ async def update_rule_exclusion_deployment(
     """
     try:
         logger.info(
-            f"Updating rule exclusion deployment: {exclusion_id} "
-            f"(enabled={enabled}, archived={archived})"
+            "Updating rule exclusion deployment: %s (enabled=%s, archived=%s)",
+            exclusion_id,
+            enabled,
+            archived,
         )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
@@ -524,17 +577,27 @@ async def update_rule_exclusion_deployment(
 
     except Exception as e:
         logger.error(
-            f"Error updating rule exclusion deployment {exclusion_id}: "
-            f"{str(e)}",
+            "Error updating rule exclusion deployment %s: %s",
+            exclusion_id,
+            e,
             exc_info=True,
         )
-        return {
-            "error": f"Error updating rule exclusion deployment "
-            f"{exclusion_id}: {str(e)}"
-        }
+        return _tool_error_result(
+            f"Error updating rule exclusion deployment {exclusion_id}: {e}",
+            exclusion_id=exclusion_id,
+        )
 
 
-@server.tool()
+@server.tool(
+    title="Compute Rule Exclusion Activity",
+    annotations=_ToolAnnotations(
+        title="Compute Rule Exclusion Activity",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def compute_rule_exclusion_activity(
     exclusion_id: str,
     start_time: datetime,
@@ -542,7 +605,7 @@ async def compute_rule_exclusion_activity(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Calculate activity statistics for a rule exclusion.
 
     Computes statistics showing how many events were excluded by this
@@ -619,8 +682,10 @@ async def compute_rule_exclusion_activity(
     """
     try:
         logger.info(
-            f"Computing rule exclusion activity for {exclusion_id} from "
-            f"{start_time} to {end_time}"
+            "Computing rule exclusion activity for %s from %s to %s",
+            exclusion_id,
+            start_time,
+            end_time,
         )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
@@ -636,8 +701,12 @@ async def compute_rule_exclusion_activity(
 
     except Exception as e:
         error_msg = (
-            f"Error computing rule exclusion activity for "
-            f"{exclusion_id}: {str(e)}"
+            f"Error computing rule exclusion activity for {exclusion_id}: {e}"
         )
-        logger.error(error_msg, exc_info=True)
-        return {"error": error_msg}
+        logger.error(
+            "Error computing rule exclusion activity for %s: %s",
+            exclusion_id,
+            e,
+            exc_info=True,
+        )
+        return _tool_error_result(error_msg, exclusion_id=exclusion_id)

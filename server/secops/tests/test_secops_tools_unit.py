@@ -22,6 +22,7 @@ except ImportError:
     sys.modules["secops.exceptions"] = MagicMock()
 
 import mcp  # noqa: F401
+from mcp.types import CallToolResult
 
 from secops_mcp.tools.search import search_udm
 from secops_mcp.tools.udm_search import export_udm_search_csv
@@ -233,7 +234,7 @@ async def test_end_time_only_fallback(mock_get_client):
 
 @pytest.mark.asyncio
 async def test_invalid_date_format(mock_get_client):
-    """Test that invalid date format returns an error structure."""
+    """Test that invalid date format returns CallToolResult(is_error=True)."""
     invalid_date = "yesterday"
     
     result = await search_udm(
@@ -243,13 +244,17 @@ async def test_invalid_date_format(mock_get_client):
         customer_id="test"
     )
     
-    assert "error" in result
-    assert "Error parsing date format" in result["error"]
-    assert "yesterday" in result["error"]
+    assert isinstance(result, CallToolResult)
+    assert result.is_error is True
+    payload = result.structured_content
+    assert isinstance(payload, dict)
+    assert "error" in payload
+    assert "Error parsing date format" in payload["error"]
+    assert "yesterday" in payload["error"]
 
 @pytest.mark.asyncio
 async def test_start_after_end(mock_get_client):
-    """Test that start time after end time returns an error."""
+    """Test that start time after end time returns CallToolResult(is_error=True)."""
     start_time_iso = "2023-01-02T10:00:00Z"
     end_time_iso = "2023-01-01T10:00:00Z"
     
@@ -261,12 +266,16 @@ async def test_start_after_end(mock_get_client):
         customer_id="test"
     )
     
-    assert "error" in result
-    assert "cannot be after end time" in result["error"]
+    assert isinstance(result, CallToolResult)
+    assert result.is_error is True
+    payload = result.structured_content
+    assert isinstance(payload, dict)
+    assert "error" in payload
+    assert "cannot be after end time" in payload["error"]
 
 @pytest.mark.asyncio
 async def test_export_csv_invalid_date(mock_get_client):
-    """Test that export_udm_search_csv returns error string on invalid date."""
+    """Test that export_udm_search_csv returns CallToolResult(is_error=True) on invalid date."""
     invalid_date = "yesterday"
     
     result = await export_udm_search_csv(
@@ -277,9 +286,12 @@ async def test_export_csv_invalid_date(mock_get_client):
         customer_id="test"
     )
     
-    assert isinstance(result, str)
-    assert "Error parsing date format" in result
-    assert "yesterday" in result
+    assert isinstance(result, CallToolResult)
+    assert result.is_error is True
+    payload = result.structured_content
+    assert isinstance(payload, dict)
+    assert "Error parsing date format" in payload["error"]
+    assert "yesterday" in payload["error"]
 
 
 # =========================================================================
@@ -316,7 +328,9 @@ async def test_test_rule_buffers_end_time_to_start_of_hour(mock_get_client):
     # Check start_time is 24 hours before end_time
     assert end_time - start_time == timedelta(hours=24)
 
-    # Check output contains detection summary
-    assert "Total Detections: 1" in result
-    assert "Rule successfully detected 1 event(s)" in result
+    # Check structured output and detection summary
+    assert isinstance(result, dict)
+    assert result["total_detections"] == 1
+    assert "Total Detections: 1" in result["summary"]
+    assert "Rule successfully detected 1 event(s)" in result["summary"]
 

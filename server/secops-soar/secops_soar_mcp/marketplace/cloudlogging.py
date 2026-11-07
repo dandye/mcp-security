@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the CloudLogging integration.
 
-    @mcp.tool()
-    async def cloud_logging_execute_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[str, Field(..., description="A query to find the logs for.")], project_id: Annotated[Optional[str], Field(default=None, description="The project ID to use in the integration. If you don't set a value for this parameter, the integration retrieves the project ID from your Google Cloud service account.")], organization_id: Annotated[Optional[str], Field(default=None, description="The organization ID to use in the integration.If you don't set a value for this parameter, the integration retrieves the project ID from your Google Cloud service account.")], time_frame: Annotated[Optional[List[str]], Field(default=None, description="A period to retrieve the results from. If you select Custom, also configure the Start Time parameter.")], start_time: Annotated[Optional[str], Field(default=None, description="The start time to retrieve results. This parameter is required if you selected the Custom option for the Time Frame parameter. To configure this parameter, use the ISO 8601 format.")], end_time: Annotated[Optional[str], Field(default=None, description="The end time to retrieve results. If you don't set a value for this parameter and select the Custom option for the Time Frame parameter, the action uses the current time as the end time. To configure this parameter, use the ISO 8601 format.")], max_records_to_return: Annotated[Optional[str], Field(default=None, description="The maximum number of results to return. The default value is 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Cloud Logging: Execute Query',
+        annotations=ToolAnnotations(
+            title='Cloud Logging: Execute Query',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def cloud_logging_execute_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], query: Annotated[str, Field(..., description="A query to find the logs for.")], project_id: Annotated[Optional[str], Field(default=None, description="The project ID to use in the integration. If you don't set a value for this parameter, the integration retrieves the project ID from your Google Cloud service account.")], organization_id: Annotated[Optional[str], Field(default=None, description="The organization ID to use in the integration.If you don't set a value for this parameter, the integration retrieves the project ID from your Google Cloud service account.")], time_frame: Annotated[Optional[List[str]], Field(default=None, description="A period to retrieve the results from. If you select Custom, also configure the Start Time parameter.")], start_time: Annotated[Optional[str], Field(default=None, description="The start time to retrieve results. This parameter is required if you selected the Custom option for the Time Frame parameter. To configure this parameter, use the ISO 8601 format.")], end_time: Annotated[Optional[str], Field(default=None, description="The end time to retrieve results. If you don't set a value for this parameter and select the Custom option for the Time Frame parameter, the action uses the current time as the end time. To configure this parameter, use the ISO 8601 format.")], max_records_to_return: Annotated[Optional[str], Field(default=None, description="The maximum number of results to return. The default value is 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Use the Execute Query action to execute custom queries in Cloud Logging.
 
         Returns:
@@ -114,8 +124,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for CloudLogging")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def cloud_logging_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Cloud Logging: Ping',
+        annotations=ToolAnnotations(
+            title='Cloud Logging: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cloud_logging_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Use the Ping action to test connectivity to the Cloud Logging.
 
         Returns:

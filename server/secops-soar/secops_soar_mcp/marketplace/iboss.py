@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the IBoss integration.
 
-    @mcp.tool()
-    async def i_boss_list_policy_block_list_entries(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], category_id: Annotated[str, Field(..., description="Specify in which policy category do you want to list Block List entries.")], max_entries_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many entries to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='I Boss: List Policy Block List Entries',
+        annotations=ToolAnnotations(
+            title='I Boss: List Policy Block List Entries',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def i_boss_list_policy_block_list_entries(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], category_id: Annotated[str, Field(..., description="Specify in which policy category do you want to list Block List entries.")], max_entries_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many entries to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Return iBoss Block List entries in a specific group.
 
         Returns:
@@ -104,8 +114,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for IBoss")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def i_boss_remove_url_from_policy_block_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], category_id: Annotated[str, Field(..., description="Specify from which policy category do you want to remove the URL.")], start_port: Annotated[Optional[str], Field(default=None, description="Specify start port related to the URL that needs to be deleted. This parameter is mandatory, if the desired URL has a defined start port. This is an IBoss limitation.")], end_port: Annotated[Optional[str], Field(default=None, description="Specify end port related to the URL that needs to be deleted. This parameter is mandatory, if the desired URL has a defined end port. This is an IBoss limitation.")], strip_scheme: Annotated[Optional[bool], Field(default=None, description="If enabled, action will strip the scheme related to the URL.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='I Boss: Remove URL from Policy Block List',
+        annotations=ToolAnnotations(
+            title='I Boss: Remove URL from Policy Block List',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def i_boss_remove_url_from_policy_block_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], category_id: Annotated[str, Field(..., description="Specify from which policy category do you want to remove the URL.")], start_port: Annotated[Optional[str], Field(default=None, description="Specify start port related to the URL that needs to be deleted. This parameter is mandatory, if the desired URL has a defined start port. This is an IBoss limitation.")], end_port: Annotated[Optional[str], Field(default=None, description="Specify end port related to the URL that needs to be deleted. This parameter is mandatory, if the desired URL has a defined end port. This is an IBoss limitation.")], strip_scheme: Annotated[Optional[bool], Field(default=None, description="If enabled, action will strip the scheme related to the URL.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove URL from iBoss Block List.
 
         Returns:
@@ -185,8 +204,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for IBoss")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def i_boss_url_lookup(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_id: Annotated[Optional[str], Field(default=None, description="Specify for which group to perform  a URL Lookup. If nothing is specified, \u201cDefault\u201d group will be used.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='I Boss: URL Lookup',
+        annotations=ToolAnnotations(
+            title='I Boss: URL Lookup',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def i_boss_url_lookup(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], group_id: Annotated[Optional[str], Field(default=None, description="Specify for which group to perform  a URL Lookup. If nothing is specified, \u201cDefault\u201d group will be used.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Perform URL Lookup.
 
@@ -264,8 +292,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for IBoss")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def i_boss_url_recategorization(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='I Boss: URL Recategorization',
+        annotations=ToolAnnotations(
+            title='I Boss: URL Recategorization',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def i_boss_url_recategorization(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Submit URL for recategorization.
 
         Returns:
@@ -338,8 +375,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for IBoss")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def i_boss_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='I Boss: Ping',
+        annotations=ToolAnnotations(
+            title='I Boss: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def i_boss_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the iBoss with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -412,8 +458,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for IBoss")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def i_boss_remove_ip_from_policy_block_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], category_id: Annotated[str, Field(..., description="Specify from which policy category do you want to remove IP.")], start_port: Annotated[Optional[str], Field(default=None, description="Specify start port related to the IP that needs to be deleted. This parameter is mandatory, if the desired URL has a defined start port. This is an IBoss limitation.")], end_port: Annotated[Optional[str], Field(default=None, description="Specify end port related to the IP that needs to be deleted. This parameter is mandatory, if the desired IP has a defined end port. This is an IBoss limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='I Boss: Remove IP from Policy Block List',
+        annotations=ToolAnnotations(
+            title='I Boss: Remove IP from Policy Block List',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def i_boss_remove_ip_from_policy_block_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], category_id: Annotated[str, Field(..., description="Specify from which policy category do you want to remove IP.")], start_port: Annotated[Optional[str], Field(default=None, description="Specify start port related to the IP that needs to be deleted. This parameter is mandatory, if the desired URL has a defined start port. This is an IBoss limitation.")], end_port: Annotated[Optional[str], Field(default=None, description="Specify end port related to the IP that needs to be deleted. This parameter is mandatory, if the desired IP has a defined end port. This is an IBoss limitation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove IP from iBoss Block List.
 
         Returns:
@@ -491,8 +546,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for IBoss")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def i_boss_add_ip_to_policy_block_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], category_id: Annotated[str, Field(..., description="Specify to which policy category you want to add the IP.")], priority: Annotated[str, Field(..., description="Specify priority of the IP that needs to be blocked.")], direction: Annotated[List[str], Field(..., description="Specify what is the direction of the IP.")], start_port: Annotated[Optional[str], Field(default=None, description="Specify the start port related to the IP that needs to be blocked. Note: if only \"Start Port\" or \"End Port\" is specified, the value will be added to both action parameters.")], end_port: Annotated[Optional[str], Field(default=None, description="Specify the end port related to the IP that needs to be blocked. Note: if only \"Start Port\" or \"End Port\" is specified, the value will be added to both action parameters.")], note: Annotated[Optional[str], Field(default=None, description="Add a note related to the IP that needs to be blocked.")], is_regular_expression: Annotated[Optional[bool], Field(default=None, description="If enabled, IP will be considered as a regular expression.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='I Boss: Add IP to Policy Block List',
+        annotations=ToolAnnotations(
+            title='I Boss: Add IP to Policy Block List',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def i_boss_add_ip_to_policy_block_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], category_id: Annotated[str, Field(..., description="Specify to which policy category you want to add the IP.")], priority: Annotated[str, Field(..., description="Specify priority of the IP that needs to be blocked.")], direction: Annotated[List[str], Field(..., description="Specify what is the direction of the IP.")], start_port: Annotated[Optional[str], Field(default=None, description="Specify the start port related to the IP that needs to be blocked. Note: if only \"Start Port\" or \"End Port\" is specified, the value will be added to both action parameters.")], end_port: Annotated[Optional[str], Field(default=None, description="Specify the end port related to the IP that needs to be blocked. Note: if only \"Start Port\" or \"End Port\" is specified, the value will be added to both action parameters.")], note: Annotated[Optional[str], Field(default=None, description="Add a note related to the IP that needs to be blocked.")], is_regular_expression: Annotated[Optional[bool], Field(default=None, description="If enabled, IP will be considered as a regular expression.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add IP to iBoss Block List.
 
         Returns:
@@ -576,8 +640,17 @@ dict: A dictionary containing the result of the action execution.
             logger.warning("Warning: No active integration instance found for IBoss")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def i_boss_add_url_to_policy_block_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], category_id: Annotated[str, Field(..., description="Specify to which policy category you want to add the URL.")], priority: Annotated[str, Field(..., description="Specify priority of the URL that needs to be blocked.")], direction: Annotated[List[str], Field(..., description="Specify what is the direction of the URL.")], start_port: Annotated[Optional[str], Field(default=None, description="Specify the start port related to the URL that needs to be blocked. Note: if only \"Start Port\" or \"End Port\" is specified, the value will be added to both action parameters.")], end_port: Annotated[Optional[str], Field(default=None, description="Specify the end port related to the URL that needs to be blocked. Note: if only \"Start Port\" or \"End Port\" is specified, the value will be added to both action parameters.")], note: Annotated[Optional[str], Field(default=None, description="Add a note related to the URL that needs to be blocked.")], is_regular_expression: Annotated[Optional[bool], Field(default=None, description="If enabled, URL will be considered as a regular expression.")], strip_scheme: Annotated[Optional[bool], Field(default=None, description="If enabled, action will strip the scheme related to the URL.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='I Boss: Add URL to Policy Block List',
+        annotations=ToolAnnotations(
+            title='I Boss: Add URL to Policy Block List',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def i_boss_add_url_to_policy_block_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], category_id: Annotated[str, Field(..., description="Specify to which policy category you want to add the URL.")], priority: Annotated[str, Field(..., description="Specify priority of the URL that needs to be blocked.")], direction: Annotated[List[str], Field(..., description="Specify what is the direction of the URL.")], start_port: Annotated[Optional[str], Field(default=None, description="Specify the start port related to the URL that needs to be blocked. Note: if only \"Start Port\" or \"End Port\" is specified, the value will be added to both action parameters.")], end_port: Annotated[Optional[str], Field(default=None, description="Specify the end port related to the URL that needs to be blocked. Note: if only \"Start Port\" or \"End Port\" is specified, the value will be added to both action parameters.")], note: Annotated[Optional[str], Field(default=None, description="Add a note related to the URL that needs to be blocked.")], is_regular_expression: Annotated[Optional[bool], Field(default=None, description="If enabled, URL will be considered as a regular expression.")], strip_scheme: Annotated[Optional[bool], Field(default=None, description="If enabled, action will strip the scheme related to the URL.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add URL to iBoss Block List.
 
         Returns:

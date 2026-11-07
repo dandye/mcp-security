@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the McAfeeTIEDXL integration.
 
-    @mcp.tool()
-    async def mc_afee_tiedxl_get_file_reputation(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], enrich_with_all_services: Annotated[Optional[bool], Field(default=None, description="If checked, enrich with all results from all returned services. Else, store only the worst reputation as enrichment.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Mc Afee TIEDXL: Get File Reputation',
+        annotations=ToolAnnotations(
+            title='Mc Afee TIEDXL: Get File Reputation',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def mc_afee_tiedxl_get_file_reputation(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], enrich_with_all_services: Annotated[Optional[bool], Field(default=None, description="If checked, enrich with all results from all returned services. Else, store only the worst reputation as enrichment.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get file reputation
 
         Returns:
@@ -103,8 +113,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for McAfeeTIEDXL")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def mc_afee_tiedxl_set_file_reputation(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], trust_level: Annotated[str, Field(..., description="The trust level to set to the file's reputation")], file_name: Annotated[Optional[str], Field(default=None, description="The name of the file")], comment: Annotated[Optional[str], Field(default=None, description="The comment to add to the file's reputation")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Mc Afee TIEDXL: Set File Reputation',
+        annotations=ToolAnnotations(
+            title='Mc Afee TIEDXL: Set File Reputation',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def mc_afee_tiedxl_set_file_reputation(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], trust_level: Annotated[str, Field(..., description="The trust level to set to the file's reputation")], file_name: Annotated[Optional[str], Field(default=None, description="The name of the file")], comment: Annotated[Optional[str], Field(default=None, description="The comment to add to the file's reputation")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Set a file's enterprise reputation
 
         Returns:
@@ -182,8 +201,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for McAfeeTIEDXL")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def mc_afee_tiedxl_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Mc Afee TIEDXL: Ping',
+        annotations=ToolAnnotations(
+            title='Mc Afee TIEDXL: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def mc_afee_tiedxl_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity
 
         Returns:
@@ -256,8 +284,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for McAfeeTIEDXL")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def mc_afee_tiedxl_get_file_references(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Mc Afee TIEDXL: Get File References',
+        annotations=ToolAnnotations(
+            title='Mc Afee TIEDXL: Get File References',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def mc_afee_tiedxl_get_file_references(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get references for a file (the agent on which the file was used)
 
         Returns:

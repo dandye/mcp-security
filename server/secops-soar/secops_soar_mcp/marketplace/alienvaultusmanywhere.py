@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the AlienVaultAnywhere integration.
 
-    @mcp.tool()
-    async def alien_vault_anywhere_get_alarm_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alarm_id: Annotated[str, Field(..., description="The alarm ID. Can be obtained by running connector.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Alien Vault Anywhere: Get Alarm Details',
+        annotations=ToolAnnotations(
+            title='Alien Vault Anywhere: Get Alarm Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def alien_vault_anywhere_get_alarm_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alarm_id: Annotated[str, Field(..., description="The alarm ID. Can be obtained by running connector.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Retrieve details for an alarm by ID
 
         Returns:
@@ -102,8 +112,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AlienVaultAnywhere")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def alien_vault_anywhere_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Alien Vault Anywhere: Ping',
+        annotations=ToolAnnotations(
+            title='Alien Vault Anywhere: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def alien_vault_anywhere_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity
 
         Returns:
@@ -176,8 +195,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for AlienVaultAnywhere")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def alien_vault_anywhere_list_events(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], account_name: Annotated[Optional[str], Field(default=None, description="The account name.")], event_name: Annotated[Optional[str], Field(default=None, description="The name of the event.")], source_name: Annotated[Optional[str], Field(default=None, description="The source name.")], start_time: Annotated[Optional[str], Field(default=None, description="Filtered results will include events that occurred after this timestamp. format: DD/MM/YYYY")], end_time: Annotated[Optional[str], Field(default=None, description="Filtered results will include events that occurred before this timestamp. format: DD/MM/YYYY")], suppressed: Annotated[Optional[bool], Field(default=None, description="Whether to filter events by the suppressed flag.")], events_limit: Annotated[Optional[str], Field(default=None, description="Maximum number of events to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Alien Vault Anywhere: List Events',
+        annotations=ToolAnnotations(
+            title='Alien Vault Anywhere: List Events',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def alien_vault_anywhere_list_events(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], account_name: Annotated[Optional[str], Field(default=None, description="The account name.")], event_name: Annotated[Optional[str], Field(default=None, description="The name of the event.")], source_name: Annotated[Optional[str], Field(default=None, description="The source name.")], start_time: Annotated[Optional[str], Field(default=None, description="Filtered results will include events that occurred after this timestamp. format: DD/MM/YYYY")], end_time: Annotated[Optional[str], Field(default=None, description="Filtered results will include events that occurred before this timestamp. format: DD/MM/YYYY")], suppressed: Annotated[Optional[bool], Field(default=None, description="Whether to filter events by the suppressed flag.")], events_limit: Annotated[Optional[str], Field(default=None, description="Maximum number of events to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Search for AlienVault events.
 
         Returns:

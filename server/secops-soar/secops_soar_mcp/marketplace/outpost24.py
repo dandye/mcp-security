@@ -13,10 +13,11 @@
 # limitations under the License.
 from secops_soar_mcp import bindings
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
 from logger_utils import get_logger
@@ -27,8 +28,17 @@ logger = get_logger(__name__)
 def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the Outpost24 integration.
 
-    @mcp.tool()
-    async def outpost24_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Outpost24: Ping',
+        annotations=ToolAnnotations(
+            title='Outpost24: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def outpost24_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Outpost24 with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
@@ -101,8 +111,17 @@ def register_tools(mcp: MCPServer):
             logger.warning("Warning: No active integration instance found for Outpost24")
             return {"Status": "Failed", "Message": "No active instance found."}
 
-    @mcp.tool()
-    async def outpost24_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], finding_risk_level_filter: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of risk level findings that will be used during filtering. Possible values: Initial, Recommendation, Low, Medium, High, Critical. If nothing is provided, action will fetch findings with all risk levels.")], max_findings_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many findings to process per entity. If nothing is provided, action will return 100 findings.")], return_finding_information: Annotated[Optional[bool], Field(default=None, description="If enabled, action will also retrieve information about findings that were found on the endpoint.")], finding_type: Annotated[Optional[List[str]], Field(default=None, description="Specify what kind of findings should be returned.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight containing all of the retrieved information about the entity.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Outpost24: Enrich Entities',
+        annotations=ToolAnnotations(
+            title='Outpost24: Enrich Entities',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def outpost24_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], finding_risk_level_filter: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of risk level findings that will be used during filtering. Possible values: Initial, Recommendation, Low, Medium, High, Critical. If nothing is provided, action will fetch findings with all risk levels.")], max_findings_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many findings to process per entity. If nothing is provided, action will return 100 findings.")], return_finding_information: Annotated[Optional[bool], Field(default=None, description="If enabled, action will also retrieve information about findings that were found on the endpoint.")], finding_type: Annotated[Optional[List[str]], Field(default=None, description="Specify what kind of findings should be returned.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight containing all of the retrieved information about the entity.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Enrich entities using information from Outpost24. Supported entities: IP Address, Hostname.
 

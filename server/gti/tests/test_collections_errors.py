@@ -14,11 +14,12 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 from mcp.server.mcpserver import Context
+from mcp.types import CallToolResult
 from gti_mcp.tools import collections
 
 @pytest.mark.asyncio
 async def test_get_collection_timeline_events_api_error_handled():
-    """Test get_collection_timeline_events returns error dict on API error (e.g. 404)."""
+    """Test get_collection_timeline_events returns CallToolResult(is_error=True) on API error."""
     mock_ctx = MagicMock(spec=Context)
 
     mock_response = MagicMock()
@@ -36,14 +37,15 @@ async def test_get_collection_timeline_events_api_error_handled():
 
     with patch("gti_mcp.tools.collections.vt_client", return_value=mock_vt_client):
         result = await collections.get_collection_timeline_events(id="non_existent_id", ctx=mock_ctx)
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert "error" in result[0]
-        assert "Collection not found" in result[0]["error"]
+        assert isinstance(result, CallToolResult)
+        assert result.is_error is True
+        assert isinstance(result.structured_content, dict)
+        assert "error" in result.structured_content
+        assert "Collection not found" in result.structured_content["error"]
 
 @pytest.mark.asyncio
 async def test_get_collection_mitre_tree_api_error_handled():
-    """Test get_collection_mitre_tree returns error dict on API error (e.g. 404)."""
+    """Test get_collection_mitre_tree returns CallToolResult(is_error=True) on API error."""
     mock_ctx = MagicMock(spec=Context)
 
     mock_response = MagicMock()
@@ -61,12 +63,15 @@ async def test_get_collection_mitre_tree_api_error_handled():
 
     with patch("gti_mcp.tools.collections.vt_client", return_value=mock_vt_client):
         result = await collections.get_collection_mitre_tree(id="non_existent_id", ctx=mock_ctx)
-        assert "error" in result
-        assert "Collection not found" in result["error"]
+        assert isinstance(result, CallToolResult)
+        assert result.is_error is True
+        assert isinstance(result.structured_content, dict)
+        assert "error" in result.structured_content
+        assert "Collection not found" in result.structured_content["error"]
 
 @pytest.mark.asyncio
 async def test_get_collection_feature_matches_api_error_handled():
-    """Test get_collection_feature_matches returns error dict on API error (e.g. 404)."""
+    """Test get_collection_feature_matches returns CallToolResult(is_error=True) on API error."""
     mock_ctx = MagicMock(spec=Context)
 
     mock_response = MagicMock()
@@ -92,10 +97,11 @@ async def test_get_collection_feature_matches_api_error_handled():
             entity_type_plural="ets",
             ctx=mock_ctx
         )
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert "error" in result[0]
-        assert "Collection not found" in result[0]["error"]
+        assert isinstance(result, CallToolResult)
+        assert result.is_error is True
+        assert isinstance(result.structured_content, dict)
+        assert "error" in result.structured_content
+        assert "Collection not found" in result.structured_content["error"]
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -114,7 +120,7 @@ async def test_get_collection_feature_matches_api_error_handled():
 async def test_get_collections_commonalities_missing_data_returns_clean_error(
     payload, expected_substring
 ):
-    """Missing/non-dict `data` must return a clean error string, not AttributeError."""
+    """Missing/non-dict `data` must return CallToolResult(is_error=True), not AttributeError."""
     mock_ctx = MagicMock(spec=Context)
 
     mock_response = MagicMock()
@@ -133,6 +139,8 @@ async def test_get_collections_commonalities_missing_data_returns_clean_error(
         result = await collections.get_collections_commonalities(
             collection_id="does-not-exist", ctx=mock_ctx
         )
-    assert isinstance(result, str)
-    assert result.startswith("Error:")
-    assert expected_substring in result
+    assert isinstance(result, CallToolResult)
+    assert result.is_error is True
+    assert isinstance(result.structured_content, dict)
+    assert result.structured_content["error"].startswith("Error:")
+    assert expected_substring in result.structured_content["error"]
