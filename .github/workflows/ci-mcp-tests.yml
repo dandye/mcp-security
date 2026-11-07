@@ -20,12 +20,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           persist-credentials: false
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -34,6 +34,7 @@ jobs:
           pip install \
             mcp[cli]==2.3.0 \
             google-adk[mcp]==2.13.0 \
+            opentelemetry-sdk==1.44.0 \
             pytest==9.2.0 \
             pytest-asyncio==1.4.1 \
             pytest-mock==3.17.0 \
@@ -73,6 +74,16 @@ jobs:
 
       - name: Run cross-server MCP 2026-07-28 protocol contract suite
         run: pytest tests/test_mcp_v2_protocol_contract.py -v
+
+      - name: Run Phase 2 Streamable HTTP, SEP-2549 caching, and OpenTelemetry suite
+        run: pytest tests/test_mcp_v2_http_caching_otel.py -v
+
+      - name: Verify CLI --help entrypoints across all 4 servers
+        run: |
+          secops_mcp --help
+          gti_mcp --help
+          secops_soar_mcp --help
+          scc_mcp --help
 
       - name: Verify sdist and wheel builds across all packages
         run: |

@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import argparse
+from collections.abc import Sequence
 import logging
 import os
 import re
@@ -19,10 +21,124 @@ from typing import Any, Dict, List, Optional
 from google.api_core import exceptions as google_exceptions
 from google.cloud import asset_v1
 from google.cloud import securitycenter_v2
-from google.protobuf import json_format 
+from google.protobuf import json_format
+from mcp.server.caching import CacheHint
 from mcp.server.mcpserver import MCPServer
+from mcp.server.transport_security import TransportSecuritySettings
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+import uvicorn
 
-# Initialize MCPServer with rich 2026-07-28 discovery metadata
+try:
+    from mcp.server._otel import OpenTelemetryMiddleware
+except ImportError:  # pragma: no cover
+    OpenTelemetryMiddleware = None  # type: ignore[assignment,misc]
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("scc-mcp")
+logger.setLevel(logging.INFO)
+
+# Add handler to see uvicorn/fastapi logs if they use standard logging
+handler = logging.StreamHandler()
+handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logging.getLogger().addHandler(handler)
+
+PROTOCOL_VERSION = "2026-07-28"
+DEFAULT_MAX_REQUEST_BODY_SIZE = 4_194_304
+DEFAULT_SESSION_IDLE_TIMEOUT = 1800
+DEFAULT_MAX_SESSIONS = 10_000
+DEFAULT_TOOLS_CACHE_TTL_MS = 300_000
+DEFAULT_PROMPTS_CACHE_TTL_MS = 300_000
+DEFAULT_RESOURCES_CACHE_TTL_MS = 60_000
+_WILDCARD_BIND_HOSTS = frozenset({"0.0.0.0", "::", "[::]", "*", ""})
+
+
+def _resolve_tools_cache_ttl_ms(default: int = DEFAULT_TOOLS_CACHE_TTL_MS) -> int:
+    """Resolve the tools/list SEP-2549 cache TTL in milliseconds."""
+    raw_ttl = os.getenv("MCP_TOOLS_CACHE_TTL_MS")
+    if raw_ttl is None or not raw_ttl.strip():
+        return default
+    try:
+        parsed = int(raw_ttl.strip())
+    except ValueError:
+        logger.warning(
+            "Invalid MCP_TOOLS_CACHE_TTL_MS value %r; using default %d ms",
+            raw_ttl,
+            default,
+        )
+        return default
+    if parsed < 0:
+        logger.warning(
+            "Negative MCP_TOOLS_CACHE_TTL_MS value %d; using default %d ms",
+            parsed,
+            default,
+        )
+        return default
+    return parsed
+
+
+def _build_cache_hints() -> dict[str, CacheHint]:
+    """Build SEP-2549 list freshness cache hints for SCC MCP."""
+    return {
+        "tools/list": CacheHint(
+            ttl_ms=_resolve_tools_cache_ttl_ms(),
+            scope="public",
+        ),
+        "prompts/list": CacheHint(
+            ttl_ms=DEFAULT_PROMPTS_CACHE_TTL_MS,
+            scope="public",
+        ),
+        "resources/list": CacheHint(
+            ttl_ms=DEFAULT_RESOURCES_CACHE_TTL_MS,
+            scope="private",
+        ),
+    }
+
+
+def _deduplicate_otel_middleware(server_instance: MCPServer) -> None:
+    """Keep a single outermost OpenTelemetryMiddleware on the low-level server."""
+    if OpenTelemetryMiddleware is None:
+        return
+    lowlevel = getattr(server_instance, "_lowlevel_server", None)
+    mw_list = getattr(lowlevel, "middleware", None)
+    if not isinstance(mw_list, list):
+        return
+    seen_otel = False
+    deduped: list[Any] = []
+    for item in mw_list:
+        if isinstance(item, OpenTelemetryMiddleware):
+            if seen_otel:
+                continue
+            seen_otel = True
+        deduped.append(item)
+    mw_list[:] = deduped
+
+
+def _register_health_routes(server_instance: MCPServer) -> None:
+    """Register /healthz and /readyz custom routes idempotently."""
+    existing_routes = getattr(server_instance, "_custom_starlette_routes", [])
+    existing_paths = {getattr(route, "path", None) for route in existing_routes}
+
+    async def _probe_response(_request: Request) -> JSONResponse:
+        return JSONResponse(
+            {
+                "status": "ok",
+                "server": server_instance.name,
+                "protocol_version": PROTOCOL_VERSION,
+            }
+        )
+
+    if "/healthz" not in existing_paths:
+        server_instance.custom_route("/healthz", methods=["GET"])(_probe_response)
+    if "/readyz" not in existing_paths:
+        server_instance.custom_route("/readyz", methods=["GET"])(_probe_response)
+
+
+# Initialize MCPServer with rich 2026-07-28 discovery metadata, SEP-2549 cache hints, and OTel
 mcp = MCPServer(
     name="scc-mcp",
     title="Google Cloud Security Command Center MCP Server",
@@ -44,19 +160,11 @@ mcp = MCPServer(
         "get_finding_details and get_finding_remediation, and update finding "
         "suppression state with set_finding_mute."
     ),
+    cache_hints=_build_cache_hints(),
+    middleware=[OpenTelemetryMiddleware()] if OpenTelemetryMiddleware is not None else None,
 )
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("scc-mcp")
-logger.setLevel(logging.INFO)
-
-# Add handler to see uvicorn/fastapi logs if they use standard logging
-handler = logging.StreamHandler()
-handler.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-logging.getLogger().addHandler(handler)
+_deduplicate_otel_middleware(mcp)
+_register_health_routes(mcp)
 
 # --- SCC Client Initialization ---
 # The client automatically uses Application Default Credentials (ADC).
@@ -66,17 +174,17 @@ try:
     scc_client = securitycenter_v2.SecurityCenterClient()
     logger.info("Successfully initialized Google Cloud Security Center v2 Client.")
 except Exception as e:
-    logger.error(f"Failed to initialize Security Center Client: {e}", exc_info=True)
+    logger.error("Failed to initialize Security Center Client: %s", e, exc_info=True)
     # Depending on requirements, you might want to exit or prevent tool registration
-    scc_client = None # Indicate client is not available
+    scc_client = None  # Indicate client is not available
 
 # --- CAI Client Initialization ---
 try:
     cai_client = asset_v1.AssetServiceClient()
     logger.info("Successfully initialized Google Cloud Asset Inventory Client.")
 except Exception as e:
-    logger.error(f"Failed to initialize Cloud Asset Inventory Client: {e}", exc_info=True)
-    cai_client = None # Indicate client is not available
+    logger.error("Failed to initialize Cloud Asset Inventory Client: %s", e, exc_info=True)
+    cai_client = None  # Indicate client is not available
 
 # --- Helper Function for Proto to Dict Conversion ---
 
@@ -888,14 +996,159 @@ async def set_finding_mute(
 
 # --- Main execution ---
 
-def main() -> None:
-  """Runs the SCC MCP server."""
-  if not scc_client:
-    logger.critical("SCC Client failed to initialize. MCP server cannot serve SCC tools.")
 
-  logger.info("Starting SCC MCP server...")
+def _resolve_allowed_hosts(
+    host: str = "127.0.0.1",
+    allowed_hosts: Optional[list[str]] = None,
+) -> list[str]:
+    """Build the Host-header allowlist for DNS-rebinding protection."""
+    candidates: list[str] = [
+        "127.0.0.1:*",
+        "127.0.0.1",
+        "localhost:*",
+        "localhost",
+        "[::1]:*",
+        "[::1]",
+    ]
+    normalized_host = host.strip()
+    if normalized_host and normalized_host not in _WILDCARD_BIND_HOSTS:
+        if ":" in normalized_host and not normalized_host.startswith("["):
+            bracketed = f"[{normalized_host}]"
+            candidates.extend([bracketed, f"{bracketed}:*"])
+        else:
+            candidates.append(normalized_host)
+            if not normalized_host.endswith(":*") and ":" not in normalized_host.lstrip("["):
+                candidates.append(f"{normalized_host}:*")
+            elif normalized_host.startswith("[") and normalized_host.endswith("]"):
+                candidates.append(f"{normalized_host}:*")
 
-  mcp.run(transport="stdio")
+    env_hosts = os.getenv("MCP_ALLOWED_HOSTS", "")
+    if env_hosts.strip():
+        for entry in env_hosts.split(","):
+            cleaned = entry.strip()
+            if cleaned:
+                candidates.append(cleaned)
+
+    if allowed_hosts:
+        for entry in allowed_hosts:
+            cleaned = entry.strip()
+            if cleaned:
+                candidates.append(cleaned)
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in candidates:
+        if item not in seen:
+            seen.add(item)
+            deduped.append(item)
+    return deduped
+
+
+def build_streamable_http_app(
+    server_instance: MCPServer = mcp,
+    *,
+    host: str = "127.0.0.1",
+    stateless_http: bool = True,
+    allowed_hosts: Optional[list[str]] = None,
+) -> Starlette:
+    """Build the bounded Streamable HTTP ASGI application with health probes."""
+    _register_health_routes(server_instance)
+    transport_security = TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=_resolve_allowed_hosts(host=host, allowed_hosts=allowed_hosts),
+        allowed_origins=[
+            "http://127.0.0.1:*",
+            "http://localhost:*",
+            "http://[::1]:*",
+        ],
+    )
+    return server_instance.streamable_http_app(
+        streamable_http_path="/mcp",
+        stateless_http=stateless_http,
+        max_request_body_size=DEFAULT_MAX_REQUEST_BODY_SIZE,
+        session_idle_timeout=DEFAULT_SESSION_IDLE_TIMEOUT,
+        max_sessions=DEFAULT_MAX_SESSIONS,
+        transport_security=transport_security,
+        host=host,
+    )
+
+
+def _resolve_default_stateless_http() -> bool:
+    """Resolve default stateless HTTP mode from MCP_STATELESS_HTTP (defaults True)."""
+    raw = os.getenv("MCP_STATELESS_HTTP")
+    if raw is None or not raw.strip():
+        return True
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _normalize_transport(raw_transport: str) -> str:
+    """Normalize CLI/environment transport aliases."""
+    normalized = raw_transport.strip().lower()
+    if normalized == "http":
+        return "streamable-http"
+    return normalized
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    """Construct the CLI argument parser for SCC MCP."""
+    default_transport = _normalize_transport(os.getenv("MCP_TRANSPORT", "stdio"))
+    default_host = os.getenv("MCP_HOST", "127.0.0.1")
+    default_port = int(os.getenv("MCP_PORT", "8000"))
+    parser = argparse.ArgumentParser(
+        description="Google Cloud Security Command Center MCP Server",
+        allow_abbrev=False,
+    )
+    parser.add_argument(
+        "--transport",
+        choices=("stdio", "streamable-http", "http"),
+        default=default_transport,
+        help="MCP transport to serve (default: MCP_TRANSPORT or stdio).",
+    )
+    parser.add_argument(
+        "--host",
+        default=default_host,
+        help="Bind host for streamable-http transport (default: MCP_HOST or 127.0.0.1).",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=default_port,
+        help="Bind port for streamable-http transport (default: MCP_PORT or 8000).",
+    )
+    parser.add_argument(
+        "--stateless-http",
+        action=argparse.BooleanOptionalAction,
+        default=_resolve_default_stateless_http(),
+        help="Serve stateless Streamable HTTP requests (default: MCP_STATELESS_HTTP or true).",
+    )
+    return parser
+
+
+def main(argv: Optional[Sequence[str]] = None) -> None:
+    """Runs the SCC MCP server."""
+    args = build_arg_parser().parse_args(argv)
+    if not scc_client:
+        logger.critical("SCC Client failed to initialize. MCP server cannot serve SCC tools.")
+
+    transport = _normalize_transport(args.transport)
+    if transport == "streamable-http":
+        app = build_streamable_http_app(
+            mcp,
+            host=args.host,
+            stateless_http=args.stateless_http,
+        )
+        logger.info(
+            "Starting %s over streamable-http on %s:%d (stateless_http=%s)",
+            mcp.name,
+            args.host,
+            args.port,
+            args.stateless_http,
+        )
+        uvicorn.run(app, host=args.host, port=args.port)
+    else:
+        logger.info("Starting SCC MCP server...")
+        mcp.run(transport="stdio")
+
 
 if __name__ == "__main__":
     main()
