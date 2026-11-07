@@ -81,6 +81,9 @@ jobs:
       - name: Run Phase 3 ToolAnnotations, structuredContent, and is_error suite
         run: pytest tests/test_mcp_v2_annotations_structured_errors.py -v
 
+      - name: Run Phase 4 Resources, ResourceSecurity, ResourceLink, and Prompts suite
+        run: pytest tests/test_mcp_v2_resources_and_prompts.py -v
+
       - name: Verify CLI --help entrypoints across all 4 servers
         run: |
           secops_mcp --help

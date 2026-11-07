@@ -680,9 +680,16 @@ async def test_search_threats(
         result = await client.call_tool(tool_name, arguments=tool_arguments)
         assert isinstance(result, mcp.types.CallToolResult)
         assert result.is_error == False
-        assert len(result.content) == 1
-        assert isinstance(result.content[0], mcp.types.TextContent)
-        assert json.loads(result.content[0].text) == expected
+        text_blocks = [
+            c for c in result.content if isinstance(c, mcp.types.TextContent)
+        ]
+        assert len(text_blocks) == 1
+        assert json.loads(text_blocks[0].text) == expected
+        if tool_name == "search_threats":
+            links = [c for c in result.content if c.type == "resource_link"]
+            assert [str(link.uri) for link in links] == ["gti://collections/apt44"]
+        else:
+            assert len(result.content) == 1
 
 
 @pytest.mark.asyncio(loop_scope="session")

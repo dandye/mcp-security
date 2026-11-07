@@ -24,12 +24,14 @@ from typing import Any, Optional
 
 from logger_utils import get_logger, setup_logging
 from mcp.server.caching import CacheHint
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import DEFAULT_RESOURCE_SECURITY, MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from secops_soar_mcp import bindings
 from secops_soar_mcp.case_management import (
     register_tools as register_tools_case_management,
 )
+from secops_soar_mcp.prompts import register_prompts as register_soar_prompts
+from secops_soar_mcp.resources import register_resources as register_soar_resources
 from secops_soar_mcp.utils.utils import normalize_integration_name
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -158,12 +160,15 @@ mcp = MCPServer(
         "finalize disposition with close_case."
     ),
     cache_hints=_build_cache_hints(),
+    resource_security=DEFAULT_RESOURCE_SECURITY,
     middleware=[OpenTelemetryMiddleware()] if OpenTelemetryMiddleware is not None else None,
 )
 _deduplicate_otel_middleware(mcp)
 _register_health_routes(mcp)
 
 register_tools_case_management(mcp)
+register_soar_resources(mcp)
+register_soar_prompts(mcp)
 
 
 def _resolve_default_stateless_http() -> bool:

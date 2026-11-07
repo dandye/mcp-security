@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import json
 from typing import Annotated, Any, Awaitable, Callable, List, Optional
 
 from logger_utils import get_logger
-from mcp.server.mcpserver import MCPServer
-from mcp.types import ToolAnnotations
+from mcp.server.mcpserver import Context, MCPServer
+from mcp.types import CallToolResult, ResourceLink, TextContent, ToolAnnotations
 from pydantic import Field
 from secops_soar_mcp import bindings
 from secops_soar_mcp.utils.consts import Endpoints
@@ -56,6 +57,57 @@ async def _execute_soar_call(
     if isinstance(resp, list):
         return {"items": resp, "count": len(resp)}
     return {"result": resp}
+
+
+def _build_case_resource_links(payload: dict[str, Any]) -> list[ResourceLink]:
+    """Build soar://cases/{case_id} ResourceLink items from a list_cases payload."""
+    candidates: list[Any] = []
+    for key in ("items", "cases", "value", "objectsList"):
+        val = payload.get(key)
+        if isinstance(val, list):
+            candidates = val
+            break
+
+    links: list[ResourceLink] = []
+    seen_ids: set[str] = set()
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        raw_id = (
+            item.get("id")
+            if item.get("id") is not None
+            else item.get("Id")
+            if item.get("Id") is not None
+            else item.get("identifier")
+            if item.get("identifier") is not None
+            else item.get("caseId")
+        )
+        if raw_id is None:
+            continue
+        case_id = str(raw_id).strip()
+        if not case_id or case_id in seen_ids:
+            continue
+        seen_ids.add(case_id)
+        title = str(
+            item.get("title")
+            or item.get("Title")
+            or item.get("name")
+            or item.get("Name")
+            or f"SOAR Case {case_id}"
+        )
+        links.append(
+            ResourceLink(
+                type="resource_link",
+                uri=f"soar://cases/{case_id}",
+                name=title,
+                title=f"SOAR Case #{case_id}: {title}",
+                description=(
+                    f"Google Security Operations SOAR case {case_id} ({title})"
+                ),
+                mime_type="application/json",
+            )
+        )
+    return links
 
 
 def register_tools(mcp: MCPServer):
@@ -171,6 +223,7 @@ def register_tools(mcp: MCPServer):
                 description="The nextPageToken to fetch the next page of results.",
             ),
         ] = None,
+        ctx: Optional[Context] = None,
     ) -> dict[str, Any]:
         """List cases available in the Security Orchestration, Automation, and Response (SOAR) platform.
 
@@ -197,17 +250,31 @@ def register_tools(mcp: MCPServer):
         - Begin enrichment by extracting key indicators from the case summary and using appropriate SIEM, TI, or other security tool MCP integrations.
         """
         if next_page_token:
-            return await _execute_soar_call(
+            payload = await _execute_soar_call(
                 "list_cases",
                 lambda: bindings.http_client.get(
                     Endpoints.BASE_CASE_URL,
                     params={"$expand": "tags", "pageToken": next_page_token},
                 ),
             )
-        return await _execute_soar_call(
-            "list_cases",
-            lambda: bindings.http_client.get(Endpoints.BASE_CASE_URL),
-        )
+        else:
+            payload = await _execute_soar_call(
+                "list_cases",
+                lambda: bindings.http_client.get(Endpoints.BASE_CASE_URL),
+            )
+
+        if isinstance(payload, CallToolResult):
+            return payload  # type: ignore[return-value]
+        if ctx is not None and isinstance(payload, dict):
+            resource_links = _build_case_resource_links(payload)
+            return CallToolResult(  # type: ignore[return-value]
+                content=[
+                    TextContent(type="text", text=json.dumps(payload, indent=2)),
+                    *resource_links,
+                ],
+                structured_content=payload,
+            )
+        return payload
 
     @mcp.tool(
         title="Post SOAR Case Comment",
@@ -1215,6 +1282,13 @@ def register_tools(mcp: MCPServer):
             return tool_error_result(  # type: ignore[return-value]
                 f"Failed to retrieve case details for case_id '{case_id}'.",
                 case_id=case_id,
+            )
+        if isinstance(results[0], dict) and isinstance(results[0].get("error"), str):
+            details = {k: v for k, v in results[0].items() if k != "error"}
+            return tool_error_result(  # type: ignore[return-value]
+                results[0]["error"],
+                case_id=case_id,
+                **details,
             )
         return {
             "case_details": results[0],

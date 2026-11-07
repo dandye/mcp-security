@@ -24,9 +24,10 @@ from google.cloud import asset_v1
 from google.cloud import securitycenter_v2
 from google.protobuf import json_format
 from mcp.server.caching import CacheHint
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import Context, DEFAULT_RESOURCE_SECURITY, MCPServer
+from mcp.server.mcpserver.exceptions import ResourceError
 from mcp.server.transport_security import TransportSecuritySettings
-from mcp.types import CallToolResult, TextContent, ToolAnnotations
+from mcp.types import CallToolResult, ResourceLink, TextContent, ToolAnnotations
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -163,6 +164,7 @@ mcp = MCPServer(
         "suppression state with set_finding_mute."
     ),
     cache_hints=_build_cache_hints(),
+    resource_security=DEFAULT_RESOURCE_SECURITY,
     middleware=[OpenTelemetryMiddleware()] if OpenTelemetryMiddleware is not None else None,
 )
 _deduplicate_otel_middleware(mcp)
@@ -695,6 +697,63 @@ async def search_findings_by_compliance(
         return tool_error_result("An unexpected error occurred", details=str(e))
 
 
+_ORG_FINDING_NAME_RE = re.compile(
+    r"^organizations/([^/]+)/sources/[^/]+/(?:locations/[^/]+/)?findings/([^/]+)$"
+)
+_ANY_FINDING_ID_RE = re.compile(r"/findings/([^/]+)$")
+
+
+def _build_scc_finding_resource_links(
+    findings: list[dict[str, Any]],
+    organization_id: Optional[str] = None,
+) -> list[ResourceLink]:
+    """Build scc://findings/{organization_id}/{finding_id} ResourceLink items."""
+    links: list[ResourceLink] = []
+    seen_uris: set[str] = set()
+    for finding in findings:
+        if not isinstance(finding, dict):
+            continue
+        raw_name = str(finding.get("name") or "").strip()
+        resolved_org = (organization_id or "").strip()
+        resolved_finding_id = ""
+
+        org_match = _ORG_FINDING_NAME_RE.match(raw_name)
+        if org_match:
+            resolved_org = org_match.group(1)
+            resolved_finding_id = org_match.group(2)
+        elif resolved_org and raw_name:
+            id_match = _ANY_FINDING_ID_RE.search(raw_name)
+            if id_match:
+                resolved_finding_id = id_match.group(1)
+            elif "/" not in raw_name:
+                resolved_finding_id = raw_name
+
+        if not resolved_org or not resolved_finding_id:
+            continue
+
+        uri = f"scc://findings/{resolved_org}/{resolved_finding_id}"
+        if uri in seen_uris:
+            continue
+        seen_uris.add(uri)
+
+        category = str(finding.get("category") or resolved_finding_id)
+        severity = str(finding.get("severity") or "UNKNOWN")
+        links.append(
+            ResourceLink(
+                type="resource_link",
+                uri=uri,
+                name=f"{category} ({resolved_finding_id})",
+                title=f"SCC {severity} Finding: {category}",
+                description=(
+                    f"Google Cloud SCC v2 finding {resolved_finding_id} "
+                    f"in organization {resolved_org}"
+                ),
+                mime_type="application/json",
+            )
+        )
+    return links
+
+
 @mcp.tool(
     title="List Top SCC Vulnerability Findings",
     annotations=ToolAnnotations(
@@ -710,6 +769,7 @@ async def top_vulnerability_findings(
     organization_id: Optional[str] = None,
     max_findings: int = 20,
     location: str = "global",
+    ctx: Optional[Context] = None,
 ) -> dict[str, Any]:
     """Name: top_vulnerability_findings
 
@@ -780,12 +840,28 @@ async def top_vulnerability_findings(
         )
         sorted_findings = all_fetched[:final_max]
 
-        return {
+        payload: dict[str, Any] = {
             "top_findings": sorted_findings,
             "count": len(sorted_findings),
             "fetched_for_sorting": len(all_fetched),
             "more_findings_exist_beyond_fetch_limit": len(all_fetched) >= fetch_size,
         }
+        if ctx is not None:
+            resource_links = _build_scc_finding_resource_links(
+                sorted_findings,
+                organization_id=organization_id,
+            )
+            return CallToolResult(  # type: ignore[return-value]
+                content=[
+                    TextContent(
+                        type="text",
+                        text=json.dumps(payload, indent=2),
+                    ),
+                    *resource_links,
+                ],
+                structured_content=payload,
+            )
+        return payload
 
     except google_exceptions.NotFound as e:
         logger.error("Target or resource not found for top findings on %s: %s", parent, e)
@@ -1151,6 +1227,131 @@ async def set_finding_mute(
     except Exception as e:
         logger.error("Unexpected error setting mute on %s: %s", finding_id, e, exc_info=True)
         return tool_error_result("An unexpected error occurred", details=str(e))
+
+
+# --- MCP Resources and Prompts ---
+
+
+@mcp.resource(
+    "scc://info/capabilities",
+    name="scc_capabilities",
+    title="Google Cloud Security Command Center Capabilities",
+    description=(
+        "Static catalog summarizing Google Cloud Security Command Center "
+        "(SCC v2) MCP server version, posture and vulnerability prioritization "
+        "capabilities, resource URI templates, and cloud exposure prompts."
+    ),
+    mime_type="application/json",
+)
+def scc_capabilities() -> dict[str, Any]:
+    """Return static Google Cloud Security Command Center server capabilities."""
+    return {
+        "server": mcp.name,
+        "version": "0.3.0",
+        "protocol_version": PROTOCOL_VERSION,
+        "platform": "Google Cloud Security Command Center (SCC v2) & Cloud Asset Inventory (CAI)",
+        "capabilities": [
+            "SCC v2 active threat, vulnerability, misconfiguration, and toxic combination search",
+            "Attack Exposure Score ranking for top vulnerability findings",
+            "CIS, PCI DSS, NIST 800-53, and ISO 27001 compliance control mapping",
+            "Cloud Asset Inventory (CAI) resource metadata enrichment and remediation steps",
+            "Finding mute state lifecycle management",
+        ],
+        "resource_templates": [
+            "scc://findings/{organization_id}/{finding_id}",
+        ],
+        "prompts": [
+            "triage_cloud_finding_exposure",
+        ],
+    }
+
+
+_UNSAFE_RESOURCE_SEGMENT_RE = re.compile(r'[\s/\\?#\{\}"\'%\x00-\x1f\x7f]')
+
+
+def _validate_scc_resource_segment(param_name: str, value: str) -> str:
+    """Validate a single decoded SCC URI template segment against injection characters."""
+    cleaned = value.strip()
+    if not cleaned or cleaned in {".", ".."} or _UNSAFE_RESOURCE_SEGMENT_RE.search(value):
+        raise ResourceError(f"Invalid resource parameter '{param_name}'.")
+    return cleaned
+
+
+@mcp.resource(
+    "scc://findings/{organization_id}/{finding_id}",
+    name="scc_finding_details",
+    title="Google Cloud SCC v2 Finding Details",
+    description=(
+        "Read-only Google Cloud Security Command Center v2 finding details, "
+        "Attack Exposure Score, compliance mappings, and Cloud Asset Inventory "
+        "resource metadata for organizations/{organization_id}/sources/-/findings/{finding_id}."
+    ),
+    mime_type="application/json",
+)
+async def read_scc_finding(
+    organization_id: str,
+    finding_id: str,
+) -> dict[str, Any]:
+    """Fetch SCC v2 finding details and CAI resource metadata by organization_id and finding_id."""
+    organization_id = _validate_scc_resource_segment("organization_id", organization_id)
+    finding_id = _validate_scc_resource_segment("finding_id", finding_id)
+    details = await get_finding_details(
+        organization_id=organization_id,
+        finding_id=finding_id,
+        include_resource_details=True,
+    )
+    if isinstance(details, CallToolResult):
+        err_payload = details.structured_content or {}
+        err_msg = str(err_payload.get("error") or "Failed to fetch SCC finding")
+        extra = str(err_payload.get("details") or "").strip()
+        full_msg = f"{err_msg}: {extra}" if extra else err_msg
+        raise ResourceError(full_msg)
+    if isinstance(details, dict) and isinstance(details.get("error"), str):
+        raise ResourceError(details["error"])
+    return {
+        "organization_id": organization_id,
+        **details,
+    }
+
+
+@mcp.prompt(
+    title="Triage Google Cloud SCC Finding Exposure",
+    description=(
+        "Google Cloud Security Command Center (SCC v2) cloud vulnerability and "
+        "misconfiguration triage workflow: evaluate Attack Exposure Score, "
+        "Cloud Asset Inventory blast radius, compliance impact, and remediation."
+    ),
+)
+def triage_cloud_finding_exposure(finding_id: str, organization_id: str) -> str:
+    """Build a structured Google Cloud SCC v2 finding exposure triage prompt."""
+    return (
+        f"Execute a Google Cloud Security Command Center (SCC v2) exposure "
+        f"and blast-radius triage workflow for finding `{finding_id}` in "
+        f"organization `{organization_id}`:\n\n"
+        f"1. **Finding & Asset Context Inspection**\n"
+        f"   - Read resource `scc://findings/{organization_id}/{finding_id}` "
+        f"(or call `get_finding_details(organization_id=\"{organization_id}\", "
+        f"finding_id=\"{finding_id}\", include_resource_details=True)`) to "
+        f"retrieve finding class, category, severity, state, CVE/CVSS data, "
+        f"MITRE ATT&CK mappings, and Cloud Asset Inventory (CAI) resource "
+        f"configuration.\n\n"
+        f"2. **Attack Exposure Score & Blast-Radius Assessment**\n"
+        f"   - Evaluate the `attackExposure` score, internet reachability, "
+        f"attached service accounts, IAM bindings, and project/folder "
+        f"criticality.\n"
+        f"   - Call `search_findings(organization_id=\"{organization_id}\", "
+        f"resource_name=...)` on the affected `resourceName` to check for "
+        f"co-existing `TOXIC_COMBINATION`, `CHOKEPOINT`, `THREAT`, or "
+        f"`MISCONFIGURATION` findings on the same cloud asset.\n\n"
+        f"3. **Compliance & Remediation Plan**\n"
+        f"   - Call `get_finding_remediation(organization_id=\"{organization_id}\", "
+        f"finding_id=\"{finding_id}\")` to extract prescriptive `nextSteps` "
+        f"and affected compliance controls (CIS, PCI DSS, NIST 800-53, ISO 27001).\n\n"
+        f"4. **Prioritized Disposition**\n"
+        f"   - Deliver a risk-ranked remediation recommendation (Immediate "
+        f"Mitigation, Scheduled Patch/Config Fix, or Documented Risk Acceptance "
+        f"prior to any `set_finding_mute` action)."
+    )
 
 
 # --- Main execution ---

@@ -13,17 +13,60 @@
 # limitations under the License.
 """Security Operations MCP tools for security rules."""
 
+import json
 import logging
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
-from mcp.types import ToolAnnotations as _ToolAnnotations
+from mcp.server.mcpserver import Context as _Context
+from mcp.types import (
+    CallToolResult as _CallToolResult,
+    ResourceLink as _ResourceLink,
+    TextContent as _TextContent,
+    ToolAnnotations as _ToolAnnotations,
+)
 from secops_mcp.server import get_chronicle_client, server
 from secops_mcp.utils import tool_error_result as _tool_error_result
 
 # Configure logging
 logger = logging.getLogger("secops-mcp")
+
+
+def _build_rule_resource_links(rules_response: dict[str, Any]) -> list[_ResourceLink]:
+    """Build secops://rules/{rule_id} ResourceLink items for listed YARA-L 2.0 rules."""
+    raw_rules = rules_response.get("rules", [])
+    if not isinstance(raw_rules, list):
+        return []
+    links: list[_ResourceLink] = []
+    seen_ids: set[str] = set()
+    for rule in raw_rules:
+        if not isinstance(rule, dict):
+            continue
+        rule_id = str(rule.get("ruleId") or "").strip()
+        if not rule_id and isinstance(rule.get("name"), str):
+            rule_id = rule["name"].split("/")[-1].split("@")[0].strip()
+        if not rule_id and rule.get("id"):
+            rule_id = str(rule["id"]).strip()
+        if not rule_id or rule_id in seen_ids:
+            continue
+        seen_ids.add(rule_id)
+        rule_name = str(
+            rule.get("ruleName") or rule.get("displayName") or rule_id
+        )
+        links.append(
+            _ResourceLink(
+                type="resource_link",
+                uri=f"secops://rules/{rule_id}",
+                name=rule_name,
+                title=f"YARA-L 2.0 Rule: {rule_name}",
+                description=(
+                    f"Google Security Operations YARA-L 2.0 SIEM rule {rule_id}"
+                ),
+                mime_type="application/json",
+            )
+        )
+    return links
 
 
 @server.tool(
@@ -42,6 +85,7 @@ async def list_security_rules(
     region: Optional[str] = None,
     page_size: int = 100,
     page_token: str | None = None,
+    ctx: Optional[_Context] = None,
 ) -> dict[str, Any]:
     """List security detection rules configured in Chronicle SIEM, with support for pagination.
 
@@ -88,6 +132,18 @@ async def list_security_rules(
         rules_response = chronicle.list_rules(
             page_size=page_size, page_token=page_token
         )
+        if ctx is not None and isinstance(rules_response, dict):
+            resource_links = _build_rule_resource_links(rules_response)
+            return _CallToolResult(  # type: ignore[return-value]
+                content=[
+                    _TextContent(
+                        type="text",
+                        text=json.dumps(rules_response, indent=2),
+                    ),
+                    *resource_links,
+                ],
+                structured_content=rules_response,
+            )
         return rules_response
     except Exception as e:
         logger.error("Error listing security rules: %s", e, exc_info=True)

@@ -18,7 +18,13 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
-from mcp.types import ToolAnnotations as _ToolAnnotations
+from mcp.server.mcpserver import Context as _Context
+from mcp.types import (
+    CallToolResult as _CallToolResult,
+    ResourceLink as _ResourceLink,
+    TextContent as _TextContent,
+    ToolAnnotations as _ToolAnnotations,
+)
 from secops_mcp.server import get_chronicle_client, server
 from secops_mcp.utils import tool_error_result as _tool_error_result
 
@@ -44,6 +50,7 @@ async def get_security_alerts(
     max_alerts: int = 10,
     status_filter: str = 'feedback_summary.status != "CLOSED"',
     region: Optional[str] = None,
+    ctx: Optional[_Context] = None,
 ) -> dict[str, Any]:
     """Get security alerts directly from Chronicle SIEM.
 
@@ -165,11 +172,58 @@ async def get_security_alerts(
 
             result += '\n'
 
-        return {
+        payload: dict[str, Any] = {
             'summary': result,
             'count': len(alert_list),
             'alerts': alert_list,
         }
+        if ctx is not None:
+            resource_links: list[_ResourceLink] = []
+            seen_alert_ids: set[str] = set()
+            for alert in alert_list:
+                if not isinstance(alert, dict):
+                    continue
+                raw_alert_id = alert.get('id')
+                if not raw_alert_id:
+                    continue
+                alert_id_str = str(raw_alert_id).strip()
+                if not alert_id_str or alert_id_str in seen_alert_ids:
+                    continue
+                seen_alert_ids.add(alert_id_str)
+                if (
+                    'detection' in alert
+                    and isinstance(alert['detection'], list)
+                    and len(alert['detection']) > 0
+                ):
+                    link_rule_name = alert['detection'][0].get(
+                        'ruleName', 'Unknown Rule'
+                    )
+                else:
+                    link_rule_name = alert.get('ruleName', 'Unknown Rule')
+                resource_links.append(
+                    _ResourceLink(
+                        type='resource_link',
+                        uri=f'secops://alerts/{alert_id_str}',
+                        name=f'{link_rule_name} ({alert_id_str})',
+                        title=f'SecOps SIEM Alert: {alert_id_str}',
+                        description=(
+                            f'Google Security Operations SIEM alert {alert_id_str} '
+                            f'for rule {link_rule_name}'
+                        ),
+                        mime_type='application/json',
+                    )
+                )
+            return _CallToolResult(  # type: ignore[return-value]
+                content=[
+                    _TextContent(
+                        type='text',
+                        text=json.dumps(payload, indent=2),
+                    ),
+                    *resource_links,
+                ],
+                structured_content=payload,
+            )
+        return payload
     except Exception as e:
         logger.error('Error retrieving security alerts: %s', e, exc_info=True)
         return _tool_error_result(

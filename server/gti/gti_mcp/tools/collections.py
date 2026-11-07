@@ -12,11 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import typing
 import logging
 
 from mcp.server.mcpserver import Context
-from mcp.types import ToolAnnotations as _ToolAnnotations
+from mcp.types import (
+    CallToolResult as _CallToolResult,
+    ResourceLink as _ResourceLink,
+    TextContent as _TextContent,
+    ToolAnnotations as _ToolAnnotations,
+)
 
 from .. import utils
 from ..server import server, vt_client
@@ -281,7 +287,43 @@ async def search_threats(
   except Exception as e:
     logging.exception("Error searching threats: %s", e)
     return utils.tool_error_result(f"Failed to search threats: {e}")  # type: ignore[return-value]
-  return utils.sanitize_response([o.to_dict() for o in res])
+  sanitized = utils.sanitize_response([o.to_dict() for o in res])
+  if isinstance(ctx, Context) and isinstance(sanitized, list):
+    text_items = [
+        _TextContent(type="text", text=json.dumps(item, indent=2))
+        for item in sanitized
+    ]
+    resource_links: list[_ResourceLink] = []
+    seen_ids: set[str] = set()
+    for item in sanitized:
+      if not isinstance(item, dict):
+        continue
+      col_id = str(item.get("id") or "").strip()
+      if not col_id or col_id in seen_ids:
+        continue
+      seen_ids.add(col_id)
+      attrs = item.get("attributes") if isinstance(item.get("attributes"), dict) else {}
+      col_name = str(attrs.get("name") or col_id)
+      col_type = str(
+          attrs.get("collection_type") or item.get("type") or "collection"
+      )
+      resource_links.append(
+          _ResourceLink(
+              type="resource_link",
+              uri=f"gti://collections/{col_id}",
+              name=col_name,
+              title=f"GTI {col_type}: {col_name}",
+              description=(
+                  f"Google Threat Intelligence {col_type} profile {col_id}"
+              ),
+              mime_type="application/json",
+          )
+      )
+    return _CallToolResult(  # type: ignore[return-value]
+        content=[*text_items, *resource_links],
+        structured_content={"result": sanitized},
+    )
+  return sanitized
 
 
 @server.tool(

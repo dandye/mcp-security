@@ -23,7 +23,7 @@ import os
 from typing import Any, Optional, Sequence
 
 from mcp.server.caching import CacheHint
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import DEFAULT_RESOURCE_SECURITY, MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from secops import SecOpsClient
 from starlette.applications import Starlette
@@ -157,6 +157,7 @@ server = MCPServer(
     ),
     log_level='ERROR',
     cache_hints=_build_cache_hints(),
+    resource_security=DEFAULT_RESOURCE_SECURITY,
     middleware=[OpenTelemetryMiddleware()] if OpenTelemetryMiddleware is not None else None,
 )
 _deduplicate_otel_middleware(server)
@@ -211,8 +212,13 @@ def get_chronicle_client(
     return chronicle
 
 
-# Import all tools
+# Import all tools, resources, and prompts
 from secops_mcp.tools import *
+from secops_mcp.prompts import register_prompts as _register_prompts
+from secops_mcp.resources import register_resources as _register_resources
+
+_register_resources(server)
+_register_prompts(server)
 
 
 def _resolve_allowed_hosts(

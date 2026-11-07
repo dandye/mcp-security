@@ -21,7 +21,7 @@ import os
 from typing import Any, Optional
 
 from mcp.server.caching import CacheHint
-from mcp.server.mcpserver import Context, MCPServer
+from mcp.server.mcpserver import Context, DEFAULT_RESOURCE_SECURITY, MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -188,13 +188,19 @@ server = MCPServer(
     ),
     dependencies=["vt-py"],
     cache_hints=_build_cache_hints(),
+    resource_security=DEFAULT_RESOURCE_SECURITY,
     middleware=[OpenTelemetryMiddleware()] if OpenTelemetryMiddleware is not None else None,
 )
 _deduplicate_otel_middleware(server)
 _register_health_routes(server)
 
-# Load tools.
+# Load tools, resources, and prompts.
 from gti_mcp.tools import *
+from gti_mcp.prompts import register_prompts as _register_prompts
+from gti_mcp.resources import register_resources as _register_resources
+
+_register_resources(server)
+_register_prompts(server)
 
 
 def _resolve_allowed_hosts(
