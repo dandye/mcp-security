@@ -170,7 +170,7 @@ def test_chat_destructive_confirmation_interrupt_and_resume():
                     args={
                         "originalFunctionCall": {
                             "id": "orig-fc-1",
-                            "name": "delete_security_rule",
+                            "name": "delete_rule",
                             "args": {"rule_id": "ru_a1b2c3d4-e5f6-4321-abcd-ef1234567890"},
                         }
                     },
@@ -220,7 +220,7 @@ def test_chat_destructive_confirmation_interrupt_and_resume():
         )
         assert first.status_code == 200
         assert "confirmation_request" in first.text
-        assert "delete_security_rule" in first.text
+        assert "delete_rule" in first.text
 
         second = client.post(
             "/chat",
@@ -311,7 +311,7 @@ def test_chat_post_json_strips_tool_traces_and_handles_confirmation_call_id():
                                     args={
                                         "originalFunctionCall": {
                                             "id": "orig-del-1",
-                                            "name": "delete_security_rule",
+                                            "name": "delete_rule",
                                             "args": {
                                                 "rule_id": "ru_a1b2c3d4-e5f6-4321-abcd-ef1234567890"
                                             },
@@ -360,7 +360,7 @@ def test_chat_post_json_strips_tool_traces_and_handles_confirmation_call_id():
         first_json = first.json()
         assert "[Tool]" not in first_json["response"]
         assert first_json["confirmation_required"] is True
-        assert first_json["tool_name"] == "delete_security_rule"
+        assert first_json["tool_name"] == "delete_rule"
         assert first_json["interrupt_id"] == "confirm-json-1"
 
         second = client.post(
@@ -571,6 +571,8 @@ def test_dompurify_xss_protection():
     assert "DOMPurify.sanitize" in js
     assert "renderMarkdown" in js
     assert "failing closed to escaped text" in js
+    assert "Failed to get response from server: ${err.message}</span>" not in js
+    assert "errSpan.textContent = `Failed to get response from server: ${err.message}`" in js
 
 
 def test_frontend_streaming_abort_on_reset():
@@ -599,6 +601,8 @@ def test_frontend_inline_approve_reject_confirmation_controls():
     assert ".confirm-actions" in css
     assert ".confirm-approve-btn" in css
     assert ".confirm-reject-btn" in css
+    assert '[data-theme="light"] .confirm-approve-btn' in css
+    assert '[data-theme="light"] .confirm-reject-btn' in css
 
 
 def test_bounded_session_service_thread_safe_lookups():

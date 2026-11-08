@@ -23,7 +23,11 @@ setup(
     packages=setuptools.find_packages(),
     install_requires=[
         "cryptography>=42.0.0",
+        "httpx2>=2.10.0",
         "mcp[cli]>=2.3.0,<3.0.0",
+        "pydantic>=2.11.2",
+        "starlette>=0.40.0",
+        "uvicorn>=0.30.0",
         "vt-py",
     ],
     extras_require={

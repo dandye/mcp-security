@@ -187,7 +187,19 @@ async def get_security_alerts(
                 if not raw_alert_id:
                     continue
                 alert_id_str = str(raw_alert_id).strip()
-                if not alert_id_str or alert_id_str in seen_alert_ids:
+                if (
+                    not alert_id_str
+                    or alert_id_str in {'.', '..'}
+                    or '..' in alert_id_str
+                    or any(
+                        ord(ch) < 32
+                        or ord(ch) == 127
+                        or ch.isspace()
+                        or ch in {'/', '\\', '%', '?', '#'}
+                        for ch in alert_id_str
+                    )
+                    or alert_id_str in seen_alert_ids
+                ):
                     continue
                 seen_alert_ids.add(alert_id_str)
                 if (

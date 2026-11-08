@@ -433,7 +433,11 @@ def chat(
         None,
         "--session-id",
         "--session_id",
-        help="Session ID to create or resume (including pending confirmation interrupts)",
+        help=(
+            "Session ID to create or resume (persisting session state and "
+            "pending confirmation interrupts across single-turn chat "
+            "invocations within the same process or persistent session store)"
+        ),
     ),
     secops: Optional[bool] = typer.Option(
         None, "--secops/--no-secops", help="Enable or disable SecOps SIEM MCP"

@@ -40,10 +40,15 @@ for _pkg_dir in (
     if _pkg_str not in sys.path:
         sys.path.insert(0, _pkg_str)
 
+from gti_mcp import phase5 as gti_phase5  # noqa: E402
 from gti_mcp.server import server as gti_server  # noqa: E402
+import inspect  # noqa: E402
 import mcp_security_agent  # noqa: E402
+import scc_mcp as scc_mod  # noqa: E402
 from scc_mcp import mcp as scc_server  # noqa: E402
+from secops_mcp import phase5 as secops_phase5  # noqa: E402
 from secops_mcp.server import server as secops_server  # noqa: E402
+from secops_soar_mcp import phase5 as soar_phase5  # noqa: E402
 from secops_soar_mcp import server as soar_server_mod  # noqa: E402
 
 REGISTRY_SCHEMA_URL = "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json"
@@ -244,3 +249,194 @@ def test_setup_py_extractor_detects_version_and_name_drift(tmp_path: Path) -> No
         "install_requires": ["mcp[cli]>=2.3.0,<3.0.0"],
     }
     assert meta["version"] != "1.2.4"
+
+
+def _normalize_req_name(req: str) -> str:
+    """Normalize a PEP 508 requirement string to its canonical lowercase package name."""
+    base = re.split(r"[<>=!~;\[\s]", req.strip(), maxsplit=1)[0]
+    return base.lower().replace("_", "-")
+
+
+_IMPORT_TO_PYPI_PACKAGE: dict[str, str] = {
+    "aiohttp": "aiohttp",
+    "cryptography": "cryptography",
+    "dotenv": "python-dotenv",
+    "google.api_core": "google-api-core",
+    "google.auth": "google-auth",
+    "google.cloud.asset_v1": "google-cloud-asset",
+    "google.cloud.securitycenter_v2": "google-cloud-securitycenter",
+    "google.protobuf": "protobuf",
+    "httpx": "httpx",
+    "httpx2": "httpx2",
+    "mcp": "mcp",
+    "pydantic": "pydantic",
+    "requests": "requests",
+    "secops": "secops",
+    "starlette": "starlette",
+    "typing_extensions": "typing-extensions",
+    "uvicorn": "uvicorn",
+    "vt": "vt-py",
+}
+
+
+def _collect_unconditional_top_level_imports(py_files: list[Path]) -> set[str]:
+    """Collect unconditional module-body imports (excluding try/except ImportError blocks)."""
+    local_roots = {
+        "secops_mcp",
+        "gti_mcp",
+        "secops_soar_mcp",
+        "logger_utils",
+        "scc_mcp",
+    }
+    discovered: set[str] = set()
+    for py_file in py_files:
+        tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
+        for stmt in tree.body:
+            if isinstance(stmt, ast.Import):
+                for alias in stmt.names:
+                    discovered.add(alias.name)
+            elif isinstance(stmt, ast.ImportFrom) and stmt.level == 0 and stmt.module:
+                if stmt.module == "google.cloud":
+                    for alias in stmt.names:
+                        discovered.add(f"google.cloud.{alias.name}")
+                else:
+                    discovered.add(stmt.module)
+    out: set[str] = set()
+    for mod_path in discovered:
+        root = mod_path.split(".")[0]
+        if root in sys.stdlib_module_names or root in local_roots:
+            continue
+        out.add(mod_path)
+    return out
+
+
+def _map_import_to_expected_pypi(mod_path: str) -> str:
+    """Resolve an imported module path to its canonical PyPI package name."""
+    parts = mod_path.split(".")
+    for prefix_len in range(len(parts), 0, -1):
+        candidate = ".".join(parts[:prefix_len])
+        if candidate in _IMPORT_TO_PYPI_PACKAGE:
+            return _IMPORT_TO_PYPI_PACKAGE[candidate]
+    return parts[0].lower().replace("_", "-")
+
+
+@pytest.mark.parametrize(
+    ("subdir", "source_files"),
+    [
+        (
+            "secops",
+            sorted((REPO_ROOT / "server" / "secops" / "secops_mcp").rglob("*.py")),
+        ),
+        (
+            "gti",
+            sorted((REPO_ROOT / "server" / "gti" / "gti_mcp").rglob("*.py")),
+        ),
+        (
+            "secops-soar",
+            sorted(
+                list((REPO_ROOT / "server" / "secops-soar" / "secops_soar_mcp").rglob("*.py"))
+                + list((REPO_ROOT / "server" / "secops-soar").glob("logger_utils*.py"))
+            ),
+        ),
+        (
+            "scc",
+            [REPO_ROOT / "server" / "scc" / "scc_mcp.py"],
+        ),
+    ],
+    ids=["secops", "gti", "secops-soar", "scc"],
+)
+def test_server_top_level_imports_declared_and_pyproject_matches_setup_py(
+    subdir: str,
+    source_files: list[Path],
+) -> None:
+    """Verify pyproject.toml == setup.py dependencies and all top-level 3P imports are declared."""
+    pkg_dir = REPO_ROOT / "server" / subdir
+    pyproject = tomllib.loads((pkg_dir / "pyproject.toml").read_text(encoding="utf-8"))
+    setup_meta = _extract_setup_py_metadata(pkg_dir / "setup.py")
+
+    pyproject_deps = pyproject["project"]["dependencies"]
+    setup_deps = setup_meta.get("install_requires", [])
+    assert set(pyproject_deps) == set(setup_deps), (
+        f"{subdir}: pyproject.toml dependencies {pyproject_deps} != setup.py {setup_deps}"
+    )
+
+    declared_pkg_names = {_normalize_req_name(req) for req in pyproject_deps}
+    for required_direct in ("httpx2", "starlette", "uvicorn", "pydantic"):
+        assert required_direct in declared_pkg_names, (
+            f"{subdir}: missing direct runtime dependency {required_direct!r}"
+        )
+    if subdir == "scc":
+        assert "requests" in declared_pkg_names
+        assert "google-auth" in declared_pkg_names
+
+    assert source_files, f"{subdir}: no Python source files discovered"
+    top_imports = _collect_unconditional_top_level_imports(source_files)
+    missing: list[tuple[str, str]] = []
+    for mod_path in sorted(top_imports):
+        expected_pkg = _map_import_to_expected_pypi(mod_path)
+        if expected_pkg not in declared_pkg_names:
+            missing.append((mod_path, expected_pkg))
+    assert not missing, (
+        f"{subdir}: top-level third-party imports missing from manifests: {missing}"
+    )
+
+
+def test_phase5_security_primitives_signature_and_method_parity_across_servers() -> None:
+    """Assert EnvAwareAESGCMCodec, elicit_destructive_confirmation, and GoogleOIDCTokenVerifier match across all 4 servers."""
+    modules = {
+        "secops": secops_phase5,
+        "gti": gti_phase5,
+        "secops-soar": soar_phase5,
+        "scc": scc_mod,
+    }
+
+    def _param_shape(callable_obj: Any) -> list[tuple[str, Any, Any]]:
+        sig = inspect.signature(callable_obj)
+        return [
+            (
+                name,
+                param.kind,
+                None
+                if param.default is inspect.Parameter.empty
+                else (
+                    param.default
+                    if isinstance(param.default, (str, int, float, bool))
+                    else type(param.default).__name__
+                ),
+            )
+            for name, param in sig.parameters.items()
+        ]
+
+    ref_mod = modules["secops"]
+    ref_codec_init = _param_shape(ref_mod.EnvAwareAESGCMCodec.__init__)
+    ref_codec_seal = _param_shape(ref_mod.EnvAwareAESGCMCodec.seal)
+    ref_codec_unseal = _param_shape(ref_mod.EnvAwareAESGCMCodec.unseal)
+    ref_elicit = _param_shape(ref_mod.elicit_destructive_confirmation)
+    ref_verifier_init = _param_shape(ref_mod.GoogleOIDCTokenVerifier.__init__)
+    ref_verifier_verify = _param_shape(ref_mod.GoogleOIDCTokenVerifier.verify_token)
+
+    for name, mod in modules.items():
+        assert hasattr(mod, "elicit_destructive_confirmation"), (
+            f"{name}: missing elicit_destructive_confirmation"
+        )
+        assert mod.elicit_destructive_confirmation is mod.confirm_destructive_action
+        assert _param_shape(mod.EnvAwareAESGCMCodec.__init__) == ref_codec_init, name
+        assert _param_shape(mod.EnvAwareAESGCMCodec.seal) == ref_codec_seal, name
+        assert _param_shape(mod.EnvAwareAESGCMCodec.unseal) == ref_codec_unseal, name
+        assert _param_shape(mod.elicit_destructive_confirmation) == ref_elicit, name
+        assert _param_shape(mod.GoogleOIDCTokenVerifier.__init__) == ref_verifier_init, name
+        assert _param_shape(mod.GoogleOIDCTokenVerifier.verify_token) == ref_verifier_verify, name
+        assert isinstance(
+            getattr(mod.GoogleOIDCTokenVerifier, "certs_url", None), property
+        ), f"{name}: GoogleOIDCTokenVerifier missing certs_url property"
+        assert (
+            mod._resolve_oidc_certs_url("https://accounts.google.com")
+            == "https://www.googleapis.com/oauth2/v3/certs"
+        )
+        assert (
+            mod._resolve_oidc_certs_url("accounts.google.com")
+            == "https://www.googleapis.com/oauth2/v3/certs"
+        )
+
+    ci_wf = (REPO_ROOT / ".github" / "workflows" / "ci-mcp-tests.yml").read_text(encoding="utf-8")
+    assert "isolated-venv-" in ci_wf, "ci-mcp-tests.yml missing isolated standalone wheel smoke check"

@@ -8,7 +8,7 @@ This server (`google-secops-mcp` `0.9.0`, MCP `2026-07-28` / `mcp>=2.3.0`) provi
 - **Caching and Tracing**: `SEP-2549` `CacheHint` (`MCP_TOOLS_CACHE_TTL_MS`) and `OpenTelemetryMiddleware` (`OTEL_EXPORTER_OTLP_ENDPOINT`).
 - **Resources and `ResourceLink` Compaction**: `secops://info/capabilities`, `secops://rules/{rule_id}`, `secops://reference-lists/{name}`, `secops://parsers/{log_type}`, and `secops://alerts/{alert_id}`, plus `ResourceLink` summaries on `list_security_rules` and `get_security_alerts`.
 - **SOC Prompts**: `triage_siem_alert(alert_id, lookback_hours)`, `validate_yaral2_detection_rule(rule_text)`, and `hunt_entity_timeline(entity_value, hours)`.
-- **MRTR Elicitation, Progress, OAuth 2.1 RS, and MCP App**: Stateless `AESGCMRequestStateCodec` elicitation (`MCP_ELICIT_DESTRUCTIVE`, `MCP_UNATTENDED_DESTRUCTIVE_POLICY`) on `delete_security_rule`, progress updates on `test_rule` and `export_udm_search_csv`, OAuth 2.1 bearer verification (`MCP_OAUTH_ISSUER_URL`, `MCP_RESOURCE_SERVER_URL`), and dark-mode MCP App `ui://secops/entity-timeline.html` (`--disable-apps` / `MCP_ENABLE_APPS=false`).
+- **MRTR Elicitation, Progress, OAuth 2.1 RS, and MCP App**: Stateless `AESGCMRequestStateCodec` elicitation (`MCP_ELICIT_DESTRUCTIVE`, `MCP_UNATTENDED_DESTRUCTIVE_POLICY`) on `delete_rule`, progress updates on `test_rule` and `export_udm_search_csv`, OAuth 2.1 bearer verification (`MCP_OAUTH_ISSUER_URL`, `MCP_RESOURCE_SERVER_URL`), and dark-mode MCP App `ui://secops/entity-timeline.html` (`--disable-apps` / `MCP_ENABLE_APPS=false`).
 - **Rule Syntax**: Detection rules use **YARA-L 2.0** (UDM event detection rules for Google Security Operations SIEM), distinct from standard YARA file/payload pattern matching in Google Threat Intelligence.
 
 See the [MCP 2026-07-28 Protocol Guide](../mcp_v2_capabilities.md) for full configuration details.
@@ -311,6 +311,16 @@ The service account or user credentials need the following Chronicle roles:
         - `customer_id` (optional): Chronicle customer ID (defaults to environment config).
         - `region` (optional): Chronicle region (defaults to environment config or 'us').
     - **Returns:** Formatted string with the rule ID, updated revision ID, and rule name.
+
+- **`delete_rule(rule_id, force=False, project_id=None, customer_id=None, region=None)`**
+    - **Description:** Permanently deletes a YARA-L 2.0 detection rule from Chronicle SIEM. Annotated with `destructiveHint=True` and gated by stateless MRTR operator confirmation (`ctx.elicit`) when `MCP_ELICIT_DESTRUCTIVE=true` (honoring `MCP_UNATTENDED_DESTRUCTIVE_POLICY` for non-interactive clients).
+    - **Parameters:**
+        - `rule_id` (required): Unique ID (`"ru_<UUID>"`) or full resource name of the YARA-L 2.0 rule to delete.
+        - `force` (optional): When `True`, force-deletes the rule even if associated retrohunts exist (default: `False`).
+        - `project_id` (optional): Google Cloud project ID (defaults to environment config).
+        - `customer_id` (optional): Chronicle customer ID (defaults to environment config).
+        - `region` (optional): Chronicle region (defaults to environment config or 'us').
+    - **Returns:** Dictionary confirming deletion status (`deleted: True`) and normalized `rule_id`, or cancellation details when operator confirmation is declined.
 
 - **`get_ioc_matches(project_id=None, customer_id=None, hours_back=24, max_matches=20, region=None)`**
     - **Description:** Retrieves Indicators of Compromise (IoCs) matches from Chronicle within a specified time range.

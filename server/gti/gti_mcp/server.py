@@ -19,6 +19,7 @@ from dataclasses import dataclass
 import logging
 import os
 from typing import Any, Optional
+from urllib.parse import urlsplit
 
 from mcp.server.auth.provider import TokenVerifier
 from mcp.server.caching import CacheHint
@@ -113,13 +114,28 @@ def _build_cache_hints() -> dict[str, CacheHint]:
   }
 
 
+def _is_otel_enabled() -> bool:
+  """Return True unless MCP_OTEL_ENABLED is set to a falsy value."""
+  return os.environ.get("MCP_OTEL_ENABLED", "true").strip().lower() not in {
+      "0",
+      "false",
+      "no",
+      "off",
+  }
+
+
 def _deduplicate_otel_middleware(server_instance: MCPServer) -> None:
-  """Keep a single outermost OpenTelemetryMiddleware on the low-level server."""
+  """Synchronize OpenTelemetryMiddleware on the low-level server with MCP_OTEL_ENABLED."""
   if OpenTelemetryMiddleware is None:
     return
   lowlevel = getattr(server_instance, "_lowlevel_server", None)
   mw_list = getattr(lowlevel, "middleware", None)
   if not isinstance(mw_list, list):
+    return
+  if not _is_otel_enabled():
+    mw_list[:] = [
+        item for item in mw_list if not isinstance(item, OpenTelemetryMiddleware)
+    ]
     return
   seen_otel = False
   deduped: list[Any] = []
@@ -129,6 +145,8 @@ def _deduplicate_otel_middleware(server_instance: MCPServer) -> None:
         continue
       seen_otel = True
     deduped.append(item)
+  if not seen_otel:
+    deduped.insert(0, OpenTelemetryMiddleware())
   mw_list[:] = deduped
 
 
@@ -200,7 +218,11 @@ server = MCPServer(
     resource_security=DEFAULT_RESOURCE_SECURITY,
     request_state_security=build_request_state_security(),
     extensions=build_gti_apps_extensions() or None,
-    middleware=[OpenTelemetryMiddleware()] if OpenTelemetryMiddleware is not None else None,
+    middleware=(
+        [OpenTelemetryMiddleware()]
+        if (OpenTelemetryMiddleware is not None and _is_otel_enabled())
+        else None
+    ),
 )
 _deduplicate_otel_middleware(server)
 _register_health_routes(server)
@@ -261,6 +283,29 @@ def _resolve_allowed_hosts(
   return deduped
 
 
+def _is_valid_origin_entry(entry: str) -> bool:
+  """Return True when entry matches scheme://host[:port] (or :* wildcard port)."""
+  if not entry or any(ord(ch) <= 32 or ord(ch) == 127 for ch in entry):
+    return False
+  probe = f"{entry[:-2]}:80" if entry.endswith(":*") else entry
+  try:
+    parsed = urlsplit(probe)
+    port = parsed.port
+  except ValueError:
+    return False
+  if parsed.scheme.lower() not in {"http", "https"}:
+    return False
+  if not parsed.hostname or "*" in parsed.hostname:
+    return False
+  if parsed.username is not None or parsed.password is not None:
+    return False
+  if parsed.path or parsed.query or parsed.fragment:
+    return False
+  if port is not None and not (1 <= port <= 65535):
+    return False
+  return True
+
+
 def _resolve_allowed_origins(
     resolved_hosts: Sequence[str],
     allowed_origins: Optional[list[str]] = None,
@@ -283,8 +328,15 @@ def _resolve_allowed_origins(
   if env_origins.strip():
     for entry in env_origins.split(","):
       cleaned = entry.strip()
-      if cleaned:
-        candidates.append(cleaned)
+      if not cleaned:
+        continue
+      if not _is_valid_origin_entry(cleaned):
+        logger.warning(
+            "Ignoring malformed MCP_ALLOWED_ORIGINS entry %r; expected scheme://host[:port]",
+            cleaned,
+        )
+        continue
+      candidates.append(cleaned)
 
   if allowed_origins:
     for entry in allowed_origins:
@@ -315,6 +367,7 @@ def build_streamable_http_app(
 ) -> Starlette:
   """Build the bounded Streamable HTTP ASGI application with health probes and optional OAuth 2.1 RS."""
   sync_apps_state(server_instance)
+  _deduplicate_otel_middleware(server_instance)
   _register_health_routes(server_instance)
   extra_hosts = list(allowed_hosts or [])
   extra_hosts.extend(extract_resource_host_patterns(resource_server_url))
@@ -523,6 +576,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
   transport = _normalize_transport(args.transport)
   os.environ["MCP_TRANSPORT"] = transport
   sync_apps_state(server)
+  _deduplicate_otel_middleware(server)
   if transport == "streamable-http":
     app = build_streamable_http_app(
         server,

@@ -376,7 +376,7 @@ def test_security_mcp_toolset_destructive_confirmation_and_resource_prefix():
         annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False),
     )
     dest_raw = Tool(
-        name="delete_security_rule",
+        name="delete_rule",
         description="Delete detection rule",
         inputSchema={"type": "object", "properties": {"rule_id": {"type": "string"}}},
         annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True),

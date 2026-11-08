@@ -727,6 +727,8 @@ async def test_all_eight_soc_playbook_prompts_list_and_render_cleanly() -> None:
         close_text = p_close.messages[0].content.text
         assert "soar://cases/101" in close_text
         assert "close_case" in close_text
+        assert "NotMalicious" in close_text
+        assert "Unknown" not in close_text
 
     # 4. scc-mcp (1 prompt)
     async with Client(scc_server) as client:
@@ -765,3 +767,166 @@ def test_tool_submodule_first_import_order_has_no_circular_import() -> None:
         assert proc.returncode == 0, (
             f"Fresh import failed in {pkg_dir} ({stmt}):\n{proc.stderr}"
         )
+
+
+@pytest.mark.anyio
+async def test_unsafe_upstream_ids_skipped_in_resource_links_across_all_servers() -> None:
+    """Unsafe upstream IDs must be skipped cleanly when emitting ResourceLinks without failing tools."""
+    unsafe_ids = [
+        "",
+        ".",
+        "..",
+        "../admin",
+        "ru/evil",
+        "ru\\evil",
+        "ru%2fevil",
+        "ru?foo=1",
+        "ru#frag",
+        "ru\x00null",
+        "ru\x7fdel",
+    ]
+
+    fake_chronicle = MagicMock()
+    fake_chronicle.list_rules.return_value = {
+        "rules": [
+            *[{"ruleId": bad_id, "ruleName": "bad"} for bad_id in unsafe_ids],
+            {"ruleId": SAMPLE_RULE_ID, "ruleName": "good_rule"},
+        ]
+    }
+    fake_chronicle.get_alerts.return_value = {
+        "alerts": {
+            "alerts": [
+                *[{"id": bad_id, "ruleName": "bad"} for bad_id in unsafe_ids],
+                {"id": SAMPLE_ALERT_ID, "ruleName": "good_alert"},
+            ]
+        }
+    }
+
+    with (
+        patch("secops_mcp.tools.security_rules.get_chronicle_client", return_value=fake_chronicle),
+        patch("secops_mcp.tools.security_alerts.get_chronicle_client", return_value=fake_chronicle),
+    ):
+        async with Client(secops_server) as client:
+            rules_res = await client.call_tool(
+                "list_security_rules",
+                {"project_id": "proj-1", "customer_id": SAMPLE_CUSTOMER_ID},
+            )
+            alerts_res = await client.call_tool(
+                "get_security_alerts",
+                {"project_id": "proj-1", "customer_id": SAMPLE_CUSTOMER_ID},
+            )
+
+    assert rules_res.is_error is False
+    rule_links = [c for c in rules_res.content if isinstance(c, ResourceLink)]
+    assert [str(link.uri) for link in rule_links] == [f"secops://rules/{SAMPLE_RULE_ID}"]
+
+    assert alerts_res.is_error is False
+    alert_links = [c for c in alerts_res.content if isinstance(c, ResourceLink)]
+    assert [str(link.uri) for link in alert_links] == [f"secops://alerts/{SAMPLE_ALERT_ID}"]
+
+    fake_vt_client = MagicMock()
+
+    @asynccontextmanager
+    async def _fake_vt_cm(_ctx: Any):
+        yield fake_vt_client
+
+    vt_objs = []
+    for bad_id in unsafe_ids:
+        obj = MagicMock()
+        obj.to_dict.return_value = {"id": bad_id, "type": "collection", "attributes": {"name": "bad"}}
+        vt_objs.append(obj)
+    good_vt = MagicMock()
+    good_vt.to_dict.return_value = {
+        "id": "col-apt41",
+        "type": "collection",
+        "attributes": {"name": "APT41", "collection_type": "threat-actor"},
+    }
+    vt_objs.append(good_vt)
+
+    with (
+        patch("gti_mcp.tools.collections.vt_client", _fake_vt_cm),
+        patch(
+            "gti_mcp.tools.collections.utils.consume_vt_iterator",
+            new=AsyncMock(return_value=vt_objs),
+        ),
+    ):
+        async with Client(gti_server) as client:
+            threats_res = await client.call_tool(
+                "search_threats", {"query": "APT41", "collection_type": "threat-actor"}
+            )
+    assert threats_res.is_error is False
+    threat_links = [c for c in threats_res.content if isinstance(c, ResourceLink)]
+    assert [str(link.uri) for link in threat_links] == ["gti://collections/col-apt41"]
+
+    fake_soar_http = MagicMock()
+    fake_soar_http.get = AsyncMock(
+        return_value=[
+            *[{"Id": bad_id, "Title": "Bad"} for bad_id in unsafe_ids],
+            {"Id": "303", "Title": "Valid Case"},
+        ]
+    )
+    with patch.object(soar_bindings, "http_client", fake_soar_http):
+        async with Client(soar_server_mod.mcp) as client:
+            cases_res = await client.call_tool("list_cases", {})
+    assert cases_res.is_error is False
+    case_links = [c for c in cases_res.content if isinstance(c, ResourceLink)]
+    assert [str(link.uri) for link in case_links] == ["soar://cases/303"]
+
+    finding_dicts = [
+        *[
+            {"name": f"organizations/123456/sources/999/findings/{bad_id}", "severity": "HIGH"}
+            for bad_id in unsafe_ids
+        ],
+        {"name": "organizations/123..456/sources/999/findings/finding1", "severity": "HIGH"},
+        {"name": "organizations/123456/sources/999/findings/finding789", "severity": "CRITICAL"},
+    ]
+    mock_items = [MagicMock() for _ in finding_dicts]
+    mock_page = MagicMock()
+    mock_page.list_findings_results = mock_items
+    fake_scc = MagicMock()
+    fake_scc.list_findings.return_value.pages = [mock_page]
+
+    with (
+        patch.object(scc_mcp, "scc_client", fake_scc),
+        patch.object(scc_mcp, "proto_message_to_dict", side_effect=finding_dicts),
+    ):
+        async with Client(scc_server) as client:
+            scc_res = await client.call_tool(
+                "top_vulnerability_findings", {"organization_id": "123456", "max_findings": 20}
+            )
+    assert scc_res.is_error is False
+    scc_links = [c for c in scc_res.content if isinstance(c, ResourceLink)]
+    assert [str(link.uri) for link in scc_links] == ["scc://findings/123456/finding789"]
+
+
+@pytest.mark.anyio
+async def test_secops_active_parser_malformed_base64_or_utf8_raises_resource_error() -> None:
+    """Malformed base64 or non-UTF-8 CBN parser payloads must surface ResourceError via MCPError."""
+    bad_base64_chronicle = MagicMock()
+    bad_base64_chronicle.list_parsers.return_value = {
+        "parsers": [
+            {
+                "name": "projects/p/locations/us/instances/c/logTypes/OKTA/parsers/pa_bad",
+                "state": "ACTIVE",
+                "cbn": "%%%not-valid-base64%%%",
+            }
+        ]
+    }
+
+    bad_utf8_chronicle = MagicMock()
+    bad_utf8_chronicle.list_parsers.return_value = {
+        "parsers": [
+            {
+                "name": "projects/p/locations/us/instances/c/logTypes/OKTA/parsers/pa_bad_utf8",
+                "state": "ACTIVE",
+                "cbn": base64.b64encode(b"\xff\xfe\xfd").decode("ascii"),
+            }
+        ]
+    }
+
+    for fake_client in (bad_base64_chronicle, bad_utf8_chronicle):
+        with patch("secops_mcp.server.get_chronicle_client", return_value=fake_client):
+            async with Client(secops_server) as client:
+                with pytest.raises(MCPError) as exc_info:
+                    await client.read_resource("secops://parsers/OKTA")
+                assert "Failed to decode parser content for OKTA" in str(exc_info.value)

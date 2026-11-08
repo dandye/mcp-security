@@ -25,7 +25,7 @@ import os
 import re
 import time
 from typing import Any, Dict, Generic, List, Optional, TypeVar
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
@@ -140,13 +140,28 @@ def _build_cache_hints() -> dict[str, CacheHint]:
     }
 
 
+def _is_otel_enabled() -> bool:
+    """Return True unless MCP_OTEL_ENABLED is set to a falsy value."""
+    return os.environ.get("MCP_OTEL_ENABLED", "true").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }
+
+
 def _deduplicate_otel_middleware(server_instance: MCPServer) -> None:
-    """Keep a single outermost OpenTelemetryMiddleware on the low-level server."""
+    """Synchronize OpenTelemetryMiddleware on the low-level server with MCP_OTEL_ENABLED."""
     if OpenTelemetryMiddleware is None:
         return
     lowlevel = getattr(server_instance, "_lowlevel_server", None)
     mw_list = getattr(lowlevel, "middleware", None)
     if not isinstance(mw_list, list):
+        return
+    if not _is_otel_enabled():
+        mw_list[:] = [
+            item for item in mw_list if not isinstance(item, OpenTelemetryMiddleware)
+        ]
         return
     seen_otel = False
     deduped: list[Any] = []
@@ -156,6 +171,8 @@ def _deduplicate_otel_middleware(server_instance: MCPServer) -> None:
                 continue
             seen_otel = True
         deduped.append(item)
+    if not seen_otel:
+        deduped.insert(0, OpenTelemetryMiddleware())
     mw_list[:] = deduped
 
 
@@ -787,9 +804,13 @@ async def confirm_destructive_action(
     )
 
 
+elicit_destructive_confirmation = confirm_destructive_action
+
+
 DEFAULT_JWKS_CACHE_TTL_SECONDS = 300.0
 _JWKS_REFRESH_COOLDOWN_SECONDS = 5.0
 _GOOGLE_ISSUERS = frozenset({"https://accounts.google.com", "accounts.google.com"})
+_GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
 _GOOGLE_CERTS_URL = "https://www.googleapis.com/oauth2/v1/certs"
 SCC_UI_TOOL_URIS: dict[str, str] = {
     "top_vulnerability_findings": SCC_FINDING_CARD_URI,
@@ -987,6 +1008,14 @@ def _normalize_url(url: str) -> str:
     return str(url).strip().rstrip("/")
 
 
+def _resolve_oidc_certs_url(issuer_url: str) -> str:
+    """Resolve the default RFC 7517 JWKS URL for an OIDC issuer."""
+    normalized = _normalize_url(issuer_url)
+    if normalized in _GOOGLE_ISSUERS:
+        return _GOOGLE_JWKS_URL
+    return f"{normalized}/.well-known/jwks.json"
+
+
 class GoogleOIDCTokenVerifier(TokenVerifier):
     """OAuth 2.1 / Google OIDC TokenVerifier enforcing issuer, expiry, and RFC 8707 audience.
 
@@ -1120,6 +1149,21 @@ class GoogleOIDCTokenVerifier(TokenVerifier):
             self._last_jwks_fetch_at = fetched_at
             return doc
 
+    @property
+    def certs_url(self) -> Optional[str]:
+        explicit = (
+            self.oidc_certs_url or os.getenv("MCP_OAUTH_CERTS_URL") or ""
+        ).strip()
+        return explicit or None
+
+    def _issuer_matches(self, raw_iss: Any) -> bool:
+        iss = _normalize_url(str(raw_iss or ""))
+        if not iss:
+            return False
+        if self._normalized_issuer in _GOOGLE_ISSUERS:
+            return iss in _GOOGLE_ISSUERS
+        return iss == self._normalized_issuer
+
     async def _verify_via_remote_jwks(
         self,
         token: str,
@@ -1148,6 +1192,8 @@ class GoogleOIDCTokenVerifier(TokenVerifier):
                 verified, _ = _verify_jwt_against_jwks(
                     header, payload, signing_input, sig, refreshed_doc
                 )
+        if verified is not None and not self._issuer_matches(verified.get("iss")):
+            return None
         return verified
 
     async def verify_token(self, token: str) -> Optional[AccessToken]:
@@ -1196,8 +1242,11 @@ class GoogleOIDCTokenVerifier(TokenVerifier):
                 claims = _verify_compact_jwt(cleaned, jwks=inline_jwks)
             elif remote_jwks:
                 claims = await self._verify_via_remote_jwks(cleaned, remote_jwks)
-            else:
+            elif self._oidc_request is not None:
                 claims = await self._verify_via_google_oidc(cleaned)
+            else:
+                certs_url = self.certs_url or _resolve_oidc_certs_url(self.issuer_url)
+                claims = await self._verify_via_remote_jwks(cleaned, jwks_url=certs_url)
 
         if not isinstance(claims, dict):
             return None
@@ -1221,8 +1270,7 @@ class GoogleOIDCTokenVerifier(TokenVerifier):
             except (TypeError, ValueError):
                 return None
 
-        iss = _normalize_url(str(claims.get("iss") or ""))
-        if not iss or iss != self._normalized_issuer:
+        if not self._issuer_matches(claims.get("iss")):
             return None
 
         audiences: list[str] = []
@@ -1267,26 +1315,25 @@ class GoogleOIDCTokenVerifier(TokenVerifier):
         )
 
     def _resolve_oidc_certs_url(self) -> str:
-        explicit = (
-            self.oidc_certs_url or os.getenv("MCP_OAUTH_CERTS_URL") or ""
-        ).strip()
-        if explicit:
-            return explicit
-        if self._normalized_issuer in _GOOGLE_ISSUERS:
-            return _GOOGLE_CERTS_URL
-        return f"{self._normalized_issuer}/.well-known/jwks.json"
+        return self.certs_url or _resolve_oidc_certs_url(self.issuer_url)
 
     async def _verify_via_google_oidc(
         self,
         token: str,
     ) -> Optional[dict[str, Any]]:
+        explicit_certs_url = self.certs_url
+        if explicit_certs_url:
+            certs_url = explicit_certs_url
+        elif self._normalized_issuer in _GOOGLE_ISSUERS:
+            certs_url = _GOOGLE_CERTS_URL
+        else:
+            certs_url = _resolve_oidc_certs_url(self.issuer_url)
         try:
             from google.auth.transport import requests as google_requests
             from google.oauth2 import id_token as google_id_token
 
             if self._oidc_request is None:
                 self._oidc_request = google_requests.Request()
-            certs_url = self._resolve_oidc_certs_url()
             verified = await asyncio.to_thread(
                 google_id_token.verify_token,
                 token,
@@ -1295,6 +1342,13 @@ class GoogleOIDCTokenVerifier(TokenVerifier):
                 certs_url=certs_url,
             )
             return dict(verified) if isinstance(verified, dict) else None
+        except ImportError as exc:
+            logger.warning(
+                "google-auth or requests not installed for custom oidc_request; falling back to async JWKS verification: %s",
+                exc,
+            )
+            fallback_url = explicit_certs_url or _resolve_oidc_certs_url(self.issuer_url)
+            return await self._verify_via_remote_jwks(token, jwks_url=fallback_url)
         except Exception as exc:
             if exc.__class__.__name__ == "InvalidAudienceError":
                 try:
@@ -1538,7 +1592,11 @@ mcp = MCPServer(
     resource_security=DEFAULT_RESOURCE_SECURITY,
     request_state_security=build_request_state_security(),
     extensions=build_scc_apps_extensions() or None,
-    middleware=[OpenTelemetryMiddleware()] if OpenTelemetryMiddleware is not None else None,
+    middleware=(
+        [OpenTelemetryMiddleware()]
+        if (OpenTelemetryMiddleware is not None and _is_otel_enabled())
+        else None
+    ),
 )
 _deduplicate_otel_middleware(mcp)
 _register_health_routes(mcp)
@@ -2074,6 +2132,17 @@ _ORG_FINDING_NAME_RE = re.compile(
     r"^organizations/([^/]+)/sources/[^/]+/(?:locations/[^/]+/)?findings/([^/]+)$"
 )
 _ANY_FINDING_ID_RE = re.compile(r"/findings/([^/]+)$")
+_UNSAFE_RESOURCE_LINK_CHARS = frozenset("/\\%?#")
+
+
+def _is_safe_resource_segment(value: str) -> bool:
+    """Return True when value is safe to embed as a single ResourceLink URI segment."""
+    if not value or value in {".", ".."} or ".." in value:
+        return False
+    return not any(
+        ord(ch) < 32 or ord(ch) == 127 or ch.isspace() or ch in _UNSAFE_RESOURCE_LINK_CHARS
+        for ch in value
+    )
 
 
 def _build_scc_finding_resource_links(
@@ -2090,18 +2159,22 @@ def _build_scc_finding_resource_links(
         resolved_org = (organization_id or "").strip()
         resolved_finding_id = ""
 
-        org_match = _ORG_FINDING_NAME_RE.match(raw_name)
-        if org_match:
-            resolved_org = org_match.group(1)
-            resolved_finding_id = org_match.group(2)
-        elif resolved_org and raw_name:
-            id_match = _ANY_FINDING_ID_RE.search(raw_name)
-            if id_match:
-                resolved_finding_id = id_match.group(1)
-            elif "/" not in raw_name:
-                resolved_finding_id = raw_name
+        if ".." not in raw_name:
+            org_match = _ORG_FINDING_NAME_RE.match(raw_name)
+            if org_match:
+                resolved_org = org_match.group(1)
+                resolved_finding_id = org_match.group(2)
+            elif resolved_org and raw_name:
+                id_match = _ANY_FINDING_ID_RE.search(raw_name)
+                if id_match:
+                    resolved_finding_id = id_match.group(1)
+                elif "/" not in raw_name:
+                    resolved_finding_id = raw_name
 
-        if not resolved_org or not resolved_finding_id:
+        if not (
+            _is_safe_resource_segment(resolved_org)
+            and _is_safe_resource_segment(resolved_finding_id)
+        ):
             continue
 
         uri = f"scc://findings/{resolved_org}/{resolved_finding_id}"
@@ -2797,6 +2870,29 @@ def _resolve_allowed_hosts(
     return deduped
 
 
+def _is_valid_origin_entry(entry: str) -> bool:
+    """Return True when entry matches scheme://host[:port] (or :* wildcard port)."""
+    if not entry or any(ord(ch) <= 32 or ord(ch) == 127 for ch in entry):
+        return False
+    probe = f"{entry[:-2]}:80" if entry.endswith(":*") else entry
+    try:
+        parsed = urlsplit(probe)
+        port = parsed.port
+    except ValueError:
+        return False
+    if parsed.scheme.lower() not in {"http", "https"}:
+        return False
+    if not parsed.hostname or "*" in parsed.hostname:
+        return False
+    if parsed.username is not None or parsed.password is not None:
+        return False
+    if parsed.path or parsed.query or parsed.fragment:
+        return False
+    if port is not None and not (1 <= port <= 65535):
+        return False
+    return True
+
+
 def _resolve_allowed_origins(
     resolved_hosts: Sequence[str],
     allowed_origins: Optional[list[str]] = None,
@@ -2819,8 +2915,15 @@ def _resolve_allowed_origins(
     if env_origins.strip():
         for entry in env_origins.split(","):
             cleaned = entry.strip()
-            if cleaned:
-                candidates.append(cleaned)
+            if not cleaned:
+                continue
+            if not _is_valid_origin_entry(cleaned):
+                logger.warning(
+                    "Ignoring malformed MCP_ALLOWED_ORIGINS entry %r; expected scheme://host[:port]",
+                    cleaned,
+                )
+                continue
+            candidates.append(cleaned)
 
     if allowed_origins:
         for entry in allowed_origins:
@@ -2851,6 +2954,7 @@ def build_streamable_http_app(
 ) -> Starlette:
     """Build the bounded Streamable HTTP ASGI application with health probes and optional OAuth 2.1 RS."""
     sync_apps_state(server_instance)
+    _deduplicate_otel_middleware(server_instance)
     _register_health_routes(server_instance)
     extra_hosts = list(allowed_hosts or [])
     extra_hosts.extend(extract_resource_host_patterns(resource_server_url))
@@ -3058,6 +3162,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     transport = _normalize_transport(args.transport)
     os.environ["MCP_TRANSPORT"] = transport
     sync_apps_state(mcp)
+    _deduplicate_otel_middleware(mcp)
     if transport == "streamable-http":
         app = build_streamable_http_app(
             mcp,

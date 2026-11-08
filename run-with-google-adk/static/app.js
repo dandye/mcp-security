@@ -483,7 +483,11 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         console.error('Chat error:', err);
         headerInfo.innerHTML = '<span>Google SecOps Agent</span><span style="color: var(--color-danger);">(Error)</span>';
-        bubble.innerHTML = `<span style="color: var(--color-danger);">Failed to get response from server: ${err.message}</span>`;
+        bubble.textContent = '';
+        const errSpan = document.createElement('span');
+        errSpan.style.color = 'var(--color-danger)';
+        errSpan.textContent = `Failed to get response from server: ${err.message}`;
+        bubble.appendChild(errSpan);
         showToast(`Request failed: ${err.message}`, 'error');
       }
     } finally {

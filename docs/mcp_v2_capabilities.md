@@ -17,7 +17,7 @@ In `streamable-http` mode, each server exposes:
 
 - `POST /mcp`: MCP `2026-07-28` Streamable HTTP endpoint supporting stateless single-exchange calls (including `server/discover`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, and `prompts/get` without a prior stateful session handshake).
 - `GET /healthz`: Liveness probe returning HTTP `200` `{"status": "ok"}`.
-- `GET /readyz`: Readiness probe returning HTTP `200` `{"status": "ready"}`.
+- `GET /readyz`: Readiness probe returning HTTP `200` `{"status": "ok", "server": "<server-name>", "protocol_version": "2026-07-28"}`.
 
 DNS rebinding protection is enforced on local HTTP bindings; additional trusted `Host` and `Origin` values can be configured via `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS`.
 
@@ -42,7 +42,8 @@ curl -fsS "$MCP_URL/mcp" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "MCP-Protocol-Version: 2026-07-28" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}'
+  -H "Mcp-Method: server/discover" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}'
 
 kill "$SERVER_PID"
 ```
@@ -56,7 +57,7 @@ All four servers attach `SEP-2549` `CacheHint` metadata to discovery responses s
 
 ## OpenTelemetry Distributed Tracing
 
-Each server wraps its ASGI pipeline and MCP request dispatcher with `OpenTelemetryMiddleware`. When an OpenTelemetry SDK exporter is configured in the environment, incoming W3C `traceparent` and `tracestate` headers are extracted automatically and child spans are emitted for `tools/call`, `resources/read`, and `prompts/get`:
+Each server registers `OpenTelemetryMiddleware` on the MCP JSON-RPC request pipeline by default (configurable via `MCP_OTEL_ENABLED=false` to disable). When an OpenTelemetry SDK exporter is configured in the environment, `OpenTelemetryMiddleware` extracts W3C trace context (`traceparent`, `tracestate`) from JSON-RPC `params._meta` and emits child spans for `tools/call`, `resources/read`, and `prompts/get`, while `run-with-google-adk` injects W3C trace context into both HTTP headers and JSON-RPC `_meta`:
 
 ```bash
 OTEL_ENDPOINT="http://127.0.0.1:4318"
@@ -110,7 +111,7 @@ Eight reusable SOC prompts standardize multi-step analyst workflows:
 High-impact mutations support MCP `2026-07-28` server-initiated elicitation (`ctx.elicit(...)`) backed by `AESGCMRequestStateCodec` so stateless HTTP replicas can suspend and resume confirmation rounds without sticky sessions:
 
 - **Gated Tools**:
-  - `google-secops-mcp`: `delete_security_rule`
+  - `google-secops-mcp`: `delete_rule`
   - `gti-mcp`: `analyse_file` (external file submission)
   - `secops-soar-mcp`: `close_case`
   - `scc-mcp`: `set_finding_mute`

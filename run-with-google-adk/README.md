@@ -144,7 +144,7 @@ Launches the FastAPI web console and REST/SSE API server (`--host`, `--port`, `-
 | `MCP_USE_RESOURCES` | `True` | Expose MCP `2026-07-28` resources (`secops://`, `gti://`, `soar://`, `scc://`) to the ADK agent. |
 | `MCP_TOOL_LIST_CACHE_TTL_SECONDS` | `300.0` | Client-side TTL cache in seconds for `tools/list` discovery (`0` disables caching). |
 | `MCP_FILTER_BLOAT_FEED_TOOLS` | `True` | Exclude the 7 heavy feed-management schemas on managed Google SecOps OneMCP endpoints. |
-| `ADK_CONFIRM_DESTRUCTIVE_TOOLS` | `False` | Require operator confirmation before executing tools marked `destructiveHint=True` (`true` in `.env.example`). |
+| `ADK_CONFIRM_DESTRUCTIVE_TOOLS` | `False` | Require operator confirmation before executing tools marked `destructiveHint=True` (`N` in `.env.example`; set `ADK_CONFIRM_DESTRUCTIVE_TOOLS=true` or `Y` to enable). |
 | `ADK_ELICITATION_POLICY` | `prompt` | Policy for MCP server `ctx.elicit(...)` requests: `prompt`, `accept`, `decline`, or `cancel`. |
 | `ADK_MAX_TOOL_OUTPUT_SCHEMA_BYTES` | `4096` | Maximum serialized byte size for `response_json_schema` forwarded to the LLM (`0` strips all). |
 | `MCP_HTTP_TIMEOUT` | `60.0` | Connection/request timeout in seconds for remote Streamable HTTP toolsets. |
@@ -190,6 +190,8 @@ gcloud run deploy "$SERVICE_NAME" \
   --no-allow-unauthenticated \
   --set-env-vars="LOAD_SECOPS_MCP=Y,LOAD_SCC_MCP=Y,GOOGLE_GENAI_USE_VERTEXAI=True,GOOGLE_CLOUD_LOCATION=global,GOOGLE_MODEL=gemini-3.1-pro-preview,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,CHRONICLE_PROJECT_ID=$PROJECT_ID,CHRONICLE_CUSTOMER_ID=$CUSTOMER_ID"
 ```
+
+> **Session Persistence Note:** By default, the FastAPI web server stores conversation and pending confirmation state in an in-memory `BoundedSessionService`. Multi-turn destructive-tool confirmation resume requires either a single worker (`--workers 1` with Cloud Run `--max-instances=1` or session affinity) or replacing the session backend with an external ADK `DatabaseSessionService` on horizontally scaled multi-instance Cloud Run deployments.
 
 ### Required IAM Roles
 

@@ -37,6 +37,19 @@ from secops_mcp.utils import tool_error_result as _tool_error_result
 logger = logging.getLogger("secops-mcp")
 
 
+_UNSAFE_RESOURCE_LINK_CHARS = frozenset("/\\%?#")
+
+
+def _is_safe_resource_segment(value: str) -> bool:
+    """Return True when value is safe to embed as a single ResourceLink URI segment."""
+    if not value or value in {".", ".."} or ".." in value:
+        return False
+    return not any(
+        ord(ch) < 32 or ord(ch) == 127 or ch.isspace() or ch in _UNSAFE_RESOURCE_LINK_CHARS
+        for ch in value
+    )
+
+
 def _build_rule_resource_links(rules_response: dict[str, Any]) -> list[_ResourceLink]:
     """Build secops://rules/{rule_id} ResourceLink items for listed YARA-L 2.0 rules."""
     raw_rules = rules_response.get("rules", [])
@@ -49,10 +62,14 @@ def _build_rule_resource_links(rules_response: dict[str, Any]) -> list[_Resource
             continue
         rule_id = str(rule.get("ruleId") or "").strip()
         if not rule_id and isinstance(rule.get("name"), str):
-            rule_id = rule["name"].split("/")[-1].split("@")[0].strip()
+            raw_name = rule["name"].strip()
+            if "/rules/" in raw_name:
+                rule_id = raw_name.split("/rules/", 1)[1].split("@")[0].strip()
+            else:
+                rule_id = raw_name.split("@")[0].strip()
         if not rule_id and rule.get("id"):
             rule_id = str(rule["id"]).strip()
-        if not rule_id or rule_id in seen_ids:
+        if not _is_safe_resource_segment(rule_id) or rule_id in seen_ids:
             continue
         seen_ids.add(rule_id)
         rule_name = str(

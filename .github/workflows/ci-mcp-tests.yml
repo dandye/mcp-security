@@ -103,3 +103,92 @@ jobs:
             python -m build "$pkg" --outdir "/tmp/dist-$(basename "$pkg")"
             python -m twine check "/tmp/dist-$(basename "$pkg")"/*
           done
+
+      - name: Per-package isolated standalone wheel smoke check
+        run: |
+          for entry in \
+            "secops:secops_mcp.server:server:secops_mcp.phase5:secops_mcp" \
+            "gti:gti_mcp.server:server:gti_mcp.phase5:gti_mcp" \
+            "secops-soar:secops_soar_mcp.server:mcp:secops_soar_mcp.phase5:secops_soar_mcp" \
+            "scc:scc_mcp:mcp:scc_mcp:scc_mcp" \
+            "run-with-google-adk:mcp_security_agent:::mcp-security-agent"; do
+            IFS=":" read -r name mod_name srv_attr phase5_mod cli_bin <<< "$entry"
+            venv_dir="/tmp/isolated-venv-${name}"
+            python -m venv "$venv_dir"
+            "$venv_dir/bin/python" -m pip install --no-cache-dir "/tmp/dist-${name}"/*.whl
+            "$venv_dir/bin/$cli_bin" --help >/dev/null
+            "$venv_dir/bin/python" - "$name" "$mod_name" "$srv_attr" "$phase5_mod" << 'PYEOF'
+          import asyncio
+          import base64
+          import importlib
+          import json
+          import sys
+          import time
+
+          pkg_name, mod_name, srv_attr, phase5_name = sys.argv[1:5]
+          mod = importlib.import_module(mod_name)
+          if not srv_attr:
+              assert hasattr(mod, "__version__")
+              sys.exit(0)
+
+          if pkg_name in {"gti", "secops-soar"}:
+              try:
+                  import google.oauth2  # noqa: F401
+                  raise AssertionError(f"{pkg_name} unexpectedly had google.oauth2 installed")
+              except ModuleNotFoundError:
+                  pass
+
+          from cryptography.hazmat.primitives import hashes
+          from cryptography.hazmat.primitives.asymmetric import padding, rsa
+          from httpx2 import AsyncClient, MockTransport, Response
+          from mcp.server.mcpserver import MCPServer
+
+          srv = getattr(mod, srv_attr)
+          assert isinstance(srv, MCPServer)
+
+          phase5 = importlib.import_module(phase5_name)
+          priv = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+          nums = priv.public_key().public_numbers()
+
+          def _b64u(raw: bytes) -> str:
+              return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+          jwk = {
+              "kty": "RSA",
+              "use": "sig",
+              "alg": "RS256",
+              "kid": "iso-kid-1",
+              "n": _b64u(nums.n.to_bytes((nums.n.bit_length() + 7) // 8, "big")),
+              "e": _b64u(nums.e.to_bytes((nums.e.bit_length() + 7) // 8, "big")),
+          }
+          hdr = _b64u(json.dumps({"alg": "RS256", "typ": "JWT", "kid": "iso-kid-1"}).encode())
+          now = int(time.time())
+          res_url = "https://mcp.secops.example/mcp"
+          pld = _b64u(json.dumps({
+              "iss": "accounts.google.com",
+              "sub": f"isolated-{pkg_name}",
+              "aud": res_url,
+              "scope": "mcp:read",
+              "exp": now + 600,
+          }).encode())
+          sig = _b64u(priv.sign(f"{hdr}.{pld}".encode("ascii"), padding.PKCS1v15(), hashes.SHA256()))
+          jwt_tok = f"{hdr}.{pld}.{sig}"
+
+          def _handler(req):
+              assert str(req.url) == "https://www.googleapis.com/oauth2/v3/certs"
+              return Response(200, json={"keys": [jwk]})
+
+          async def _check() -> None:
+              async with AsyncClient(transport=MockTransport(_handler)) as http:
+                  verifier = phase5.GoogleOIDCTokenVerifier(
+                      issuer_url="https://accounts.google.com",
+                      resource_server_url=res_url,
+                      jwks_http_client=http,
+                  )
+                  verified = await verifier.verify_token(jwt_tok)
+                  assert verified is not None, f"{pkg_name}: standalone OIDC token verification returned None"
+                  assert verified.subject == f"isolated-{pkg_name}"
+
+          asyncio.run(_check())
+          PYEOF
+          done

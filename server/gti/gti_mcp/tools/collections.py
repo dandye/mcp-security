@@ -299,7 +299,19 @@ async def search_threats(
       if not isinstance(item, dict):
         continue
       col_id = str(item.get("id") or "").strip()
-      if not col_id or col_id in seen_ids:
+      if (
+          not col_id
+          or col_id in {".", ".."}
+          or ".." in col_id
+          or any(
+              ord(ch) < 32
+              or ord(ch) == 127
+              or ch.isspace()
+              or ch in {"/", "\\", "%", "?", "#"}
+              for ch in col_id
+          )
+          or col_id in seen_ids
+      ):
         continue
       seen_ids.add(col_id)
       attrs = item.get("attributes") if isinstance(item.get("attributes"), dict) else {}

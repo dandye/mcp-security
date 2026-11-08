@@ -83,7 +83,7 @@ def register_prompts(mcp_server: MCPServer) -> None:
             f"     * **Disposition & Severity**: True Positive, Benign Positive, "
             f"or False Positive.\n"
             f"     * **Root Cause & Close Reason**: Mapped to valid SOAR `close_case` "
-            f"`reason` (`Malicious`, `Maintenance`, `Inconclusive`, `Unknown`) "
+            f"`reason` (`Malicious`, `NotMalicious`, `Maintenance`, `Inconclusive`) "
             f"and `root_cause` values.\n"
             f"     * **Timeline & Blast Radius**: Key UTC timestamps and affected "
             f"assets/identities.\n"

@@ -60,6 +60,19 @@ async def _execute_soar_call(
     return {"result": resp}
 
 
+_UNSAFE_RESOURCE_LINK_CHARS = frozenset("/\\%?#")
+
+
+def _is_safe_resource_segment(value: str) -> bool:
+    """Return True when value is safe to embed as a single ResourceLink URI segment."""
+    if not value or value in {".", ".."} or ".." in value:
+        return False
+    return not any(
+        ord(ch) < 32 or ord(ch) == 127 or ch.isspace() or ch in _UNSAFE_RESOURCE_LINK_CHARS
+        for ch in value
+    )
+
+
 def _build_case_resource_links(payload: dict[str, Any]) -> list[ResourceLink]:
     """Build soar://cases/{case_id} ResourceLink items from a list_cases payload."""
     candidates: list[Any] = []
@@ -86,7 +99,7 @@ def _build_case_resource_links(payload: dict[str, Any]) -> list[ResourceLink]:
         if raw_id is None:
             continue
         case_id = str(raw_id).strip()
-        if not case_id or case_id in seen_ids:
+        if not _is_safe_resource_segment(case_id) or case_id in seen_ids:
             continue
         seen_ids.add(case_id)
         title = str(

@@ -155,6 +155,7 @@ Threats like actors, malware, campaigns, reports, and vulnerabilities are modele
   - `communicating_files`: Files that communicate with this URL
   - `redirecting_urls`: URLs that redirect to this URL
   - `redirected_urls`: URLs that this URL redirects to
+- **`analyse_url(url)`**: Submits a URL for live scanning and streams MCP progress updates (`ctx.report_progress`) until the Google Threat Intelligence analysis report completes.
 
 ## Query Syntax Examples
 

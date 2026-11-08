@@ -2039,3 +2039,164 @@ async def test_mcp_enable_apps_false_and_disable_apps_toggle_and_restore(
     finally:
         monkeypatch.setenv("MCP_ENABLE_APPS", "true")
         server_mod.sync_apps_state(server_obj)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "phase5_mod",
+    [secops_phase5, gti_phase5, soar_phase5, scc_server_mod],
+    ids=["secops", "gti", "secops-soar", "scc"],
+)
+async def test_standalone_google_oidc_jwks_without_google_auth_across_all_servers(
+    phase5_mod: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Verify standalone Google OIDC verification uses async JWKS v3/certs without google-auth."""
+    for env_key in (
+        "MCP_OAUTH_HS256_SECRET",
+        "MCP_OAUTH_PUBLIC_KEY_PEM",
+        "MCP_OAUTH_JWKS_JSON",
+        "MCP_OAUTH_JWKS_URL",
+        "MCP_OAUTH_CERTS_URL",
+    ):
+        monkeypatch.delenv(env_key, raising=False)
+
+    for blocked_mod in (
+        "google.oauth2",
+        "google.oauth2.id_token",
+        "google.auth",
+        "google.auth.transport",
+        "google.auth.transport.requests",
+    ):
+        monkeypatch.setitem(sys.modules, blocked_mod, None)
+
+    rsa_priv = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    jwk_entry = _rsa_public_jwk(rsa_priv.public_key(), "goog-v3-kid-1")
+    requested_urls: list[str] = []
+
+    def _jwks_handler(request: Any) -> Response:
+        requested_urls.append(str(request.url))
+        if str(request.url) == "https://www.googleapis.com/oauth2/v3/certs":
+            return Response(
+                200,
+                headers={"Cache-Control": "public, max-age=300"},
+                json={"keys": [jwk_entry]},
+            )
+        if str(request.url) == "https://idp.example.com/.well-known/jwks.json":
+            return Response(
+                200,
+                headers={"Cache-Control": "public, max-age=300"},
+                json={"keys": [jwk_entry]},
+            )
+        return Response(404, json={"error": "not_found"})
+
+    mock_http = AsyncClient(transport=MockTransport(_jwks_handler))
+    resource_url = "https://mcp.secops.example/mcp"
+    now = int(time.time())
+    dual_issuer_token = _mint_rs256_jwt(
+        {
+            "iss": "accounts.google.com",
+            "sub": "standalone-google-user",
+            "aud": resource_url,
+            "scope": "mcp:read",
+            "iat": now - 5,
+            "exp": now + 600,
+        },
+        rsa_priv,
+        kid="goog-v3-kid-1",
+    )
+    https_issuer_token = _mint_rs256_jwt(
+        {
+            "iss": "https://accounts.google.com",
+            "sub": "standalone-google-user-https",
+            "aud": "oauth-client-123",
+            "resource": resource_url,
+            "scope": "mcp:read",
+            "iat": now - 5,
+            "exp": now + 600,
+        },
+        rsa_priv,
+        kid="goog-v3-kid-1",
+    )
+    schemeless_non_google_token = _mint_rs256_jwt(
+        {
+            "iss": "idp.example.com",
+            "sub": "bad-iss-user",
+            "aud": resource_url,
+            "iat": now - 5,
+            "exp": now + 600,
+        },
+        rsa_priv,
+        kid="goog-v3-kid-1",
+    )
+
+    try:
+        assert (
+            phase5_mod._resolve_oidc_certs_url("https://accounts.google.com")
+            == "https://www.googleapis.com/oauth2/v3/certs"
+        )
+        assert (
+            phase5_mod._resolve_oidc_certs_url("accounts.google.com")
+            == "https://www.googleapis.com/oauth2/v3/certs"
+        )
+        assert (
+            phase5_mod._resolve_oidc_certs_url("https://idp.example.com/")
+            == "https://idp.example.com/.well-known/jwks.json"
+        )
+
+        verifier = phase5_mod.GoogleOIDCTokenVerifier(
+            issuer_url="https://accounts.google.com",
+            resource_server_url=resource_url,
+            jwks_http_client=mock_http,
+        )
+        verified_dual = await verifier.verify_token(dual_issuer_token)
+        assert verified_dual is not None
+        assert verified_dual.subject == "standalone-google-user"
+        assert verified_dual.scopes == ["mcp:read"]
+        assert "https://www.googleapis.com/oauth2/v3/certs" in requested_urls
+
+        verified_https = await verifier.verify_token(https_issuer_token)
+        assert verified_https is not None
+        assert verified_https.subject == "standalone-google-user-https"
+
+        # Non-Google issuer strictly rejects scheme-less iss mismatch
+        non_google_verifier = phase5_mod.GoogleOIDCTokenVerifier(
+            issuer_url="https://idp.example.com",
+            resource_server_url=resource_url,
+            jwks_http_client=mock_http,
+        )
+        assert await non_google_verifier.verify_token(schemeless_non_google_token) is None
+
+        # Custom oidc_request logs warning and falls back cleanly when google-auth is absent
+        with caplog.at_level("WARNING"):
+            fallback_verifier = phase5_mod.GoogleOIDCTokenVerifier(
+                issuer_url="https://accounts.google.com",
+                resource_server_url=resource_url,
+                jwks_http_client=mock_http,
+                oidc_request=lambda *a, **kw: None,
+            )
+            fallback_tok = await fallback_verifier.verify_token(dual_issuer_token)
+            assert fallback_tok is not None
+            assert any(
+                "falling back to async JWKS verification" in rec.message
+                for rec in caplog.records
+            )
+
+        # verify_callback returning AccessToken(resource=None) succeeds when unexpired
+        no_res_cb_verifier = phase5_mod.GoogleOIDCTokenVerifier(
+            issuer_url="https://accounts.google.com",
+            resource_server_url=resource_url,
+            verify_callback=lambda tok: AccessToken(
+                token=tok,
+                client_id="cb-null-res",
+                scopes=["mcp:read"],
+                expires_at=now + 600,
+                resource=None,
+            ),
+        )
+        accepted_null_res = await no_res_cb_verifier.verify_token("opaque-no-res")
+        assert accepted_null_res is not None
+        assert accepted_null_res.client_id == "cb-null-res"
+    finally:
+        await mock_http.aclose()

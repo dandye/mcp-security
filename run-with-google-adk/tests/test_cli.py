@@ -188,7 +188,7 @@ def test_cli_single_turn_confirm_destructive_interactive_approve_and_reject(monk
                         args={
                             "originalFunctionCall": {
                                 "id": "orig-1",
-                                "name": "delete_security_rule",
+                                "name": "delete_rule",
                                 "args": {"rule_id": "ru_a1b2c3d4-e5f6-4321-abcd-ef1234567890"},
                             }
                         },
@@ -241,7 +241,7 @@ def test_cli_single_turn_confirm_destructive_interactive_approve_and_reject(monk
             input="y\n",
         )
         assert res_yes.exit_code == 0
-        assert "[Confirm] Approve execution of delete_security_rule? [y/N]:" in res_yes.output
+        assert "[Confirm] Approve execution of delete_rule? [y/N]:" in res_yes.output
         assert "Confirmed and deleted rule." in res_yes.output
         assert len(calls_yes) == 2
         fr_yes = calls_yes[1]["new_message"].parts[0].function_response
@@ -265,7 +265,7 @@ def test_cli_single_turn_confirm_destructive_interactive_approve_and_reject(monk
             input="n\n",
         )
         assert res_no.exit_code == 0
-        assert "[Confirm] Approve execution of delete_security_rule? [y/N]:" in res_no.output
+        assert "[Confirm] Approve execution of delete_rule? [y/N]:" in res_no.output
         assert "Deletion rejected by operator." in res_no.output
         assert len(calls_no) == 2
         fr_no = calls_no[1]["new_message"].parts[0].function_response

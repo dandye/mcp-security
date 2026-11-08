@@ -25,9 +25,12 @@ setup(
         "aiohttp>=3.11.15",
         "cryptography>=42.0.0",
         "httpx>=0.28.1",
+        "httpx2>=2.10.0",
         "mcp[cli]>=2.3.0,<3.0.0",
         "pydantic>=2.11.2",
         "python-dotenv>=1.1.0",
+        "starlette>=0.40.0",
+        "uvicorn>=0.30.0",
     ],
     entry_points={
         "console_scripts": [

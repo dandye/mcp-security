@@ -716,9 +716,13 @@ async def confirm_destructive_action(
     )
 
 
+elicit_destructive_confirmation = confirm_destructive_action
+
+
 DEFAULT_JWKS_CACHE_TTL_SECONDS = 300.0
 _JWKS_REFRESH_COOLDOWN_SECONDS = 5.0
 _GOOGLE_ISSUERS = frozenset({"https://accounts.google.com", "accounts.google.com"})
+_GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
 _GOOGLE_CERTS_URL = "https://www.googleapis.com/oauth2/v1/certs"
 SECOPS_UI_TOOL_URIS: dict[str, str] = {
     "lookup_entity": SECOPS_ENTITY_TIMELINE_URI,
@@ -916,6 +920,14 @@ def _normalize_url(url: str) -> str:
     return str(url).strip().rstrip("/")
 
 
+def _resolve_oidc_certs_url(issuer_url: str) -> str:
+    """Resolve the default RFC 7517 JWKS URL for an OIDC issuer."""
+    normalized = _normalize_url(issuer_url)
+    if normalized in _GOOGLE_ISSUERS:
+        return _GOOGLE_JWKS_URL
+    return f"{normalized}/.well-known/jwks.json"
+
+
 class GoogleOIDCTokenVerifier(TokenVerifier):
     """OAuth 2.1 / Google OIDC TokenVerifier enforcing issuer, expiry, and RFC 8707 audience.
 
@@ -1049,6 +1061,21 @@ class GoogleOIDCTokenVerifier(TokenVerifier):
             self._last_jwks_fetch_at = fetched_at
             return doc
 
+    @property
+    def certs_url(self) -> Optional[str]:
+        explicit = (
+            self.oidc_certs_url or os.getenv("MCP_OAUTH_CERTS_URL") or ""
+        ).strip()
+        return explicit or None
+
+    def _issuer_matches(self, raw_iss: Any) -> bool:
+        iss = _normalize_url(str(raw_iss or ""))
+        if not iss:
+            return False
+        if self._normalized_issuer in _GOOGLE_ISSUERS:
+            return iss in _GOOGLE_ISSUERS
+        return iss == self._normalized_issuer
+
     async def _verify_via_remote_jwks(
         self,
         token: str,
@@ -1077,6 +1104,8 @@ class GoogleOIDCTokenVerifier(TokenVerifier):
                 verified, _ = _verify_jwt_against_jwks(
                     header, payload, signing_input, sig, refreshed_doc
                 )
+        if verified is not None and not self._issuer_matches(verified.get("iss")):
+            return None
         return verified
 
     async def verify_token(self, token: str) -> Optional[AccessToken]:
@@ -1125,8 +1154,11 @@ class GoogleOIDCTokenVerifier(TokenVerifier):
                 claims = _verify_compact_jwt(cleaned, jwks=inline_jwks)
             elif remote_jwks:
                 claims = await self._verify_via_remote_jwks(cleaned, remote_jwks)
-            else:
+            elif self._oidc_request is not None:
                 claims = await self._verify_via_google_oidc(cleaned)
+            else:
+                certs_url = self.certs_url or _resolve_oidc_certs_url(self.issuer_url)
+                claims = await self._verify_via_remote_jwks(cleaned, jwks_url=certs_url)
 
         if not isinstance(claims, dict):
             return None
@@ -1150,8 +1182,7 @@ class GoogleOIDCTokenVerifier(TokenVerifier):
             except (TypeError, ValueError):
                 return None
 
-        iss = _normalize_url(str(claims.get("iss") or ""))
-        if not iss or iss != self._normalized_issuer:
+        if not self._issuer_matches(claims.get("iss")):
             return None
 
         audiences: list[str] = []
@@ -1196,26 +1227,25 @@ class GoogleOIDCTokenVerifier(TokenVerifier):
         )
 
     def _resolve_oidc_certs_url(self) -> str:
-        explicit = (
-            self.oidc_certs_url or os.getenv("MCP_OAUTH_CERTS_URL") or ""
-        ).strip()
-        if explicit:
-            return explicit
-        if self._normalized_issuer in _GOOGLE_ISSUERS:
-            return _GOOGLE_CERTS_URL
-        return f"{self._normalized_issuer}/.well-known/jwks.json"
+        return self.certs_url or _resolve_oidc_certs_url(self.issuer_url)
 
     async def _verify_via_google_oidc(
         self,
         token: str,
     ) -> Optional[dict[str, Any]]:
+        explicit_certs_url = self.certs_url
+        if explicit_certs_url:
+            certs_url = explicit_certs_url
+        elif self._normalized_issuer in _GOOGLE_ISSUERS:
+            certs_url = _GOOGLE_CERTS_URL
+        else:
+            certs_url = _resolve_oidc_certs_url(self.issuer_url)
         try:
             from google.auth.transport import requests as google_requests
             from google.oauth2 import id_token as google_id_token
 
             if self._oidc_request is None:
                 self._oidc_request = google_requests.Request()
-            certs_url = self._resolve_oidc_certs_url()
             verified = await asyncio.to_thread(
                 google_id_token.verify_token,
                 token,
@@ -1224,6 +1254,13 @@ class GoogleOIDCTokenVerifier(TokenVerifier):
                 certs_url=certs_url,
             )
             return dict(verified) if isinstance(verified, dict) else None
+        except ImportError as exc:
+            logger.warning(
+                "google-auth or requests not installed for custom oidc_request; falling back to async JWKS verification: %s",
+                exc,
+            )
+            fallback_url = explicit_certs_url or _resolve_oidc_certs_url(self.issuer_url)
+            return await self._verify_via_remote_jwks(token, jwks_url=fallback_url)
         except Exception as exc:
             if exc.__class__.__name__ == "InvalidAudienceError":
                 try:

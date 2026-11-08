@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import logging
 import re
 from typing import Any
@@ -68,7 +69,9 @@ def _normalize_reference_list_entries(raw_entries: Any) -> list[str]:
     return values
 
 
-def _extract_parser_code(parser_obj: dict[str, Any]) -> str:
+def _extract_parser_code(
+    parser_obj: dict[str, Any], clean_log_type: str = "unknown"
+) -> str:
     """Extract parser DSL text from a Chronicle parser dictionary."""
     parser_code = parser_obj.get("text", "")
     if parser_code:
@@ -76,9 +79,17 @@ def _extract_parser_code(parser_obj: dict[str, Any]) -> str:
     cbn_blob = parser_obj.get("cbn")
     if isinstance(cbn_blob, str) and cbn_blob:
         try:
-            return base64.b64decode(cbn_blob).decode("utf-8")
-        except Exception as exc:
-            logger.warning("Failed to decode base64 CBN parser payload: %s", exc)
+            cleaned_b64 = re.sub(r"\s+", "", cbn_blob)
+            return base64.b64decode(cleaned_b64, validate=True).decode("utf-8")
+        except (binascii.Error, ValueError, UnicodeDecodeError) as exc:
+            logger.warning(
+                "Failed to decode base64 CBN parser payload for %s: %s",
+                clean_log_type,
+                exc,
+            )
+            raise ResourceError(
+                f"Failed to decode parser content for {clean_log_type}: {exc}"
+            ) from exc
     return ""
 
 
@@ -262,7 +273,7 @@ def register_resources(mcp_server: MCPServer) -> None:
             "log_type": log_type,
             "parser_id": parser_id,
             "state": parser_dict.get("state", "ACTIVE"),
-            "parser_code": _extract_parser_code(parser_dict),
+            "parser_code": _extract_parser_code(parser_dict, clean_log_type=log_type),
             "parser": parser_dict,
         }
 

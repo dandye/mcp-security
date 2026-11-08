@@ -54,6 +54,7 @@ This is a Model Context Protocol (MCP `2026-07-28`, `mcp>=2.3.0`) server (`gti-m
 
 - **`get_url_report(url)`**: Retrieves a comprehensive analysis report for a URL.
 - **`get_entities_related_to_an_url(url, relationship_name, limit=10)`**: Gets related entities for a given URL.
+- **`analyse_url(url)`**: Submits a URL for live scanning and streams progress updates (`ctx.report_progress`) until the Google Threat Intelligence analysis report completes.
 
 ### Hunting
 

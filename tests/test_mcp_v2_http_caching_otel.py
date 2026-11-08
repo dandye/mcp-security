@@ -1030,3 +1030,83 @@ def test_soar_cli_preserves_integrations_and_verbose_flags() -> None:
     assert args.integrations == "CSV,SiemplifyThreatFuse"
     assert args.verbose is True
     assert args.transport == "streamable-http"
+
+
+@pytest.mark.parametrize("target", SERVER_TARGETS, ids=[t.name for t in SERVER_TARGETS])
+def test_malformed_mcp_allowed_origins_warns_and_skips_across_all_servers(
+    target: ServerTarget,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Malformed entries in MCP_ALLOWED_ORIGINS must log a warning and be omitted."""
+    import logging
+
+    monkeypatch.setenv(
+        "MCP_ALLOWED_ORIGINS",
+        "https://console.secops.example, bad-origin-no-scheme , https://console.secops.example/extra-path, http://localhost:3000",
+    )
+    with caplog.at_level(logging.WARNING):
+        origins = target.module._resolve_allowed_origins(["127.0.0.1"])
+
+    assert "https://console.secops.example" in origins
+    assert "http://localhost:3000" in origins
+    assert "bad-origin-no-scheme" not in origins
+    assert "https://console.secops.example/extra-path" not in origins
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any(
+        "Ignoring malformed MCP_ALLOWED_ORIGINS entry 'bad-origin-no-scheme'; expected scheme://host[:port]"
+        in msg
+        for msg in messages
+    )
+    assert any(
+        "Ignoring malformed MCP_ALLOWED_ORIGINS entry 'https://console.secops.example/extra-path'; expected scheme://host[:port]"
+        in msg
+        for msg in messages
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target", SERVER_TARGETS, ids=[t.name for t in SERVER_TARGETS])
+async def test_mcp_otel_enabled_false_disables_otel_middleware_across_all_servers(
+    target: ServerTarget,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Setting MCP_OTEL_ENABLED=false must omit OpenTelemetryMiddleware and emit zero spans."""
+    monkeypatch.setenv("MCP_OTEL_ENABLED", "false")
+    try:
+        app = target.build_http_app(target.server, host="127.0.0.1", stateless_http=True)
+        mw_list = target.server._lowlevel_server.middleware
+        assert not any(isinstance(m, OpenTelemetryMiddleware) for m in mw_list)
+
+        with _capture_otel_spans() as spans:
+            async with _asgi_http_client(app) as client:
+                resp = await client.post(
+                    "/mcp",
+                    headers={
+                        "Content-Type": "application/json",
+                        "Accept": "application/json, text/event-stream",
+                        "MCP-Protocol-Version": "2026-07-28",
+                        "Mcp-Method": "server/discover",
+                    },
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": 99,
+                        "method": "server/discover",
+                        "params": {
+                            "_meta": {
+                                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                                "io.modelcontextprotocol/clientCapabilities": {},
+                            }
+                        },
+                    },
+                )
+        assert resp.status_code == 200
+        assert spans == []
+    finally:
+        monkeypatch.setenv("MCP_OTEL_ENABLED", "true")
+        target.module._deduplicate_otel_middleware(target.server)
+        assert any(
+            isinstance(m, OpenTelemetryMiddleware)
+            for m in target.server._lowlevel_server.middleware
+        )
