@@ -33,6 +33,7 @@ from secops_mcp.phase5 import (
     build_secops_apps_extensions,
     extract_resource_host_patterns,
     resolve_oauth_configuration,
+    sync_apps_state,
 )
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -331,6 +332,7 @@ def build_streamable_http_app(
     token_verifier: Optional[TokenVerifier] = None,
 ) -> Starlette:
     """Build the bounded Streamable HTTP ASGI application with health probes and optional OAuth 2.1 RS."""
+    sync_apps_state(server_instance)
     _register_health_routes(server_instance)
     extra_hosts = list(allowed_hosts or [])
     extra_hosts.extend(extract_resource_host_patterns(resource_server_url))
@@ -514,6 +516,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help='Comma-separated OAuth 2.1 scopes required on streamable-http requests (MCP_REQUIRED_SCOPES).',
     )
+    parser.add_argument(
+        '--disable-apps',
+        action='store_true',
+        default=False,
+        help='Disable MCP Apps interactive UI resources and tool metadata (sets MCP_ENABLE_APPS=false).',
+    )
     return parser
 
 
@@ -524,7 +532,11 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         os.environ['MCP_ELICIT_DESTRUCTIVE'] = 'true' if args.elicit_destructive else 'false'
     if args.unattended_policy is not None:
         os.environ['MCP_UNATTENDED_DESTRUCTIVE_POLICY'] = args.unattended_policy
+    if args.disable_apps:
+        os.environ['MCP_ENABLE_APPS'] = 'false'
     transport = _normalize_transport(args.transport)
+    os.environ['MCP_TRANSPORT'] = transport
+    sync_apps_state(server)
     if transport == 'streamable-http':
         app = build_streamable_http_app(
             server,

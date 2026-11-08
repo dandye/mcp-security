@@ -318,6 +318,22 @@ async def get_file_behavior_summary(hash: str, ctx: Context) -> dict[str, typing
   return utils.sanitize_response(res["data"])
 
 
+def _sha256_file(file_path: str) -> tuple[str, int]:
+  """Compute SHA-256 hex digest and byte size of a local file."""
+  digest = _hashlib.sha256()
+  byte_size = 0
+  with open(file_path, "rb") as hash_file:
+    while True:
+      chunk = hash_file.read(65536)
+      if not chunk:
+        break
+      if isinstance(chunk, str):
+        chunk = chunk.encode("utf-8")
+      digest.update(chunk)
+      byte_size += len(chunk)
+  return digest.hexdigest(), byte_size
+
+
 @server.tool(
     title="Upload and Analyze File",
     annotations=_ToolAnnotations(
@@ -349,18 +365,7 @@ async def analyse_file(
           total=4,
           message=f"Hashing local file {basename}...",
       )
-    digest = _hashlib.sha256()
-    byte_size = 0
-    with open(file_path, "rb") as hash_file:
-      while True:
-        chunk = hash_file.read(65536)
-        if not chunk:
-          break
-        if isinstance(chunk, str):
-          chunk = chunk.encode("utf-8")
-        digest.update(chunk)
-        byte_size += len(chunk)
-    sha256_hex = digest.hexdigest()
+    sha256_hex, byte_size = await asyncio.to_thread(_sha256_file, file_path)
 
     outcome = await _confirm_destructive_action(
         ctx,

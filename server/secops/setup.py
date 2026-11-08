@@ -22,6 +22,7 @@ setup(
     version="0.9.0",
     packages=setuptools.find_packages(include=["secops_mcp*"]),
     install_requires=[
+        "cryptography>=42.0.0",
         "httpx>=0.28.1",
         "mcp[cli]>=2.3.0,<3.0.0",
         "requests>=2.32.0",

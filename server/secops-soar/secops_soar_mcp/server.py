@@ -36,6 +36,7 @@ from secops_soar_mcp.phase5 import (
     build_root_oauth_well_known_routes,
     extract_resource_host_patterns,
     resolve_oauth_configuration,
+    sync_apps_state,
 )
 from secops_soar_mcp.prompts import register_prompts as register_soar_prompts
 from secops_soar_mcp.resources import register_resources as register_soar_resources
@@ -326,6 +327,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help="Comma-separated OAuth 2.1 scopes required on streamable-http requests (MCP_REQUIRED_SCOPES).",
     )
+    arg_parser.add_argument(
+        "--disable-apps",
+        action="store_true",
+        default=False,
+        help="Disable interactive MCP Apps UI resources and tool metadata (sets MCP_ENABLE_APPS=false).",
+    )
     return arg_parser
 
 
@@ -568,6 +575,7 @@ def build_streamable_http_app(
     token_verifier: Optional[TokenVerifier] = None,
 ) -> Starlette:
     """Build the bounded Streamable HTTP ASGI application with health probes and optional OAuth 2.1 RS."""
+    sync_apps_state(server_instance)
     _register_health_routes(server_instance)
     extra_hosts = list(allowed_hosts or [])
     extra_hosts.extend(extract_resource_host_patterns(resource_server_url))
@@ -628,8 +636,12 @@ async def main(argv: Optional[Sequence[str]] = None):
         os.environ["MCP_ELICIT_DESTRUCTIVE"] = "true" if args.elicit_destructive else "false"
     if args.unattended_policy is not None:
         os.environ["MCP_UNATTENDED_DESTRUCTIVE_POLICY"] = args.unattended_policy
+    if getattr(args, "disable_apps", False):
+        os.environ["MCP_ENABLE_APPS"] = "false"
     setup_logging(args.verbose)
     transport = _normalize_transport(args.transport)
+    os.environ["MCP_TRANSPORT"] = transport
+    sync_apps_state(mcp)
     logger.info("Starting SecOps SOAR MCP server (transport=%s)", transport)
     try:
         await bindings.bind()

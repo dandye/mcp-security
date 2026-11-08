@@ -22,6 +22,7 @@ setup(
     version="0.2.0",
     packages=setuptools.find_packages(),
     install_requires=[
+        "cryptography>=42.0.0",
         "mcp[cli]>=2.3.0,<3.0.0",
         "vt-py",
     ],

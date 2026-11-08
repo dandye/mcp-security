@@ -19,6 +19,7 @@ import base64
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+import datetime
 import hashlib
 import hmac
 import json
@@ -30,12 +31,16 @@ import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding, rsa
-from httpx2 import ASGITransport, AsyncClient
+from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
+from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
+from cryptography.x509.oid import NameOID
+from httpx2 import ASGITransport, AsyncClient, MockTransport, Response
 from mcp import types
 from mcp.client import Client, ClientExtension
 from mcp.server.apps import APP_MIME_TYPE, EXTENSION_ID, client_supports_apps
+from mcp.server.auth.provider import AccessToken
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.request_state import (
     AESGCMRequestStateCodec,
@@ -166,9 +171,14 @@ def _mint_hs256_jwt(claims: dict[str, Any], secret: str) -> str:
 def _mint_rs256_jwt(
     claims: dict[str, Any],
     private_key: rsa.RSAPrivateKey,
+    *,
+    kid: str | None = None,
 ) -> str:
+    header: dict[str, Any] = {"alg": "RS256", "typ": "JWT"}
+    if kid is not None:
+        header["kid"] = kid
     header_seg = _b64url_encode(
-        json.dumps({"alg": "RS256", "typ": "JWT"}, separators=(",", ":")).encode("utf-8")
+        json.dumps(header, separators=(",", ":")).encode("utf-8")
     )
     payload_seg = _b64url_encode(
         json.dumps(claims, separators=(",", ":")).encode("utf-8")
@@ -176,6 +186,58 @@ def _mint_rs256_jwt(
     signing_input = f"{header_seg}.{payload_seg}".encode("ascii")
     sig = private_key.sign(signing_input, padding.PKCS1v15(), hashes.SHA256())
     return f"{header_seg}.{payload_seg}.{_b64url_encode(sig)}"
+
+
+def _mint_es256_jwt(
+    claims: dict[str, Any],
+    private_key: ec.EllipticCurvePrivateKey,
+    *,
+    kid: str | None = None,
+) -> str:
+    header: dict[str, Any] = {"alg": "ES256", "typ": "JWT"}
+    if kid is not None:
+        header["kid"] = kid
+    header_seg = _b64url_encode(
+        json.dumps(header, separators=(",", ":")).encode("utf-8")
+    )
+    payload_seg = _b64url_encode(
+        json.dumps(claims, separators=(",", ":")).encode("utf-8")
+    )
+    signing_input = f"{header_seg}.{payload_seg}".encode("ascii")
+    der_sig = private_key.sign(signing_input, ec.ECDSA(hashes.SHA256()))
+    r_int, s_int = decode_dss_signature(der_sig)
+    raw_sig = r_int.to_bytes(32, "big") + s_int.to_bytes(32, "big")
+    return f"{header_seg}.{payload_seg}.{_b64url_encode(raw_sig)}"
+
+
+def _rsa_public_jwk(public_key: rsa.RSAPublicKey, kid: str) -> dict[str, Any]:
+    nums = public_key.public_numbers()
+    n_bytes = nums.n.to_bytes((nums.n.bit_length() + 7) // 8, "big")
+    e_bytes = nums.e.to_bytes((nums.e.bit_length() + 7) // 8, "big")
+    return {
+        "kty": "RSA",
+        "use": "sig",
+        "alg": "RS256",
+        "kid": kid,
+        "n": _b64url_encode(n_bytes),
+        "e": _b64url_encode(e_bytes),
+    }
+
+
+def _ec_p256_public_jwk(
+    public_key: ec.EllipticCurvePublicKey,
+    kid: str,
+) -> dict[str, Any]:
+    nums = public_key.public_numbers()
+    return {
+        "kty": "EC",
+        "crv": "P-256",
+        "use": "sig",
+        "alg": "ES256",
+        "kid": kid,
+        "x": _b64url_encode(nums.x.to_bytes(32, "big")),
+        "y": _b64url_encode(nums.y.to_bytes(32, "big")),
+    }
 
 
 def _decode_http_jsonrpc(resp: Any) -> dict[str, Any]:
@@ -209,8 +271,11 @@ def test_request_state_codec_roundtrip_key_formats_and_tamper_rejection(
             assert len(derived) == 32
             codec = mod.EnvAwareAESGCMCodec()
             sealed = codec.seal(b'{"v":1,"action":"delete_rule"}')
+            first_cached = codec._cached_codec
+            assert first_cached is not None
             assert sealed.startswith("v1.")
             assert codec.unseal(sealed) == b'{"v":1,"action":"delete_rule"}'
+            assert codec._cached_codec is first_cached
 
             # Flip last character in authentication tag -> InvalidRequestState
             flipped_char = "A" if sealed[-1] != "A" else "B"
@@ -429,25 +494,29 @@ async def test_soar_close_case_elicitation_accept_override_and_decline(
 
 
 @pytest.mark.asyncio
-async def test_secops_delete_rule_and_delete_watchlist_elicitation(
+async def test_secops_delete_rule_elicits_while_delete_watchlist_does_not(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verify delete_rule and delete_watchlist gate Chronicle SIEM mutations via elicitation."""
+    """Verify delete_rule gates Chronicle SIEM rule deletion while delete_watchlist has no elicitation gate."""
     monkeypatch.setenv("MCP_ELICIT_DESTRUCTIVE", "true")
     mock_chronicle = MagicMock()
     mock_chronicle.delete_rule.return_value = {}
     mock_chronicle.delete_watchlist.return_value = {"deleted": True}
 
+    elicit_messages: list[str] = []
+
     async def _decline_cb(
         context: Any,
         params: types.ElicitRequestParams,
     ) -> types.ElicitResult:
+        elicit_messages.append(params.message)
         return types.ElicitResult(action="decline")
 
     async def _accept_cb(
         context: Any,
         params: types.ElicitRequestParams,
     ) -> types.ElicitResult:
+        elicit_messages.append(params.message)
         return types.ElicitResult(
             action="accept",
             content={"confirm": True, "reason": "Confirmed obsolete rule cleanup"},
@@ -476,16 +545,19 @@ async def test_secops_delete_rule_and_delete_watchlist_elicitation(
             assert rule_declined.structured_content["cancelled"] is True
             assert rule_declined.structured_content["deleted"] is False
             mock_chronicle.delete_rule.assert_not_called()
+            assert len(elicit_messages) == 1
 
-            wl_declined = await decline_client.call_tool(
+            # delete_watchlist is NOT one of the 4 gated tools and executes directly
+            wl_res = await decline_client.call_tool(
                 "delete_watchlist",
-                {"watchlist_id": "wl-high-risk-contractors"},
+                {"watchlist_id": "wl-high-risk-contractors", "force": False},
             )
-            assert wl_declined.is_error is False
-            assert wl_declined.structured_content is not None
-            assert wl_declined.structured_content["cancelled"] is True
-            assert wl_declined.structured_content["success"] is False
-            mock_chronicle.delete_watchlist.assert_not_called()
+            assert wl_res.is_error is False
+            assert len(elicit_messages) == 1
+            mock_chronicle.delete_watchlist.assert_called_once_with(
+                "wl-high-risk-contractors",
+                force=False,
+            )
 
         async with Client(
             secops_server_mod.server,
@@ -501,16 +573,6 @@ async def test_secops_delete_rule_and_delete_watchlist_elicitation(
             mock_chronicle.delete_rule.assert_called_once_with(
                 "ru_a1b2c3d4-e5f6-4321-abcd-ef1234567890",
                 force=True,
-            )
-
-            wl_deleted = await accept_client.call_tool(
-                "delete_watchlist",
-                {"watchlist_id": "wl-high-risk-contractors", "force": False},
-            )
-            assert wl_deleted.is_error is False
-            mock_chronicle.delete_watchlist.assert_called_once_with(
-                "wl-high-risk-contractors",
-                force=False,
             )
 
 
@@ -1287,6 +1349,7 @@ async def test_oauth_rs256_asymmetric_jwt_verification_and_cli_flags(
                 entry.resource_url,
                 "--required-scopes",
                 "mcp:read,mcp:write",
+                "--disable-apps",
             ]
         )
         assert parsed.elicit_destructive is True
@@ -1294,6 +1357,430 @@ async def test_oauth_rs256_asymmetric_jwt_verification_and_cli_flags(
         assert parsed.oauth_issuer_url == issuer
         assert parsed.resource_server_url == entry.resource_url
         assert parsed.required_scopes == "mcp:read,mcp:write"
+        assert parsed.disable_apps is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("entry", SERVER_ENTRIES, ids=[e.name for e in SERVER_ENTRIES])
+async def test_oauth_inline_jwks_json_rs256_and_es256_kid_selection(
+    entry: ServerEntry,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify MCP_OAUTH_JWKS_JSON supports kid-selected RS256 and ES256 keys and rejects bad kids/signatures."""
+    rsa_priv = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    ec_priv = ec.generate_private_key(ec.SECP256R1())
+    other_ec_priv = ec.generate_private_key(ec.SECP256R1())
+    jwks_doc = {
+        "keys": [
+            _rsa_public_jwk(rsa_priv.public_key(), "rsa-kid-2026"),
+            _ec_p256_public_jwk(ec_priv.public_key(), "ec-kid-2026"),
+        ]
+    }
+
+    issuer = "https://idp.secops.example.com"
+    monkeypatch.delenv("MCP_OAUTH_HS256_SECRET", raising=False)
+    monkeypatch.delenv("MCP_OAUTH_PUBLIC_KEY_PEM", raising=False)
+    monkeypatch.delenv("MCP_OAUTH_JWKS_URL", raising=False)
+    monkeypatch.setenv("MCP_OAUTH_ISSUER_URL", issuer)
+    monkeypatch.setenv("MCP_RESOURCE_SERVER_URL", entry.resource_url)
+    monkeypatch.setenv("MCP_REQUIRED_SCOPES", "mcp:read")
+    monkeypatch.setenv("MCP_OAUTH_JWKS_JSON", json.dumps(jwks_doc))
+
+    now = int(time.time())
+    rs256_ok = _mint_rs256_jwt(
+        {
+            "iss": issuer,
+            "sub": "rsa-user",
+            "aud": entry.resource_url,
+            "scope": "mcp:read",
+            "exp": now + 600,
+        },
+        rsa_priv,
+        kid="rsa-kid-2026",
+    )
+    es256_ok = _mint_es256_jwt(
+        {
+            "iss": issuer,
+            "sub": "ec-user",
+            "aud": "oauth-gateway-client-id",
+            "resource": entry.resource_url,
+            "scope": "mcp:read",
+            "exp": now + 600,
+        },
+        ec_priv,
+        kid="ec-kid-2026",
+    )
+    wrong_kid_tok = _mint_es256_jwt(
+        {
+            "iss": issuer,
+            "sub": "ec-user",
+            "aud": entry.resource_url,
+            "scope": "mcp:read",
+            "exp": now + 600,
+        },
+        ec_priv,
+        kid="missing-kid-999",
+    )
+    wrong_key_tok = _mint_es256_jwt(
+        {
+            "iss": issuer,
+            "sub": "ec-user",
+            "aud": entry.resource_url,
+            "scope": "mcp:read",
+            "exp": now + 600,
+        },
+        other_ec_priv,
+        kid="ec-kid-2026",
+    )
+    tampered_es256 = es256_ok[:-2] + ("AA" if es256_ok[-2:] != "AA" else "BB")
+
+    app = entry.build_http_app(entry.server, host="0.0.0.0", stateless_http=True)
+    host_header = entry.resource_url.split("://", 1)[1].split("/", 1)[0]
+    req_body = {
+        "jsonrpc": "2.0",
+        "id": 21,
+        "method": "tools/list",
+        "params": {
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientCapabilities": {},
+            }
+        },
+    }
+    base_headers = {
+        "Host": host_header,
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+        "MCP-Protocol-Version": "2026-07-28",
+        "Mcp-Method": "tools/list",
+    }
+
+    async with _asgi_http_client(app, base_url=f"https://{host_header}") as client:
+        for good_tok in (rs256_ok, es256_ok):
+            ok_resp = await client.post(
+                "/mcp",
+                headers={**base_headers, "Authorization": f"Bearer {good_tok}"},
+                json=req_body,
+            )
+            assert ok_resp.status_code == 200
+
+        for bad_tok in (wrong_kid_tok, wrong_key_tok, tampered_es256):
+            bad_resp = await client.post(
+                "/mcp",
+                headers={**base_headers, "Authorization": f"Bearer {bad_tok}"},
+                json=req_body,
+            )
+            assert bad_resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_oauth_remote_jwks_url_cached_http_fetch_and_rotation_refresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify MCP_OAUTH_JWKS_URL caches remote JWKS responses and refreshes on unknown kid after cooldown."""
+    ec_v1 = ec.generate_private_key(ec.SECP256R1())
+    ec_v2 = ec.generate_private_key(ec.SECP256R1())
+    issuer = "https://auth.remote-jwks.example.com"
+    jwks_url = "https://auth.remote-jwks.example.com/.well-known/jwks.json"
+    resource_url = "https://secops-mcp.example.com/mcp"
+
+    monkeypatch.delenv("MCP_OAUTH_HS256_SECRET", raising=False)
+    monkeypatch.delenv("MCP_OAUTH_PUBLIC_KEY_PEM", raising=False)
+    monkeypatch.delenv("MCP_OAUTH_JWKS_JSON", raising=False)
+    monkeypatch.setenv("MCP_OAUTH_JWKS_URL", jwks_url)
+
+    active_keys = [_ec_p256_public_jwk(ec_v1.public_key(), "kid-v1")]
+    fetch_count = 0
+
+    def _jwks_handler(request: Any) -> Response:
+        nonlocal fetch_count
+        assert str(request.url) == jwks_url
+        fetch_count += 1
+        return Response(
+            200,
+            headers={"Cache-Control": "public, max-age=300"},
+            json={"keys": list(active_keys)},
+        )
+
+    mock_http = AsyncClient(transport=MockTransport(_jwks_handler))
+    now = int(time.time())
+    tok_v1 = _mint_es256_jwt(
+        {
+            "iss": issuer,
+            "sub": "svc-agent",
+            "aud": "client-id-abc",
+            "resource": resource_url,
+            "scope": "secops:read",
+            "exp": now + 600,
+        },
+        ec_v1,
+        kid="kid-v1",
+    )
+    tok_v2 = _mint_es256_jwt(
+        {
+            "iss": issuer,
+            "sub": "svc-agent",
+            "aud": resource_url,
+            "scope": "secops:read",
+            "exp": now + 600,
+        },
+        ec_v2,
+        kid="kid-v2",
+    )
+
+    try:
+        for mod in (secops_phase5, gti_phase5, soar_phase5, scc_server_mod):
+            before = fetch_count
+            verifier = mod.GoogleOIDCTokenVerifier(
+                issuer_url=issuer,
+                resource_server_url=resource_url,
+                jwks_http_client=mock_http,
+            )
+            # 3 consecutive verifications must reuse the cached JWKS document (1 HTTP GET)
+            for _ in range(3):
+                verified = await verifier.verify_token(tok_v1)
+                assert verified is not None
+                assert verified.subject == "svc-agent"
+            assert fetch_count - before == 1
+
+            # Rotate key set to include kid-v2 after cooldown -> 1 refresh HTTP GET
+            active_keys.append(_ec_p256_public_jwk(ec_v2.public_key(), "kid-v2"))
+            verifier._last_jwks_fetch_at -= 10.0
+            rotated = await verifier.verify_token(tok_v2)
+            assert rotated is not None
+            assert fetch_count - before == 2
+            active_keys[:] = [_ec_p256_public_jwk(ec_v1.public_key(), "kid-v1")]
+    finally:
+        await mock_http.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("entry", "phase5_mod"),
+    [
+        (SERVER_ENTRIES[0], secops_phase5),
+        (SERVER_ENTRIES[1], gti_phase5),
+        (SERVER_ENTRIES[2], soar_phase5),
+        (SERVER_ENTRIES[3], scc_server_mod),
+    ],
+    ids=[e.name for e in SERVER_ENTRIES],
+)
+async def test_google_oidc_rfc8707_resource_only_binding_and_cached_request_session(
+    entry: ServerEntry,
+    phase5_mod: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify _verify_via_google_oidc accepts RFC 8707 resource-bound tokens when aud is a client ID and caches Request."""
+    monkeypatch.delenv("MCP_OAUTH_HS256_SECRET", raising=False)
+    monkeypatch.delenv("MCP_OAUTH_PUBLIC_KEY_PEM", raising=False)
+    monkeypatch.delenv("MCP_OAUTH_JWKS_JSON", raising=False)
+    monkeypatch.delenv("MCP_OAUTH_JWKS_URL", raising=False)
+
+    rsa_priv = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    cert_name = x509.Name(
+        [x509.NameAttribute(NameOID.COMMON_NAME, "accounts.google.com")]
+    )
+    cert_pem = (
+        x509.CertificateBuilder()
+        .subject_name(cert_name)
+        .issuer_name(cert_name)
+        .public_key(rsa_priv.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(
+            datetime.datetime.now(datetime.timezone.utc)
+            - datetime.timedelta(minutes=5)
+        )
+        .not_valid_after(
+            datetime.datetime.now(datetime.timezone.utc)
+            + datetime.timedelta(hours=1)
+        )
+        .sign(rsa_priv, hashes.SHA256())
+        .public_bytes(serialization.Encoding.PEM)
+        .decode("utf-8")
+    )
+
+    class _FakeCertResponse:
+        status = 200
+        headers = {"cache-control": "public, max-age=3600"}
+        data = json.dumps({"goog-kid-1": cert_pem}).encode("utf-8")
+
+    request_invocations = 0
+
+    def _counting_oidc_request(
+        url: str,
+        method: str = "GET",
+        body: Any = None,
+        headers: Any = None,
+        timeout: Any = None,
+        **kwargs: Any,
+    ) -> _FakeCertResponse:
+        nonlocal request_invocations
+        request_invocations += 1
+        assert url == "https://www.googleapis.com/oauth2/v1/certs"
+        return _FakeCertResponse()
+
+    issuer = "https://accounts.google.com"
+    now = int(time.time())
+    rfc8707_token = _mint_rs256_jwt(
+        {
+            "iss": issuer,
+            "sub": "112233445566",
+            "aud": "oauth-client-id",
+            "resource": entry.resource_url,
+            "scope": "mcp:read",
+            "iat": now - 5,
+            "exp": now + 600,
+        },
+        rsa_priv,
+        kid="goog-kid-1",
+    )
+
+    verifier = phase5_mod.GoogleOIDCTokenVerifier(
+        issuer_url=issuer,
+        resource_server_url=entry.resource_url,
+        oidc_request=_counting_oidc_request,
+    )
+    app = entry.build_http_app(
+        entry.server,
+        host="0.0.0.0",
+        stateless_http=True,
+        oauth_issuer_url=issuer,
+        resource_server_url=entry.resource_url,
+        required_scopes=["mcp:read"],
+        token_verifier=verifier,
+    )
+    host_header = entry.resource_url.split("://", 1)[1].split("/", 1)[0]
+    req_body = {
+        "jsonrpc": "2.0",
+        "id": 31,
+        "method": "tools/list",
+        "params": {
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientCapabilities": {},
+            }
+        },
+    }
+    headers = {
+        "Host": host_header,
+        "Authorization": f"Bearer {rfc8707_token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+        "MCP-Protocol-Version": "2026-07-28",
+        "Mcp-Method": "tools/list",
+    }
+
+    async with _asgi_http_client(app, base_url=f"https://{host_header}") as client:
+        r1 = await client.post("/mcp", headers=headers, json=req_body)
+        assert r1.status_code == 200
+        r2 = await client.post("/mcp", headers=headers, json=req_body)
+        assert r2.status_code == 200
+        assert verifier._oidc_request is _counting_oidc_request
+
+
+@pytest.mark.asyncio
+async def test_verify_callback_access_token_enforces_expiry_and_resource_and_no_dead_scopes() -> None:
+    """Verify GoogleOIDCTokenVerifier drops dead required_scopes and validates AccessToken from verify_callback."""
+    issuer = "https://auth.example.com"
+    resource_url = "https://secops-mcp.example.com/mcp"
+    now = int(time.time())
+
+    for mod in (secops_phase5, gti_phase5, soar_phase5, scc_server_mod):
+        with pytest.raises(TypeError):
+            mod.GoogleOIDCTokenVerifier(
+                issuer_url=issuer,
+                resource_server_url=resource_url,
+                required_scopes=["mcp:read"],  # type: ignore[call-arg]
+            )
+
+        expired_verifier = mod.GoogleOIDCTokenVerifier(
+            issuer_url=issuer,
+            resource_server_url=resource_url,
+            verify_callback=lambda tok: AccessToken(
+                token=tok,
+                client_id="cb-client",
+                scopes=["mcp:read"],
+                expires_at=now - 30,
+                resource=resource_url,
+            ),
+        )
+        assert not hasattr(expired_verifier, "required_scopes")
+        assert await expired_verifier.verify_token("opaque-expired-tok") is None
+
+        wrong_res_verifier = mod.GoogleOIDCTokenVerifier(
+            issuer_url=issuer,
+            resource_server_url=resource_url,
+            verify_callback=lambda tok: AccessToken(
+                token=tok,
+                client_id="cb-client",
+                scopes=["mcp:read"],
+                expires_at=now + 600,
+                resource="https://unrelated-service.example.com/mcp",
+            ),
+        )
+        assert await wrong_res_verifier.verify_token("opaque-wrong-res") is None
+
+        valid_verifier = mod.GoogleOIDCTokenVerifier(
+            issuer_url=issuer,
+            resource_server_url=resource_url,
+            verify_callback=lambda tok: AccessToken(
+                token=tok,
+                client_id="cb-client",
+                scopes=["mcp:read"],
+                expires_at=now + 600,
+                resource=resource_url,
+            ),
+        )
+        accepted = await valid_verifier.verify_token("opaque-valid-tok")
+        assert accepted is not None
+        assert accepted.client_id == "cb-client"
+
+    # End-to-end HTTP 401 when verify_callback returns expired AccessToken
+    app = secops_server_mod.build_streamable_http_app(
+        secops_server_mod.server,
+        host="0.0.0.0",
+        stateless_http=True,
+        oauth_issuer_url=issuer,
+        resource_server_url=resource_url,
+        required_scopes=["mcp:read"],
+        token_verifier=secops_phase5.GoogleOIDCTokenVerifier(
+            issuer_url=issuer,
+            resource_server_url=resource_url,
+            verify_callback=lambda tok: AccessToken(
+                token=tok,
+                client_id="cb-client",
+                scopes=["mcp:read"],
+                expires_at=now - 10,
+                resource=resource_url,
+            ),
+        ),
+    )
+    async with _asgi_http_client(
+        app, base_url="https://secops-mcp.example.com"
+    ) as client:
+        resp = await client.post(
+            "/mcp",
+            headers={
+                "Host": "secops-mcp.example.com",
+                "Authorization": "Bearer expired-callback-token",
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Protocol-Version": "2026-07-28",
+                "Mcp-Method": "tools/list",
+            },
+            json={
+                "jsonrpc": "2.0",
+                "id": 41,
+                "method": "tools/list",
+                "params": {
+                    "_meta": {
+                        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                        "io.modelcontextprotocol/clientCapabilities": {},
+                    }
+                },
+            },
+        )
+        assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------
@@ -1378,6 +1865,11 @@ async def test_mcp_apps_resources_impeccable_dark_mode_craft_and_tool_metadata(
         assert "tabular-nums" in html
         assert ":focus-visible" in html
         assert "border-left:" not in html.lower()
+        assert "ev.source !== window.parent" in html
+        if app_uri == "ui://scc/finding-card.html":
+            assert 'setAttribute("tabindex", "0")' in html
+            assert "keydown" in html
+            assert "tr.finding-row:focus-visible" in html
 
         font_matches = _FONT_SIZE_RE.findall(html)
         assert len(font_matches) >= 5
@@ -1461,3 +1953,89 @@ async def test_mcp_apps_capability_negotiation_and_graceful_text_fallback() -> N
             assert scc_res.is_error is False
             assert len(scc_res.content) >= 1
             assert scc_res.structured_content is not None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("server_mod", "server_obj", "app_uri", "expected_linked_tools"),
+    [
+        (
+            secops_server_mod,
+            secops_server_mod.server,
+            "ui://secops/entity-timeline.html",
+            {"search_security_events", "lookup_entity"},
+        ),
+        (
+            gti_server_mod,
+            gti_server_mod.server,
+            "ui://gti/ioc-verdict.html",
+            {"get_file_report", "get_domain_report", "get_ip_address_report"},
+        ),
+        (
+            scc_server_mod,
+            scc_server_mod.mcp,
+            "ui://scc/finding-card.html",
+            {"top_vulnerability_findings", "get_finding_remediation"},
+        ),
+    ],
+    ids=["secops-disable-apps", "gti-disable-apps", "scc-disable-apps"],
+)
+async def test_mcp_enable_apps_false_and_disable_apps_toggle_and_restore(
+    server_mod: Any,
+    server_obj: MCPServer,
+    app_uri: str,
+    expected_linked_tools: set[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify MCP_ENABLE_APPS=false and --disable-apps omit ui:// resources and _meta.ui and restore cleanly."""
+    try:
+        # 1. Disable via MCP_ENABLE_APPS=false + sync_apps_state (and build_streamable_http_app)
+        monkeypatch.setenv("MCP_ENABLE_APPS", "false")
+        assert server_mod.sync_apps_state(server_obj) is False
+        assert EXTENSION_ID not in server_obj._lowlevel_server.extensions
+
+        async with Client(
+            server_obj, extensions=[_McpAppsUiClientExtension()]
+        ) as disabled_client:
+            disabled_res = await disabled_client.list_resources()
+            disabled_uris = {str(r.uri) for r in disabled_res.resources}
+            assert app_uri not in disabled_uris
+            assert not any(u.startswith("ui://") for u in disabled_uris)
+
+            disabled_tools = await disabled_client.list_tools()
+            by_name = {t.name: t for t in disabled_tools.tools}
+            for tool_name in expected_linked_tools:
+                meta = by_name[tool_name].meta or {}
+                assert "ui" not in meta
+
+        # 2. Re-enable MCP_ENABLE_APPS=true -> restores extension, ui:// resource, and _meta.ui
+        monkeypatch.setenv("MCP_ENABLE_APPS", "true")
+        assert server_mod.sync_apps_state(server_obj) is True
+        assert EXTENSION_ID in server_obj._lowlevel_server.extensions
+
+        # 3. Simulate --disable-apps flag via build_arg_parser + build_streamable_http_app
+        parsed = server_mod.build_arg_parser().parse_args(["--disable-apps"])
+        assert parsed.disable_apps is True
+        monkeypatch.setenv("MCP_ENABLE_APPS", "false")
+        server_mod.build_streamable_http_app(server_obj)
+        assert EXTENSION_ID not in server_obj._lowlevel_server.extensions
+
+        # 4. Restore MCP_ENABLE_APPS=true and verify client sees ui:// resource and _meta.ui.resourceUri again
+        monkeypatch.setenv("MCP_ENABLE_APPS", "true")
+        assert server_mod.sync_apps_state(server_obj) is True
+
+        async with Client(
+            server_obj, extensions=[_McpAppsUiClientExtension()]
+        ) as restored_client:
+            restored_res = await restored_client.list_resources()
+            restored_uris = {str(r.uri) for r in restored_res.resources}
+            assert app_uri in restored_uris
+
+            restored_tools = await restored_client.list_tools()
+            restored_by_name = {t.name: t for t in restored_tools.tools}
+            for tool_name in expected_linked_tools:
+                meta = restored_by_name[tool_name].meta or {}
+                assert meta.get("ui", {}).get("resourceUri") == app_uri
+    finally:
+        monkeypatch.setenv("MCP_ENABLE_APPS", "true")
+        server_mod.sync_apps_state(server_obj)

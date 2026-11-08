@@ -14,6 +14,7 @@ classifiers = [
     "Topic :: Security",
 ]
 dependencies = [
+    "cryptography>=42.0.0",
     "httpx>=0.28.1",
     "mcp[cli]>=2.3.0,<3.0.0",
     "requests>=2.32.0",

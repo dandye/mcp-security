@@ -22,6 +22,7 @@ setup(
     py_modules=["scc_mcp"],
     install_requires=[
         "aiohttp>=3.9.0",
+        "cryptography>=42.0.0",
         "google-cloud-asset>=3.15.0",
         "google-cloud-securitycenter>=1.38.0",
         "httpx>=0.28.1",

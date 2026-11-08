@@ -30,8 +30,10 @@ from typing import Any, Generic, Optional, TypeVar
 from urllib.parse import urlparse
 
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding, rsa
-from mcp.server.apps import Apps, ResourceCsp
+from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
+from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
+import httpx2
+from mcp.server.apps import Apps, EXTENSION_ID, ResourceCsp
 from mcp.server.auth.handlers.metadata import ProtectedResourceMetadataHandler
 from mcp.server.auth.provider import AccessToken, TokenVerifier
 from mcp.server.auth.routes import build_resource_metadata_url, cors_middleware
@@ -443,6 +445,7 @@ td {
   }
 
   window.addEventListener("message", function (ev) {
+    if (ev.source !== window.parent) return;
     var d = ev.data;
     if (!d || d.jsonrpc !== "2.0") return;
     if (d.method === "ping" || d.method === "ui/resource-teardown") {
@@ -505,11 +508,15 @@ class EnvAwareAESGCMCodec:
 
     def __init__(self, secret: Optional[str] = None) -> None:
         self._explicit_secret = secret
+        self._cached_key: Optional[bytes] = None
+        self._cached_codec: Optional[AESGCMRequestStateCodec] = None
 
     def _codec(self) -> AESGCMRequestStateCodec:
-        return AESGCMRequestStateCodec(
-            [derive_request_state_key(self._explicit_secret)]
-        )
+        key_bytes = derive_request_state_key(self._explicit_secret)
+        if self._cached_codec is None or self._cached_key != key_bytes:
+            self._cached_key = key_bytes
+            self._cached_codec = AESGCMRequestStateCodec([key_bytes])
+        return self._cached_codec
 
     def seal(self, payload: bytes) -> str:
         return self._codec().seal(payload)
@@ -709,18 +716,24 @@ async def confirm_destructive_action(
     )
 
 
+DEFAULT_JWKS_CACHE_TTL_SECONDS = 300.0
+_JWKS_REFRESH_COOLDOWN_SECONDS = 5.0
+_GOOGLE_ISSUERS = frozenset({"https://accounts.google.com", "accounts.google.com"})
+_GOOGLE_CERTS_URL = "https://www.googleapis.com/oauth2/v1/certs"
+SECOPS_UI_TOOL_URIS: dict[str, str] = {
+    "lookup_entity": SECOPS_ENTITY_TIMELINE_URI,
+    "search_security_events": SECOPS_ENTITY_TIMELINE_URI,
+}
+
+
 def _b64url_decode(segment: str) -> bytes:
     padded = segment + "=" * (-len(segment) % 4)
     return base64.urlsafe_b64decode(padded.encode("ascii"))
 
 
-def _verify_compact_jwt(
+def _parse_compact_jwt_parts(
     token: str,
-    *,
-    hs256_secret: Optional[str] = None,
-    public_key_pem: Optional[str] = None,
-) -> Optional[dict[str, Any]]:
-    """Verify a compact 3-part JWS (HS256 or RS256) and return decoded JSON claims."""
+) -> Optional[tuple[dict[str, Any], dict[str, Any], bytes, bytes]]:
     parts = token.split(".")
     if len(parts) != 3:
         return None
@@ -733,9 +746,137 @@ def _verify_compact_jwt(
         return None
     if not isinstance(header, dict) or not isinstance(payload, dict):
         return None
-
-    alg = str(header.get("alg") or "")
     signing_input = f"{header_b64}.{payload_b64}".encode("ascii")
+    return header, payload, signing_input, sig
+
+
+def _verify_signature_with_public_key(
+    pub_key: Any,
+    alg: str,
+    signing_input: bytes,
+    sig: bytes,
+) -> bool:
+    try:
+        if alg == "RS256":
+            if not isinstance(pub_key, rsa.RSAPublicKey):
+                return False
+            pub_key.verify(sig, signing_input, padding.PKCS1v15(), hashes.SHA256())
+            return True
+        if alg == "ES256":
+            if not isinstance(pub_key, ec.EllipticCurvePublicKey) or not isinstance(
+                pub_key.curve, ec.SECP256R1
+            ):
+                return False
+            if len(sig) != 64:
+                return False
+            r_int = int.from_bytes(sig[:32], "big")
+            s_int = int.from_bytes(sig[32:], "big")
+            der_sig = encode_dss_signature(r_int, s_int)
+            pub_key.verify(der_sig, signing_input, ec.ECDSA(hashes.SHA256()))
+            return True
+    except Exception:
+        return False
+    return False
+
+
+def _jwk_to_public_key(jwk: dict[str, Any]) -> Any:
+    use = jwk.get("use")
+    if use is not None and str(use) != "sig":
+        return None
+    kty = str(jwk.get("kty") or "")
+    try:
+        if kty == "RSA":
+            n_b64 = jwk.get("n")
+            e_b64 = jwk.get("e")
+            if not isinstance(n_b64, str) or not isinstance(e_b64, str):
+                return None
+            n_int = int.from_bytes(_b64url_decode(n_b64), "big")
+            e_int = int.from_bytes(_b64url_decode(e_b64), "big")
+            return rsa.RSAPublicNumbers(e_int, n_int).public_key()
+        if kty == "EC":
+            if jwk.get("crv") != "P-256":
+                return None
+            x_b64 = jwk.get("x")
+            y_b64 = jwk.get("y")
+            if not isinstance(x_b64, str) or not isinstance(y_b64, str):
+                return None
+            x_bytes = _b64url_decode(x_b64)
+            y_bytes = _b64url_decode(y_b64)
+            if len(x_bytes) != 32 or len(y_bytes) != 32:
+                return None
+            x_int = int.from_bytes(x_bytes, "big")
+            y_int = int.from_bytes(y_bytes, "big")
+            return ec.EllipticCurvePublicNumbers(
+                x_int, y_int, ec.SECP256R1()
+            ).public_key()
+    except Exception:
+        return None
+    return None
+
+
+def _verify_jwt_against_jwks(
+    header: dict[str, Any],
+    payload: dict[str, Any],
+    signing_input: bytes,
+    sig: bytes,
+    jwks_doc: dict[str, Any],
+) -> tuple[Optional[dict[str, Any]], bool]:
+    alg = str(header.get("alg") or "")
+    if alg not in {"RS256", "ES256"}:
+        return None, False
+    keys = jwks_doc.get("keys")
+    if not isinstance(keys, list) or not keys:
+        return None, False
+    token_kid = header.get("kid")
+    if isinstance(token_kid, str) and token_kid:
+        candidates = [
+            k for k in keys if isinstance(k, dict) and k.get("kid") == token_kid
+        ]
+        if not candidates:
+            return None, True
+    else:
+        candidates = [k for k in keys if isinstance(k, dict)]
+
+    for jwk in candidates:
+        jwk_alg = jwk.get("alg")
+        if jwk_alg is not None and str(jwk_alg) != alg:
+            continue
+        pub_key = _jwk_to_public_key(jwk)
+        if pub_key is not None and _verify_signature_with_public_key(
+            pub_key, alg, signing_input, sig
+        ):
+            return payload, False
+    return None, False
+
+
+def _parse_max_age_seconds(cache_control: Optional[str]) -> Optional[float]:
+    if not cache_control:
+        return None
+    for directive in cache_control.split(","):
+        part = directive.strip().lower()
+        if part.startswith("max-age="):
+            try:
+                val = float(part.split("=", 1)[1].strip().strip('"'))
+                if val > 0:
+                    return val
+            except ValueError:
+                pass
+    return None
+
+
+def _verify_compact_jwt(
+    token: str,
+    *,
+    hs256_secret: Optional[str] = None,
+    public_key_pem: Optional[str] = None,
+    jwks: Optional[dict[str, Any]] = None,
+) -> Optional[dict[str, Any]]:
+    """Verify a compact 3-part JWS (HS256, RS256, or ES256) and return decoded JSON claims."""
+    parsed = _parse_compact_jwt_parts(token)
+    if parsed is None:
+        return None
+    header, payload, signing_input, sig = parsed
+    alg = str(header.get("alg") or "")
 
     if hs256_secret:
         if alg != "HS256":
@@ -750,18 +891,23 @@ def _verify_compact_jwt(
         return payload
 
     if public_key_pem:
-        if alg != "RS256":
+        if alg not in {"RS256", "ES256"}:
             return None
         try:
             pub_key = serialization.load_pem_public_key(
                 public_key_pem.encode("utf-8")
             )
-            if not isinstance(pub_key, rsa.RSAPublicKey):
-                return None
-            pub_key.verify(sig, signing_input, padding.PKCS1v15(), hashes.SHA256())
         except Exception:
             return None
+        if not _verify_signature_with_public_key(pub_key, alg, signing_input, sig):
+            return None
         return payload
+
+    if jwks is not None:
+        verified, _ = _verify_jwt_against_jwks(
+            header, payload, signing_input, sig, jwks
+        )
+        return verified
 
     return None
 
@@ -771,26 +917,167 @@ def _normalize_url(url: str) -> str:
 
 
 class GoogleOIDCTokenVerifier(TokenVerifier):
-    """OAuth 2.1 / Google OIDC TokenVerifier enforcing issuer, expiry, and RFC 8707 audience."""
+    """OAuth 2.1 / Google OIDC TokenVerifier enforcing issuer, expiry, and RFC 8707 audience.
+
+    Note: `AuthSettings.required_scopes` is enforced downstream by `RequireAuthMiddleware`
+    so missing OAuth scopes return HTTP 403 `insufficient_scope` rather than HTTP 401.
+    """
 
     def __init__(
         self,
         *,
         issuer_url: str,
         resource_server_url: str,
-        required_scopes: Sequence[str] = (),
         hs256_secret: Optional[str] = None,
         public_key_pem: Optional[str] = None,
+        jwks_json: Optional[str | dict[str, Any]] = None,
+        jwks_url: Optional[str] = None,
+        jwks_cache_ttl: float = DEFAULT_JWKS_CACHE_TTL_SECONDS,
+        jwks_http_client: Optional[httpx2.AsyncClient] = None,
+        oidc_certs_url: Optional[str] = None,
+        oidc_request: Optional[Any] = None,
         verify_callback: Optional[Callable[[str], Any]] = None,
     ) -> None:
         self.issuer_url = str(issuer_url).strip()
         self.resource_server_url = str(resource_server_url).strip()
-        self.required_scopes = list(required_scopes)
         self.hs256_secret = hs256_secret
         self.public_key_pem = public_key_pem
+        self.jwks_json = jwks_json
+        self.jwks_url = jwks_url
+        self.jwks_cache_ttl = float(jwks_cache_ttl)
+        self._jwks_http_client = jwks_http_client
+        self._owned_jwks_client: Optional[httpx2.AsyncClient] = None
+        self.oidc_certs_url = oidc_certs_url
+        self._oidc_request = oidc_request
         self.verify_callback = verify_callback
         self._normalized_issuer = _normalize_url(self.issuer_url)
         self._normalized_resource = _normalize_url(self.resource_server_url)
+        self._cached_inline_jwks_raw: Optional[str] = None
+        self._cached_inline_jwks_doc: Optional[dict[str, Any]] = None
+        self._jwks_lock = asyncio.Lock()
+        self._cached_jwks_url: Optional[str] = None
+        self._cached_jwks_doc: Optional[dict[str, Any]] = None
+        self._cached_jwks_expires_at: float = 0.0
+        self._last_jwks_fetch_at: float = 0.0
+
+    def _resolve_inline_jwks(self) -> Optional[dict[str, Any]]:
+        if isinstance(self.jwks_json, dict):
+            return self.jwks_json
+        raw = (
+            self.jwks_json
+            if isinstance(self.jwks_json, str)
+            else os.getenv("MCP_OAUTH_JWKS_JSON", "")
+        ).strip()
+        if not raw:
+            return None
+        if raw == self._cached_inline_jwks_raw and self._cached_inline_jwks_doc is not None:
+            return self._cached_inline_jwks_doc
+        try:
+            parsed = json.loads(raw)
+        except ValueError:
+            logger.warning("Invalid JSON in MCP_OAUTH_JWKS_JSON; rejecting token.")
+            return {}
+        if not isinstance(parsed, dict):
+            return {}
+        self._cached_inline_jwks_raw = raw
+        self._cached_inline_jwks_doc = parsed
+        return parsed
+
+    async def _get_remote_jwks(
+        self,
+        jwks_url: str,
+        *,
+        force_refresh: bool = False,
+    ) -> Optional[dict[str, Any]]:
+        now_mono = time.monotonic()
+        if (
+            not force_refresh
+            and self._cached_jwks_doc is not None
+            and self._cached_jwks_url == jwks_url
+            and now_mono < self._cached_jwks_expires_at
+        ):
+            return self._cached_jwks_doc
+
+        async with self._jwks_lock:
+            now_mono = time.monotonic()
+            if (
+                not force_refresh
+                and self._cached_jwks_doc is not None
+                and self._cached_jwks_url == jwks_url
+                and now_mono < self._cached_jwks_expires_at
+            ):
+                return self._cached_jwks_doc
+
+            client = self._jwks_http_client
+            if client is None:
+                if self._owned_jwks_client is None:
+                    self._owned_jwks_client = httpx2.AsyncClient(timeout=10.0)
+                client = self._owned_jwks_client
+
+            try:
+                resp = await client.get(jwks_url)
+                if resp.status_code != 200:
+                    logger.warning(
+                        "Remote JWKS endpoint %s returned HTTP %d",
+                        jwks_url,
+                        resp.status_code,
+                    )
+                    return None
+                doc = resp.json()
+            except Exception as exc:
+                logger.debug("Failed to fetch remote JWKS from %s: %s", jwks_url, exc)
+                return None
+
+            if not isinstance(doc, dict):
+                return None
+
+            ttl = _parse_max_age_seconds(resp.headers.get("cache-control"))
+            if ttl is None:
+                env_ttl = os.getenv("MCP_OAUTH_JWKS_CACHE_TTL", "").strip()
+                if env_ttl:
+                    try:
+                        ttl = max(float(env_ttl), 1.0)
+                    except ValueError:
+                        ttl = self.jwks_cache_ttl
+                else:
+                    ttl = self.jwks_cache_ttl
+
+            fetched_at = time.monotonic()
+            self._cached_jwks_url = jwks_url
+            self._cached_jwks_doc = doc
+            self._cached_jwks_expires_at = fetched_at + ttl
+            self._last_jwks_fetch_at = fetched_at
+            return doc
+
+    async def _verify_via_remote_jwks(
+        self,
+        token: str,
+        jwks_url: str,
+    ) -> Optional[dict[str, Any]]:
+        parsed = _parse_compact_jwt_parts(token)
+        if parsed is None:
+            return None
+        header, payload, signing_input, sig = parsed
+        if str(header.get("alg") or "") not in {"RS256", "ES256"}:
+            return None
+
+        jwks_doc = await self._get_remote_jwks(jwks_url, force_refresh=False)
+        if jwks_doc is None:
+            return None
+        verified, unknown_kid = _verify_jwt_against_jwks(
+            header, payload, signing_input, sig, jwks_doc
+        )
+        if (
+            verified is None
+            and unknown_kid
+            and (time.monotonic() - self._last_jwks_fetch_at) >= _JWKS_REFRESH_COOLDOWN_SECONDS
+        ):
+            refreshed_doc = await self._get_remote_jwks(jwks_url, force_refresh=True)
+            if refreshed_doc is not None:
+                verified, _ = _verify_jwt_against_jwks(
+                    header, payload, signing_input, sig, refreshed_doc
+                )
+        return verified
 
     async def verify_token(self, token: str) -> Optional[AccessToken]:
         cleaned = token.strip()
@@ -803,6 +1090,15 @@ class GoogleOIDCTokenVerifier(TokenVerifier):
             if inspect.isawaitable(raw_claims):
                 raw_claims = await raw_claims
             if isinstance(raw_claims, AccessToken):
+                if raw_claims.expires_at is not None and int(
+                    raw_claims.expires_at
+                ) <= int(time.time()):
+                    return None
+                if (
+                    raw_claims.resource is not None
+                    and _normalize_url(str(raw_claims.resource)) != self._normalized_resource
+                ):
+                    return None
                 return raw_claims
             if isinstance(raw_claims, dict):
                 claims = raw_claims
@@ -815,12 +1111,20 @@ class GoogleOIDCTokenVerifier(TokenVerifier):
             pem = (
                 self.public_key_pem or os.getenv("MCP_OAUTH_PUBLIC_KEY_PEM") or ""
             ).strip()
+            inline_jwks = self._resolve_inline_jwks()
+            remote_jwks = (
+                self.jwks_url or os.getenv("MCP_OAUTH_JWKS_URL") or ""
+            ).strip()
             if secret or pem:
                 claims = _verify_compact_jwt(
                     cleaned,
                     hs256_secret=secret or None,
                     public_key_pem=pem or None,
                 )
+            elif inline_jwks is not None:
+                claims = _verify_compact_jwt(cleaned, jwks=inline_jwks)
+            elif remote_jwks:
+                claims = await self._verify_via_remote_jwks(cleaned, remote_jwks)
             else:
                 claims = await self._verify_via_google_oidc(cleaned)
 
@@ -891,6 +1195,16 @@ class GoogleOIDCTokenVerifier(TokenVerifier):
             claims=claims,
         )
 
+    def _resolve_oidc_certs_url(self) -> str:
+        explicit = (
+            self.oidc_certs_url or os.getenv("MCP_OAUTH_CERTS_URL") or ""
+        ).strip()
+        if explicit:
+            return explicit
+        if self._normalized_issuer in _GOOGLE_ISSUERS:
+            return _GOOGLE_CERTS_URL
+        return f"{self._normalized_issuer}/.well-known/jwks.json"
+
     async def _verify_via_google_oidc(
         self,
         token: str,
@@ -899,15 +1213,30 @@ class GoogleOIDCTokenVerifier(TokenVerifier):
             from google.auth.transport import requests as google_requests
             from google.oauth2 import id_token as google_id_token
 
+            if self._oidc_request is None:
+                self._oidc_request = google_requests.Request()
+            certs_url = self._resolve_oidc_certs_url()
             verified = await asyncio.to_thread(
-                google_id_token.verify_oauth2_token,
+                google_id_token.verify_token,
                 token,
-                google_requests.Request(),
-                audience=self.resource_server_url,
+                self._oidc_request,
+                audience=None,
+                certs_url=certs_url,
             )
             return dict(verified) if isinstance(verified, dict) else None
         except Exception as exc:
-            logger.debug("Google OIDC token verification failed: %s", exc)
+            if exc.__class__.__name__ == "InvalidAudienceError":
+                try:
+                    certs = await asyncio.to_thread(
+                        google_id_token._fetch_certs,
+                        self._oidc_request,
+                        certs_url,
+                    )
+                    if isinstance(certs, dict) and "keys" in certs:
+                        return _verify_compact_jwt(token, jwks=certs)
+                except Exception:
+                    pass
+            logger.debug("OIDC token signature verification failed: %s", exc)
             return None
 
 
@@ -963,7 +1292,6 @@ def resolve_oauth_configuration(
     verifier = token_verifier or GoogleOIDCTokenVerifier(
         issuer_url=issuer,
         resource_server_url=resource_url,
-        required_scopes=scopes,
     )
     return auth_settings, verifier
 
@@ -1035,10 +1363,7 @@ def build_strict_csp() -> ResourceCsp:
     )
 
 
-def build_secops_apps_extensions() -> list[Apps]:
-    """Build MCP Apps extension list for SecOps MCP (empty if MCP_ENABLE_APPS=false)."""
-    if not is_apps_enabled():
-        return []
+def _create_secops_apps() -> Apps:
     apps = Apps()
     apps.add_html_resource(
         SECOPS_ENTITY_TIMELINE_URI,
@@ -1052,7 +1377,68 @@ def build_secops_apps_extensions() -> list[Apps]:
         csp=build_strict_csp(),
         prefers_border=True,
     )
-    return [apps]
+    return apps
+
+
+def build_secops_apps_extensions() -> list[Apps]:
+    """Build MCP Apps extension list for SecOps MCP (empty if MCP_ENABLE_APPS=false)."""
+    if not is_apps_enabled():
+        return []
+    return [_create_secops_apps()]
+
+
+def sync_apps_state(server_instance: Any) -> bool:
+    """Synchronize MCP Apps extension, ui:// resource, and tool _meta.ui state with MCP_ENABLE_APPS."""
+    enabled = is_apps_enabled()
+    ext_list = getattr(server_instance, "_extensions", None)
+    lowlevel = getattr(server_instance, "_lowlevel_server", None)
+    lowlevel_exts = getattr(lowlevel, "extensions", None)
+    res_mgr = getattr(server_instance, "_resource_manager", None)
+    res_map = getattr(res_mgr, "_resources", None)
+    tool_mgr = getattr(server_instance, "_tool_manager", None)
+    tool_map = getattr(tool_mgr, "_tools", None)
+
+    if enabled:
+        apps = _create_secops_apps()
+        if isinstance(ext_list, list) and not any(
+            getattr(e, "identifier", None) == EXTENSION_ID for e in ext_list
+        ):
+            ext_list.append(apps)
+        if isinstance(lowlevel_exts, dict):
+            lowlevel_exts[EXTENSION_ID] = apps.settings()
+        if isinstance(res_map, dict):
+            for binding in apps.resources():
+                uri_key = str(binding.resource.uri)
+                if uri_key not in res_map:
+                    server_instance.add_resource(binding.resource)
+        if isinstance(tool_map, dict):
+            for tool_name, resource_uri in SECOPS_UI_TOOL_URIS.items():
+                tool_obj = tool_map.get(tool_name)
+                if tool_obj is not None:
+                    merged_meta = dict(tool_obj.meta or {})
+                    merged_meta["ui"] = {"resourceUri": resource_uri}
+                    tool_obj.meta = merged_meta
+    else:
+        if isinstance(ext_list, list):
+            ext_list[:] = [
+                e
+                for e in ext_list
+                if getattr(e, "identifier", None) != EXTENSION_ID
+            ]
+        if isinstance(lowlevel_exts, dict):
+            lowlevel_exts.pop(EXTENSION_ID, None)
+        if isinstance(res_map, dict):
+            for key in [k for k in list(res_map) if str(k).startswith("ui://")]:
+                res_map.pop(key, None)
+        if isinstance(tool_map, dict):
+            for tool_name in SECOPS_UI_TOOL_URIS:
+                tool_obj = tool_map.get(tool_name)
+                if tool_obj is not None and isinstance(tool_obj.meta, dict):
+                    cleaned = {
+                        k: v for k, v in tool_obj.meta.items() if k != "ui"
+                    }
+                    tool_obj.meta = cleaned or None
+    return enabled
 
 
 def ui_tool_meta(resource_uri: str) -> Optional[dict[str, Any]]:

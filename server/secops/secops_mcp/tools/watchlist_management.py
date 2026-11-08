@@ -16,12 +16,7 @@
 import logging
 from typing import Any, Dict, Optional
 
-from mcp.server.mcpserver import Context as _Context
-from mcp.server.mcpserver.exceptions import ToolError as _ToolError
 from mcp.types import ToolAnnotations as _ToolAnnotations
-from secops_mcp.phase5 import (
-    confirm_destructive_action as _confirm_destructive_action,
-)
 from secops_mcp.server import get_chronicle_client, server
 from secops_mcp.utils import tool_error_result as _tool_error_result
 
@@ -268,7 +263,6 @@ async def delete_watchlist(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-    ctx: Optional[_Context] = None,
 ) -> dict[str, Any]:
     """Delete a watchlist from Chronicle SIEM.
 
@@ -333,23 +327,6 @@ async def delete_watchlist(
         - Review entity risk scores after watchlist removal.
     """
     try:
-        outcome = await _confirm_destructive_action(
-            ctx,
-            action_name="delete_watchlist",
-            message=(
-                f"Confirm permanent deletion of Chronicle watchlist "
-                f"'{watchlist_id}' (force={force})."
-            ),
-        )
-        if outcome.input_required is not None:
-            return outcome.input_required  # type: ignore[return-value]
-        if not outcome.proceed:
-            return {
-                **(outcome.cancelled_response or {}),
-                "watchlist_id": watchlist_id,
-                "success": False,
-            }
-
         logger.info("Deleting watchlist: %s (force=%s)", watchlist_id, force)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
@@ -367,8 +344,6 @@ async def delete_watchlist(
 
         return result
 
-    except _ToolError:
-        raise
     except Exception as e:
         logger.error(
             "Error deleting watchlist %s: %s", watchlist_id, e, exc_info=True

@@ -23,6 +23,7 @@ setup(
     packages=setuptools.find_packages(include=["secops_soar_mcp*", "logger_utils*"]),
     install_requires=[
         "aiohttp>=3.11.15",
+        "cryptography>=42.0.0",
         "httpx>=0.28.1",
         "mcp[cli]>=2.3.0,<3.0.0",
         "pydantic>=2.11.2",
