@@ -16,20 +16,31 @@
 import logging
 from typing import Any, Dict, List, Optional
 
+from mcp.types import ToolAnnotations as _ToolAnnotations
 from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.utils import tool_error_result as _tool_error_result
 
 
 logger = logging.getLogger("secops-mcp")
 
 
-@server.tool()
+@server.tool(
+    title="List Chronicle Investigations",
+    annotations=_ToolAnnotations(
+        title="List Chronicle Investigations",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def list_investigations(
     page_size: int = 50,
     page_token: Optional[str] = None,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """List all investigations in Chronicle instance.
 
     Retrieves a paginated list of all investigations with their status,
@@ -91,16 +102,25 @@ async def list_investigations(
     except Exception as e:
         error_msg = f"Error listing investigations: {e}"
         logger.error("Error listing investigations: %s", e, exc_info=True)
-        return {"error": error_msg}
+        return _tool_error_result(error_msg)
 
 
-@server.tool()
+@server.tool(
+    title="Get Chronicle Investigation",
+    annotations=_ToolAnnotations(
+        title="Get Chronicle Investigation",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_investigation(
     investigation_id: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Retrieve specific investigation by ID.
 
     Gets detailed information for a specific investigation including status,
@@ -143,12 +163,9 @@ async def get_investigation(
     """
     try:
         if not investigation_id:
-            return {
-                "error": (
-                    "investigation_id parameter is required and cannot be "
-                    "empty"
-                )
-            }
+            return _tool_error_result(
+                "investigation_id parameter is required and cannot be empty"
+            )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
         logger.info("Retrieving investigation: %s...", investigation_id)
@@ -158,10 +175,10 @@ async def get_investigation(
         )
 
         if not investigation:
-            return {
-                "error": f"Investigation not found: {investigation_id}",
-                "investigation_id": investigation_id,
-            }
+            return _tool_error_result(
+                f"Investigation not found: {investigation_id}",
+                investigation_id=investigation_id,
+            )
 
         logger.info(
             "Successfully retrieved investigation: %s", investigation_id
@@ -176,16 +193,25 @@ async def get_investigation(
             e,
             exc_info=True,
         )
-        return {"error": error_msg}
+        return _tool_error_result(error_msg)
 
 
-@server.tool()
+@server.tool(
+    title="Trigger Chronicle Alert Investigation",
+    annotations=_ToolAnnotations(
+        title="Trigger Chronicle Alert Investigation",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=False,
+    ),
+)
 async def trigger_investigation(
     alert_id: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create new investigation for a specific alert.
 
     Triggers automated investigation analysis for a given alert. Returns
@@ -228,9 +254,9 @@ async def trigger_investigation(
     """
     try:
         if not alert_id:
-            return {
-                "error": "alert_id parameter is required and cannot be empty"
-            }
+            return _tool_error_result(
+                "alert_id parameter is required and cannot be empty"
+            )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
         logger.info("Triggering investigation for alert: %s...", alert_id)
@@ -238,12 +264,10 @@ async def trigger_investigation(
         investigation = chronicle.trigger_investigation(alert_id=alert_id)
 
         if not investigation:
-            return {
-                "error": (
-                    f"Failed to trigger investigation for alert: {alert_id}"
-                ),
-                "alert_id": alert_id,
-            }
+            return _tool_error_result(
+                f"Failed to trigger investigation for alert: {alert_id}",
+                alert_id=alert_id,
+            )
 
         result = {
             "message": "Successfully triggered investigation",
@@ -270,10 +294,19 @@ async def trigger_investigation(
             e,
             exc_info=True,
         )
-        return {"error": error_msg}
+        return _tool_error_result(error_msg)
 
 
-@server.tool()
+@server.tool(
+    title="Fetch Associated Investigations",
+    annotations=_ToolAnnotations(
+        title="Fetch Associated Investigations",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def fetch_associated_investigations(
     detection_type: str,
     alert_ids: Optional[List[str]] = None,
@@ -282,7 +315,7 @@ async def fetch_associated_investigations(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Retrieve investigations associated with alerts or cases.
 
     Fetches investigations linked to specific alerts or cases. Supports
@@ -341,12 +374,10 @@ async def fetch_associated_investigations(
         ]
 
         if detection_type_upper not in valid_types:
-            return {
-                "error": (
-                    f"Invalid detection_type: {detection_type}. "
-                    f'Valid values: {", ".join(valid_types)}'
-                )
-            }
+            return _tool_error_result(
+                f"Invalid detection_type: {detection_type}. "
+                f'Valid values: {", ".join(valid_types)}'
+            )
 
         is_alert_type = detection_type_upper in [
             "ALERT",
@@ -354,20 +385,14 @@ async def fetch_associated_investigations(
         ]
 
         if is_alert_type and not alert_ids:
-            return {
-                "error": (
-                    "alert_ids parameter is required when detection_type "
-                    "is ALERT"
-                )
-            }
+            return _tool_error_result(
+                "alert_ids parameter is required when detection_type is ALERT"
+            )
 
         if not is_alert_type and not case_ids:
-            return {
-                "error": (
-                    "case_ids parameter is required when detection_type "
-                    "is CASE"
-                )
-            }
+            return _tool_error_result(
+                "case_ids parameter is required when detection_type is CASE"
+            )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -437,4 +462,4 @@ async def fetch_associated_investigations(
             e,
             exc_info=True,
         )
-        return {"error": error_msg}
+        return _tool_error_result(error_msg)

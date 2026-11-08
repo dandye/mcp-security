@@ -1,6 +1,16 @@
 # Security Command Center (SCC) MCP Server
 
-This server provides tools for interacting with Google Cloud Security Command Center (SCC) and Cloud Asset Inventory (CAI).
+This server (`scc-mcp` `0.3.0`, MCP `2026-07-28` / `mcp>=2.3.0`) provides tools, resources, prompts, and an interactive dark-mode MCP App for Google Cloud Security Command Center (SCC) and Cloud Asset Inventory (CAI).
+
+## MCP 2026-07-28 Capabilities
+
+- **Transports**: Local `stdio` and stateless `streamable-http` (`--transport streamable-http --host 127.0.0.1 --port 8080`) with `server/discover`, `/healthz`, and `/readyz`.
+- **Caching and Tracing**: `SEP-2549` `CacheHint` (`MCP_TOOLS_CACHE_TTL_MS`) and `OpenTelemetryMiddleware` (`OTEL_EXPORTER_OTLP_ENDPOINT`).
+- **Resources and `ResourceLink` Compaction**: `scc://info/capabilities` and `scc://findings/{organization_id}/{finding_id}`, plus `ResourceLink` summaries on `top_vulnerability_findings`.
+- **SOC Prompt**: `triage_cloud_finding_exposure(finding_id, organization_id)`.
+- **MRTR Elicitation, OAuth 2.1 RS, and MCP App**: Stateless `AESGCMRequestStateCodec` elicitation (`MCP_ELICIT_DESTRUCTIVE`, `MCP_UNATTENDED_DESTRUCTIVE_POLICY`) on `set_finding_mute`, OAuth 2.1 bearer verification (`MCP_OAUTH_ISSUER_URL`, `MCP_RESOURCE_SERVER_URL`), and dark-mode MCP App `ui://scc/finding-card.html` (`--disable-apps` / `MCP_ENABLE_APPS=false`).
+
+See the [MCP 2026-07-28 Protocol Guide](../mcp_v2_capabilities.md) for full configuration details.
 
 ## Configuration
 

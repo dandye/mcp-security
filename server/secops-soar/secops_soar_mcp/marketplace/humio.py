@@ -12,20 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
+from logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the Humio integration.
 
-    @mcp.tool()
-    async def humio_execute_custom_search(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], repository_name: Annotated[str, Field(..., description="Specify the name of the repository that should be searched.")], query: Annotated[str, Field(..., description="Specify the query that needs to be executed in Humio. Note: \"head()\" function shouldn't be a part of this string.")], max_results_to_return: Annotated[str, Field(default=None, description="Specify how many results the action should return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Humio: Execute Custom Search',
+        annotations=ToolAnnotations(
+            title='Humio: Execute Custom Search',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def humio_execute_custom_search(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], repository_name: Annotated[str, Field(..., description="Specify the name of the repository that should be searched.")], query: Annotated[str, Field(..., description="Specify the query that needs to be executed in Humio. Note: \"head()\" function shouldn't be a part of this string.")], max_results_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many results the action should return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Search events using custom query in Humio.
 
@@ -34,6 +48,11 @@ Action Parameters: Repository Name: Specify the name of the repository that shou
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -47,10 +66,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -60,15 +76,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Humio")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for Humio: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for Humio: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Repository Name"] = repository_name
@@ -97,21 +117,35 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Humio_Execute Custom Search")
             except Exception as e:
-                print(f"Error executing action Humio_Execute Custom Search for Humio: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action Humio_Execute Custom Search for Humio: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for Humio")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for Humio")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def humio_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Humio: Ping',
+        annotations=ToolAnnotations(
+            title='Humio: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def humio_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Humio with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -125,10 +159,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -138,15 +169,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Humio")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for Humio: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for Humio: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -171,16 +206,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Humio_Ping")
             except Exception as e:
-                print(f"Error executing action Humio_Ping for Humio: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action Humio_Ping for Humio: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for Humio")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for Humio")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def humio_execute_simple_search(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], repository_name: Annotated[str, Field(..., description="Specify the name of the repository that should be searched.")], query_filter: Annotated[str, Field(default=None, description="Specify the query that should be executed during the search. Note: functions \"head()\" and \"select()\" shouldn't be provided.")], time_frame: Annotated[List[str], Field(default=None, description="Specify a time frame for the results. If \"Custom\" is selected, you also need to provide \"Start Time\".")], start_time: Annotated[str, Field(default=None, description="Specify the start time for the results. This parameter is mandatory, if \"Custom\" is selected for the \"Time Frame\" parameter. Format: ISO 8601")], end_time: Annotated[str, Field(default=None, description="Specify the end time for the results. Format: ISO 8601. If nothing is provided and \"Custom\" is selected for the \"Time Frame\" parameter then this parameter will use current time.")], fields_to_return: Annotated[str, Field(default=None, description="Specify what fields to return. If nothing is provided, action will return all fields.")], sort_field: Annotated[str, Field(default=None, description="Specify what parameter should be used for sorting. By default the query sorts data by timestamp in the ascending order.")], sort_field_type: Annotated[List[str], Field(default=None, description="Specify the type of the field that will be used for sorting. This parameter is needed to ensure that the correct results are returned.")], sort_order: Annotated[List[str], Field(default=None, description="Specify the order of sorting.")], max_results_to_return: Annotated[str, Field(default=None, description="Specify how many results to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Humio: Execute Simple Search',
+        annotations=ToolAnnotations(
+            title='Humio: Execute Simple Search',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def humio_execute_simple_search(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], repository_name: Annotated[str, Field(..., description="Specify the name of the repository that should be searched.")], query_filter: Annotated[Optional[str], Field(default=None, description="Specify the query that should be executed during the search. Note: functions \"head()\" and \"select()\" shouldn't be provided.")], time_frame: Annotated[Optional[List[str]], Field(default=None, description="Specify a time frame for the results. If \"Custom\" is selected, you also need to provide \"Start Time\".")], start_time: Annotated[Optional[str], Field(default=None, description="Specify the start time for the results. This parameter is mandatory, if \"Custom\" is selected for the \"Time Frame\" parameter. Format: ISO 8601")], end_time: Annotated[Optional[str], Field(default=None, description="Specify the end time for the results. Format: ISO 8601. If nothing is provided and \"Custom\" is selected for the \"Time Frame\" parameter then this parameter will use current time.")], fields_to_return: Annotated[Optional[str], Field(default=None, description="Specify what fields to return. If nothing is provided, action will return all fields.")], sort_field: Annotated[Optional[str], Field(default=None, description="Specify what parameter should be used for sorting. By default the query sorts data by timestamp in the ascending order.")], sort_field_type: Annotated[Optional[List[str]], Field(default=None, description="Specify the type of the field that will be used for sorting. This parameter is needed to ensure that the correct results are returned.")], sort_order: Annotated[Optional[List[str]], Field(default=None, description="Specify the order of sorting.")], max_results_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many results to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Search events based on parameters in Humio.
 
@@ -189,6 +233,11 @@ Action Parameters: Repository Name: Specify the name of the repository that shou
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -202,10 +251,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -215,15 +261,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Humio")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for Humio: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for Humio: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Repository Name"] = repository_name
@@ -267,10 +317,10 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Humio_Execute Simple Search")
             except Exception as e:
-                print(f"Error executing action Humio_Execute Simple Search for Humio: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action Humio_Execute Simple Search for Humio: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for Humio")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for Humio")
+            return marketplace_error_result("No active instance found.")

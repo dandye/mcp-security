@@ -12,20 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
+from logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the Cloudflare integration.
 
-    @mcp.tool()
-    async def cloudflare_list_firewall_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], zone_name: Annotated[str, Field(..., description="Specify the name of the zone, which will contain the firewall rule.")], filter_key: Annotated[List[str], Field(default=None, description="Specify the key that needs to be used to filter results.")], filter_logic: Annotated[List[str], Field(default=None, description="Specify what filter logic should be applied. Filtering logic is working based on the value  provided in the \"Filter Key\" parameter.")], filter_value: Annotated[str, Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain that substring. If nothing is provided in this parameter, the filter will not be applied. Filtering logic is working based on the value provided in the \"Filter Key\" parameter.")], max_records_to_return: Annotated[str, Field(default=None, description="Specify how many records to return. If nothing is provided, action will return 50 records.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Cloudflare: List Firewall Rules',
+        annotations=ToolAnnotations(
+            title='Cloudflare: List Firewall Rules',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cloudflare_list_firewall_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], zone_name: Annotated[str, Field(..., description="Specify the name of the zone, which will contain the firewall rule.")], filter_key: Annotated[Optional[List[str]], Field(default=None, description="Specify the key that needs to be used to filter results.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied. Filtering logic is working based on the value  provided in the \"Filter Key\" parameter.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain that substring. If nothing is provided in this parameter, the filter will not be applied. Filtering logic is working based on the value provided in the \"Filter Key\" parameter.")], max_records_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many records to return. If nothing is provided, action will return 50 records.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 List available firewall rules in Cloudflare.
 
@@ -34,6 +48,11 @@ Action Parameters: Zone Name: Specify the name of the zone, which will contain t
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -47,10 +66,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -60,15 +76,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Cloudflare")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for Cloudflare: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for Cloudflare: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Zone Name"] = zone_name
@@ -102,16 +122,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Cloudflare_List Firewall Rules")
             except Exception as e:
-                print(f"Error executing action Cloudflare_List Firewall Rules for Cloudflare: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action Cloudflare_List Firewall Rules for Cloudflare: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for Cloudflare")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for Cloudflare")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def cloudflare_add_ip_to_rule_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_name: Annotated[str, Field(..., description="Specify the name of the rule list to which you want to add rule list items.")], description: Annotated[str, Field(default=None, description="Specify a description for the newly added rule list items.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Cloudflare: Add IP to Rule List',
+        annotations=ToolAnnotations(
+            title='Cloudflare: Add IP to Rule List',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cloudflare_add_ip_to_rule_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_name: Annotated[str, Field(..., description="Specify the name of the rule list to which you want to add rule list items.")], description: Annotated[Optional[str], Field(default=None, description="Specify a description for the newly added rule list items.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Add IP addresses to the rule list in Cloudflare. Supported Entities: IP Address.
 
@@ -120,6 +149,11 @@ Action Parameters: Rule Name: Specify the name of the rule list to which you wan
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -133,10 +167,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -146,15 +177,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Cloudflare")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for Cloudflare: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for Cloudflare: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Rule Name"] = rule_name
@@ -182,16 +217,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Cloudflare_Add IP To Rule List")
             except Exception as e:
-                print(f"Error executing action Cloudflare_Add IP To Rule List for Cloudflare: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action Cloudflare_Add IP To Rule List for Cloudflare: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for Cloudflare")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for Cloudflare")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def cloudflare_add_url_to_rule_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_name: Annotated[str, Field(..., description="Specify the name of the rule list to which you want to add rule list items.")], target_url: Annotated[str, Field(..., description="Specify the target URL for the rule list item.")], description: Annotated[str, Field(default=None, description="Specify a description for the newly added rule list item.")], status_code: Annotated[List[str], Field(default=None, description="Specify the status for the rule list item.")], preserve_query_string: Annotated[bool, Field(default=None, description="If enabled, the rule list item will preserve the query string.")], include_subdomains: Annotated[bool, Field(default=None, description="If enabled, the rule list item will include subdomains.")], subpath_matching: Annotated[bool, Field(default=None, description="If enabled, the rule list item will match the subpath.")], preserve_path_suffix: Annotated[bool, Field(default=None, description="If enabled, the rule list item will preserve the path suffix.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Cloudflare: Add URL to Rule List',
+        annotations=ToolAnnotations(
+            title='Cloudflare: Add URL to Rule List',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cloudflare_add_url_to_rule_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_name: Annotated[str, Field(..., description="Specify the name of the rule list to which you want to add rule list items.")], target_url: Annotated[str, Field(..., description="Specify the target URL for the rule list item.")], description: Annotated[Optional[str], Field(default=None, description="Specify a description for the newly added rule list item.")], status_code: Annotated[Optional[List[str]], Field(default=None, description="Specify the status for the rule list item.")], preserve_query_string: Annotated[Optional[bool], Field(default=None, description="If enabled, the rule list item will preserve the query string.")], include_subdomains: Annotated[Optional[bool], Field(default=None, description="If enabled, the rule list item will include subdomains.")], subpath_matching: Annotated[Optional[bool], Field(default=None, description="If enabled, the rule list item will match the subpath.")], preserve_path_suffix: Annotated[Optional[bool], Field(default=None, description="If enabled, the rule list item will preserve the path suffix.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Add URLs to the rule list in Cloudflare. Supported Entities: URL. Note: URL entities are treated as "Source URLs".
 
@@ -200,6 +244,11 @@ Action Parameters: Rule Name: Specify the name of the rule list to which you wan
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -213,10 +262,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -226,15 +272,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Cloudflare")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for Cloudflare: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for Cloudflare: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Rule Name"] = rule_name
@@ -273,21 +323,35 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Cloudflare_Add URL To Rule List")
             except Exception as e:
-                print(f"Error executing action Cloudflare_Add URL To Rule List for Cloudflare: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action Cloudflare_Add URL To Rule List for Cloudflare: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for Cloudflare")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for Cloudflare")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def cloudflare_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Cloudflare: Ping',
+        annotations=ToolAnnotations(
+            title='Cloudflare: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cloudflare_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Cloudflare with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -301,10 +365,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -314,15 +375,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Cloudflare")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for Cloudflare: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for Cloudflare: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -347,21 +412,35 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Cloudflare_Ping")
             except Exception as e:
-                print(f"Error executing action Cloudflare_Ping for Cloudflare: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action Cloudflare_Ping for Cloudflare: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for Cloudflare")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for Cloudflare")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def cloudflare_update_firewall_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_name: Annotated[str, Field(..., description="Specify the name of the rule that needs to be updated.")], zone_name: Annotated[str, Field(..., description="Specify the name of the zone, which will contain the firewall rule.")], action: Annotated[List[str], Field(default=None, description="Specify the action for the firewall rule. If \"Bypass\" is selected, you need to provide values in the \"Products\" parameter.")], expression: Annotated[str, Field(default=None, description="Specify the expression for the firewall rule.")], products: Annotated[str, Field(default=None, description="Specify a comma-separated list of products for the firewall rule. Note: this parameter is only mandatory, if \"Bypass\" is selected for \"Action\" parameter. Possible values: zoneLockdown, uaBlock, bic, hot, securityLevel, rateLimit, waf.")], priority: Annotated[str, Field(default=None, description="Specify the priority for the firewall rule.")], reference_tag: Annotated[str, Field(default=None, description="Specify a reference tag for the firewall rule. Note: it can only be up to 50 characters long.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Cloudflare: Update Firewall Rule',
+        annotations=ToolAnnotations(
+            title='Cloudflare: Update Firewall Rule',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def cloudflare_update_firewall_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], rule_name: Annotated[str, Field(..., description="Specify the name of the rule that needs to be updated.")], zone_name: Annotated[str, Field(..., description="Specify the name of the zone, which will contain the firewall rule.")], action: Annotated[Optional[List[str]], Field(default=None, description="Specify the action for the firewall rule. If \"Bypass\" is selected, you need to provide values in the \"Products\" parameter.")], expression: Annotated[Optional[str], Field(default=None, description="Specify the expression for the firewall rule.")], products: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of products for the firewall rule. Note: this parameter is only mandatory, if \"Bypass\" is selected for \"Action\" parameter. Possible values: zoneLockdown, uaBlock, bic, hot, securityLevel, rateLimit, waf.")], priority: Annotated[Optional[str], Field(default=None, description="Specify the priority for the firewall rule.")], reference_tag: Annotated[Optional[str], Field(default=None, description="Specify a reference tag for the firewall rule. Note: it can only be up to 50 characters long.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update a firewall rule in Cloudflare.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -375,10 +454,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -388,15 +464,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Cloudflare")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for Cloudflare: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for Cloudflare: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Rule Name"] = rule_name
@@ -433,16 +513,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Cloudflare_Update Firewall Rule")
             except Exception as e:
-                print(f"Error executing action Cloudflare_Update Firewall Rule for Cloudflare: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action Cloudflare_Update Firewall Rule for Cloudflare: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for Cloudflare")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for Cloudflare")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def cloudflare_create_rule_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name for the rule list.")], type: Annotated[List[str], Field(default=None, description="Specify the type for the rule list.")], description: Annotated[str, Field(default=None, description="Specify the description for the rule list.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Cloudflare: Create Rule List',
+        annotations=ToolAnnotations(
+            title='Cloudflare: Create Rule List',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def cloudflare_create_rule_list(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], name: Annotated[str, Field(..., description="Specify the name for the rule list.")], type: Annotated[Optional[List[str]], Field(default=None, description="Specify the type for the rule list.")], description: Annotated[Optional[str], Field(default=None, description="Specify the description for the rule list.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Create a rule list in Cloudflare.
 
@@ -451,6 +540,11 @@ Action Parameters: Name: Specify the name for the rule list., Type: Specify the 
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -464,10 +558,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -477,15 +568,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Cloudflare")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for Cloudflare: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for Cloudflare: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Name"] = name
@@ -515,16 +610,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Cloudflare_Create Rule List")
             except Exception as e:
-                print(f"Error executing action Cloudflare_Create Rule List for Cloudflare: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action Cloudflare_Create Rule List for Cloudflare: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for Cloudflare")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for Cloudflare")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def cloudflare_create_firewall_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], zone_name: Annotated[str, Field(..., description="Specify the name of the zone, which will contain the firewall rule.")], expression: Annotated[str, Field(..., description="Specify the expression for the firewall rule.")], name: Annotated[str, Field(default=None, description="Specify the name for the firewall rule.")], action: Annotated[List[str], Field(default=None, description="Specify the action for the firewall rule. If \"Bypass\" is selected, you need to provide values in the \"Products\" parameter.")], products: Annotated[str, Field(default=None, description="Specify a comma-separated list of products for the firewall rule. Note: this parameter is only mandatory, if \"Bypass\" is selected for \"Action\" parameter. Possible values: zoneLockdown, uaBlock, bic, hot, securityLevel, rateLimit, waf.")], priority: Annotated[str, Field(default=None, description="Specify the priority for the firewall rule.")], reference_tag: Annotated[str, Field(default=None, description="Specify a reference tag for the firewall rule. Note: it can only be up to 50 characters long.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Cloudflare: Create Firewall Rule',
+        annotations=ToolAnnotations(
+            title='Cloudflare: Create Firewall Rule',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def cloudflare_create_firewall_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], zone_name: Annotated[str, Field(..., description="Specify the name of the zone, which will contain the firewall rule.")], expression: Annotated[str, Field(..., description="Specify the expression for the firewall rule.")], name: Annotated[Optional[str], Field(default=None, description="Specify the name for the firewall rule.")], action: Annotated[Optional[List[str]], Field(default=None, description="Specify the action for the firewall rule. If \"Bypass\" is selected, you need to provide values in the \"Products\" parameter.")], products: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of products for the firewall rule. Note: this parameter is only mandatory, if \"Bypass\" is selected for \"Action\" parameter. Possible values: zoneLockdown, uaBlock, bic, hot, securityLevel, rateLimit, waf.")], priority: Annotated[Optional[str], Field(default=None, description="Specify the priority for the firewall rule.")], reference_tag: Annotated[Optional[str], Field(default=None, description="Specify a reference tag for the firewall rule. Note: it can only be up to 50 characters long.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Create a firewall rule in Cloudflare.
 
@@ -533,6 +637,11 @@ Action Parameters: Zone Name: Specify the name of the zone, which contains the f
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -546,10 +655,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -559,15 +665,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="Cloudflare")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for Cloudflare: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for Cloudflare: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Zone Name"] = zone_name
@@ -604,10 +714,10 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "Cloudflare_Create Firewall Rule")
             except Exception as e:
-                print(f"Error executing action Cloudflare_Create Firewall Rule for Cloudflare: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action Cloudflare_Create Firewall Rule for Cloudflare: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for Cloudflare")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for Cloudflare")
+            return marketplace_error_result("No active instance found.")

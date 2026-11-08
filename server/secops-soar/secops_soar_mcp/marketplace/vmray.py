@@ -12,25 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
+from logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the VMRay integration.
 
-    @mcp.tool()
-    async def vm_ray_scan_hash(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], threat_indicator_score_threshold: Annotated[str, Field(..., description="Specify the lowest score that will be used to return threat indicators. Maximum: 5.")], ioc_type_filter: Annotated[str, Field(..., description="Specify a comma-separated list of IOC types that need to be returned. Possible values: domains, emails, files, ips, mutexes, processes, registry, urls.")], ioc_verdict_filter: Annotated[str, Field(..., description="Specify a comma-separated list of IOC verdicts that will be used during the ingestion of IOCs. Possible values: Malicious, Suspicious, Clean, None.")], max_io_cs_to_return: Annotated[str, Field(default=None, description="Specify how many IOCs to return per entity per IOC type. Default: 10.")], max_threat_indicators_to_return: Annotated[str, Field(default=None, description="Specify how many threat indicators to return per entity. Default: 10.")], create_insight: Annotated[bool, Field(default=None, description="If enabled, action will create an insight containing information about entities.")], only_suspicious_insight: Annotated[bool, Field(default=None, description="If enabled, action will only create insight for suspicious entities. Note: \"Create Insight\" parameter needs to be enabled.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='VM Ray: Scan Hash',
+        annotations=ToolAnnotations(
+            title='VM Ray: Scan Hash',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def vm_ray_scan_hash(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], threat_indicator_score_threshold: Annotated[str, Field(..., description="Specify the lowest score that will be used to return threat indicators. Maximum: 5.")], ioc_type_filter: Annotated[str, Field(..., description="Specify a comma-separated list of IOC types that need to be returned. Possible values: domains, emails, files, ips, mutexes, processes, registry, urls.")], ioc_verdict_filter: Annotated[str, Field(..., description="Specify a comma-separated list of IOC verdicts that will be used during the ingestion of IOCs. Possible values: Malicious, Suspicious, Clean, None.")], max_io_cs_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many IOCs to return per entity per IOC type. Default: 10.")], max_threat_indicators_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many threat indicators to return per entity. Default: 10.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight containing information about entities.")], only_suspicious_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will only create insight for suspicious entities. Note: \"Create Insight\" parameter needs to be enabled.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get details about a specific hash.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -44,10 +63,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -57,15 +73,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="VMRay")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for VMRay: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for VMRay: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Threat Indicator Score Threshold"] = threat_indicator_score_threshold
@@ -101,21 +121,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "VMRay_Scan Hash")
             except Exception as e:
-                print(f"Error executing action VMRay_Scan Hash for VMRay: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action VMRay_Scan Hash for VMRay: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for VMRay")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for VMRay")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def vm_ray_upload_file_and_get_report(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], sample_file_path: Annotated[str, Field(..., description="Specify a comma-separated list of absolute file paths for submission.")], tag_names: Annotated[str, Field(default=None, description="Specify the tags that you want to add to the submission.")], comment: Annotated[str, Field(default=None, description="Specify the comment that you want to add to the submission.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='VM Ray: Upload File and Get Report',
+        annotations=ToolAnnotations(
+            title='VM Ray: Upload File and Get Report',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def vm_ray_upload_file_and_get_report(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], sample_file_path: Annotated[str, Field(..., description="Specify a comma-separated list of absolute file paths for submission.")], tag_names: Annotated[Optional[str], Field(default=None, description="Specify the tags that you want to add to the submission.")], comment: Annotated[Optional[str], Field(default=None, description="Specify the comment that you want to add to the submission.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Submit files for analysis in VMRay. Note: Action is running as async, please adjust script timeout value in Siemplify IDE for action as needed.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -129,10 +163,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -142,15 +173,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="VMRay")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for VMRay: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for VMRay: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Sample File Path"] = sample_file_path
@@ -180,21 +215,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "VMRay_Upload File And Get Report")
             except Exception as e:
-                print(f"Error executing action VMRay_Upload File And Get Report for VMRay: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action VMRay_Upload File And Get Report for VMRay: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for VMRay")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for VMRay")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def vm_ray_add_tag_to_submission(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], submission_id: Annotated[str, Field(..., description="The ID of the Submission.")], tag_name: Annotated[str, Field(..., description="The tag Name that need to be added.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='VM Ray: Add Tag to Submission',
+        annotations=ToolAnnotations(
+            title='VM Ray: Add Tag to Submission',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def vm_ray_add_tag_to_submission(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], submission_id: Annotated[str, Field(..., description="The ID of the Submission.")], tag_name: Annotated[str, Field(..., description="The tag Name that need to be added.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add Tag to Submission using Submission ID.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -208,10 +257,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -221,15 +267,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="VMRay")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for VMRay: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for VMRay: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Submission ID"] = submission_id
@@ -256,21 +306,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "VMRay_Add Tag to Submission")
             except Exception as e:
-                print(f"Error executing action VMRay_Add Tag to Submission for VMRay: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action VMRay_Add Tag to Submission for VMRay: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for VMRay")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for VMRay")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def vm_ray_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='VM Ray: Ping',
+        annotations=ToolAnnotations(
+            title='VM Ray: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def vm_ray_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test Connectivity
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -284,10 +348,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -297,15 +358,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="VMRay")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for VMRay: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for VMRay: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -330,21 +395,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "VMRay_Ping")
             except Exception as e:
-                print(f"Error executing action VMRay_Ping for VMRay: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action VMRay_Ping for VMRay: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for VMRay")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for VMRay")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def vm_ray_scan_url(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], threat_indicator_score_threshold: Annotated[str, Field(..., description="Specify the lowest score that will be used to return threat indicators. Maximum: 5.")], ioc_type_filter: Annotated[str, Field(..., description="Specify a comma-separated list of IOC types that need to be returned. Possible values: ips, urls, domains.")], ioc_verdict_filter: Annotated[str, Field(..., description="Specify a comma-separated list of IOC verdicts that will be used during the ingestion of IOCs. Possible values: Malicious, Suspicious, Clean, None.")], max_io_cs_to_return: Annotated[str, Field(default=None, description="Specify how many IOCs to return per entity per IOC type. Default: 10.")], max_threat_indicators_to_return: Annotated[str, Field(default=None, description="Specify how many threat indicators to return per entity. Default: 10.")], create_insight: Annotated[bool, Field(default=None, description="If enabled, action will create an insight containing information about entities.")], only_suspicious_insight: Annotated[bool, Field(default=None, description="If enabled, action will only create insight for suspicious entities. Note: \"Create Insight\" parameter needs to be enabled.")], tag_names: Annotated[str, Field(default=None, description="Specify the tags that you want to add to the submission.")], comment: Annotated[str, Field(default=None, description="Specify the comment that you want to add to the submission.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='VM Ray: Scan URL',
+        annotations=ToolAnnotations(
+            title='VM Ray: Scan URL',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def vm_ray_scan_url(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], threat_indicator_score_threshold: Annotated[str, Field(..., description="Specify the lowest score that will be used to return threat indicators. Maximum: 5.")], ioc_type_filter: Annotated[str, Field(..., description="Specify a comma-separated list of IOC types that need to be returned. Possible values: ips, urls, domains.")], ioc_verdict_filter: Annotated[str, Field(..., description="Specify a comma-separated list of IOC verdicts that will be used during the ingestion of IOCs. Possible values: Malicious, Suspicious, Clean, None.")], max_io_cs_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many IOCs to return per entity per IOC type. Default: 10.")], max_threat_indicators_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many threat indicators to return per entity. Default: 10.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight containing information about entities.")], only_suspicious_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will only create insight for suspicious entities. Note: \"Create Insight\" parameter needs to be enabled.")], tag_names: Annotated[Optional[str], Field(default=None, description="Specify the tags that you want to add to the submission.")], comment: Annotated[Optional[str], Field(default=None, description="Specify the comment that you want to add to the submission.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Submit a URL and receive related information.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -358,10 +437,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -371,15 +447,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="VMRay")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for VMRay: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for VMRay: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Threat Indicator Score Threshold"] = threat_indicator_score_threshold
@@ -419,10 +499,10 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "VMRay_Scan URL")
             except Exception as e:
-                print(f"Error executing action VMRay_Scan URL for VMRay: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action VMRay_Scan URL for VMRay: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for VMRay")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for VMRay")
+            return marketplace_error_result("No active instance found.")

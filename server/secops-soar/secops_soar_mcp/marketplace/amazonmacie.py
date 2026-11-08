@@ -12,25 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
+from logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the AmazonMacie integration.
 
-    @mcp.tool()
-    async def amazon_macie_get_findings(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], finding_id: Annotated[str, Field(..., description="Finding ID to get details for. Parameter can take multiple values as a comma separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Amazon Macie: Get Findings',
+        annotations=ToolAnnotations(
+            title='Amazon Macie: Get Findings',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def amazon_macie_get_findings(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], finding_id: Annotated[str, Field(..., description="Finding ID to get details for. Parameter can take multiple values as a comma separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get Amazon Macie findings based on specified Finding ID. Note: Action is not working with Siemplify Entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -44,10 +63,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -57,15 +73,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="AmazonMacie")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for AmazonMacie: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for AmazonMacie: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Finding ID"] = finding_id
@@ -91,21 +111,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "AmazonMacie_Get Findings")
             except Exception as e:
-                print(f"Error executing action AmazonMacie_Get Findings for AmazonMacie: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action AmazonMacie_Get Findings for AmazonMacie: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for AmazonMacie")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for AmazonMacie")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def amazon_macie_list_findings(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], finding_type: Annotated[str, Field(default=None, description="Finding type to search for, for example SensitiveData:S3Object/Credentials or SensitiveData:S3Object/Multiple. Parameter accepts multiple values as a comma separated string. If nothing is specified - return all types of findings.")], time_frame: Annotated[str, Field(default=None, description="Specify a time frame in hours for which to fetch findings.")], severity: Annotated[str, Field(default=None, description="Finding severity to search - High, Medium or Low. Parameter accepts multiple values as a comma separated string. If nothing is specified - return all findings regardless of severity.")], include_archived_findings: Annotated[bool, Field(default=None, description="Specify whether to include archived findings in results or not.")], record_limit: Annotated[str, Field(default=None, description="Specify how many records can be returned by the action.")], sort_by: Annotated[str, Field(default=None, description="Specify a parameter for sorting the data, eg updatedAt")], sort_order: Annotated[List[str], Field(default=None, description="Sort order.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Amazon Macie: List Findings',
+        annotations=ToolAnnotations(
+            title='Amazon Macie: List Findings',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def amazon_macie_list_findings(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], finding_type: Annotated[Optional[str], Field(default=None, description="Finding type to search for, for example SensitiveData:S3Object/Credentials or SensitiveData:S3Object/Multiple. Parameter accepts multiple values as a comma separated string. If nothing is specified - return all types of findings.")], time_frame: Annotated[Optional[str], Field(default=None, description="Specify a time frame in hours for which to fetch findings.")], severity: Annotated[Optional[str], Field(default=None, description="Finding severity to search - High, Medium or Low. Parameter accepts multiple values as a comma separated string. If nothing is specified - return all findings regardless of severity.")], include_archived_findings: Annotated[Optional[bool], Field(default=None, description="Specify whether to include archived findings in results or not.")], record_limit: Annotated[Optional[str], Field(default=None, description="Specify how many records can be returned by the action.")], sort_by: Annotated[Optional[str], Field(default=None, description="Specify a parameter for sorting the data, eg updatedAt")], sort_order: Annotated[Optional[List[str]], Field(default=None, description="Sort order.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List Amazon Macie findings based on the specified action input parameters.  Note: Action is not working with Siemplify entities, only with action input parameters.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -119,10 +153,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -132,15 +163,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="AmazonMacie")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for AmazonMacie: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for AmazonMacie: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if finding_type is not None:
@@ -179,21 +214,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "AmazonMacie_List Findings")
             except Exception as e:
-                print(f"Error executing action AmazonMacie_List Findings for AmazonMacie: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action AmazonMacie_List Findings for AmazonMacie: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for AmazonMacie")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for AmazonMacie")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def amazon_macie_delete_custom_data_identifier(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], custom_data_identifier_id: Annotated[str, Field(..., description="Amazon Macie custom data identifier id to delete.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Amazon Macie: Delete Custom Data Identifier',
+        annotations=ToolAnnotations(
+            title='Amazon Macie: Delete Custom Data Identifier',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def amazon_macie_delete_custom_data_identifier(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], custom_data_identifier_id: Annotated[str, Field(..., description="Amazon Macie custom data identifier id to delete.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete Amazon Macie Custom Data Identifier. Note: Action is not working with Siemplify Entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -207,10 +256,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -220,15 +266,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="AmazonMacie")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for AmazonMacie: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for AmazonMacie: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Custom Data Identifier ID"] = custom_data_identifier_id
@@ -254,21 +304,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "AmazonMacie_Delete Custom Data Identifier")
             except Exception as e:
-                print(f"Error executing action AmazonMacie_Delete Custom Data Identifier for AmazonMacie: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action AmazonMacie_Delete Custom Data Identifier for AmazonMacie: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for AmazonMacie")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for AmazonMacie")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def amazon_macie_disable_macie(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Amazon Macie: Disable Macie',
+        annotations=ToolAnnotations(
+            title='Amazon Macie: Disable Macie',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def amazon_macie_disable_macie(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Disable Amazon Macie service. Note: Action is not working with Siemplify Entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -282,10 +346,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -295,15 +356,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="AmazonMacie")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for AmazonMacie: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for AmazonMacie: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -328,21 +393,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "AmazonMacie_Disable Macie")
             except Exception as e:
-                print(f"Error executing action AmazonMacie_Disable Macie for AmazonMacie: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action AmazonMacie_Disable Macie for AmazonMacie: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for AmazonMacie")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for AmazonMacie")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def amazon_macie_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Amazon Macie: Ping',
+        annotations=ToolAnnotations(
+            title='Amazon Macie: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def amazon_macie_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Amazon Macie service with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -356,10 +435,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -369,15 +445,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="AmazonMacie")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for AmazonMacie: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for AmazonMacie: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -402,21 +482,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "AmazonMacie_Ping")
             except Exception as e:
-                print(f"Error executing action AmazonMacie_Ping for AmazonMacie: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action AmazonMacie_Ping for AmazonMacie: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for AmazonMacie")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for AmazonMacie")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def amazon_macie_enable_macie(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Amazon Macie: Enable Macie',
+        annotations=ToolAnnotations(
+            title='Amazon Macie: Enable Macie',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def amazon_macie_enable_macie(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Enable Amazon Macie service. Note: Action is not working with Siemplify Entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -430,10 +524,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -443,15 +534,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="AmazonMacie")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for AmazonMacie: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for AmazonMacie: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -476,21 +571,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "AmazonMacie_Enable Macie")
             except Exception as e:
-                print(f"Error executing action AmazonMacie_Enable Macie for AmazonMacie: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action AmazonMacie_Enable Macie for AmazonMacie: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for AmazonMacie")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for AmazonMacie")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def amazon_macie_create_custom_data_identifier(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], custom_data_identifier_name: Annotated[str, Field(..., description="Amazon Macie new custom data identifier name.")], custom_data_identifier_regular_expression: Annotated[str, Field(..., description="Amazon Macie new custom data identifier regular expression, eg I[a@]mAB[a@]dRequest")], custom_data_identifier_description: Annotated[str, Field(default=None, description="Amazon Macie new custom data identifier description.")], custom_data_identifier_keywords: Annotated[str, Field(default=None, description="Amazon Macie new custom data identifier keywords.")], custom_data_identifier_ignore_words: Annotated[str, Field(default=None, description="Amazon Macie new custom data identifier ignore words.")], custom_data_identifier_maximum_match_distance: Annotated[str, Field(default=None, description="Amazon Macie new custom data identifier maximum match distance. Default value is 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Amazon Macie: Create Custom Data Identifier',
+        annotations=ToolAnnotations(
+            title='Amazon Macie: Create Custom Data Identifier',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def amazon_macie_create_custom_data_identifier(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], custom_data_identifier_name: Annotated[str, Field(..., description="Amazon Macie new custom data identifier name.")], custom_data_identifier_regular_expression: Annotated[str, Field(..., description="Amazon Macie new custom data identifier regular expression, eg I[a@]mAB[a@]dRequest")], custom_data_identifier_description: Annotated[Optional[str], Field(default=None, description="Amazon Macie new custom data identifier description.")], custom_data_identifier_keywords: Annotated[Optional[str], Field(default=None, description="Amazon Macie new custom data identifier keywords.")], custom_data_identifier_ignore_words: Annotated[Optional[str], Field(default=None, description="Amazon Macie new custom data identifier ignore words.")], custom_data_identifier_maximum_match_distance: Annotated[Optional[str], Field(default=None, description="Amazon Macie new custom data identifier maximum match distance. Default value is 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create Amazon Macie Custom Data Identifier. Note: Action is not working with Siemplify Entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -504,10 +613,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -517,15 +623,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="AmazonMacie")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for AmazonMacie: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for AmazonMacie: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Custom Data Identifier Name"] = custom_data_identifier_name
@@ -560,10 +670,10 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "AmazonMacie_Create Custom Data Identifier")
             except Exception as e:
-                print(f"Error executing action AmazonMacie_Create Custom Data Identifier for AmazonMacie: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action AmazonMacie_Create Custom Data Identifier for AmazonMacie: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for AmazonMacie")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for AmazonMacie")
+            return marketplace_error_result("No active instance found.")

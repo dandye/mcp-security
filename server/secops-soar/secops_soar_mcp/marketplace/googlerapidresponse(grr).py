@@ -12,25 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
+from logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the GoogleGRR integration.
 
-    @mcp.tool()
-    async def google_grr_list_hunts(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], creator: Annotated[str, Field(default=None, description="Return hunts created by a specified user.")], offset: Annotated[str, Field(default=None, description="Specify Found hunts starting offset.")], max_results_to_return: Annotated[str, Field(default=None, description="Specify how many hunts to return in the response.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GRR: List Hunts',
+        annotations=ToolAnnotations(
+            title='Google GRR: List Hunts',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_grr_list_hunts(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], creator: Annotated[Optional[str], Field(default=None, description="Return hunts created by a specified user.")], offset: Annotated[Optional[str], Field(default=None, description="Specify Found hunts starting offset.")], max_results_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many hunts to return in the response.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get all available hunts.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -44,10 +63,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -57,15 +73,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGRR")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGRR: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGRR: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if creator is not None:
@@ -96,21 +116,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGRR_List Hunts")
             except Exception as e:
-                print(f"Error executing action GoogleGRR_List Hunts for GoogleGRR: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGRR_List Hunts for GoogleGRR: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGRR")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGRR")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def google_grr_list_launched_flows(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], offset: Annotated[str, Field(default=None, description="Specify Found flows starting offset.")], max_results_to_return: Annotated[str, Field(default=None, description="Specify how many flows to return in the response.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GRR: List Launched Flows',
+        annotations=ToolAnnotations(
+            title='Google GRR: List Launched Flows',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_grr_list_launched_flows(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], offset: Annotated[Optional[str], Field(default=None, description="Specify Found flows starting offset.")], max_results_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many flows to return in the response.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List flows launched on a specified client.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -124,10 +158,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -137,15 +168,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGRR")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGRR: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGRR: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if offset is not None:
@@ -174,21 +209,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGRR_List Launched Flows")
             except Exception as e:
-                print(f"Error executing action GoogleGRR_List Launched Flows for GoogleGRR: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGRR_List Launched Flows for GoogleGRR: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGRR")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGRR")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def google_grr_get_hunt_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hunt_id: Annotated[str, Field(..., description="ID of the hunt to fetch. Comma separated.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GRR: Get Hunt Details',
+        annotations=ToolAnnotations(
+            title='Google GRR: Get Hunt Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_grr_get_hunt_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hunt_id: Annotated[str, Field(..., description="ID of the hunt to fetch. Comma separated.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get Hunt details.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -202,10 +251,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -215,15 +261,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGRR")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGRR: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGRR: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Hunt ID"] = hunt_id
@@ -249,21 +299,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGRR_Get Hunt Details")
             except Exception as e:
-                print(f"Error executing action GoogleGRR_Get Hunt Details for GoogleGRR: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGRR_Get Hunt Details for GoogleGRR: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGRR")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGRR")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def google_grr_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GRR: Ping',
+        annotations=ToolAnnotations(
+            title='Google GRR: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_grr_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Google GRR with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -277,10 +341,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -290,15 +351,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGRR")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGRR: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGRR: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -323,21 +388,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGRR_Ping")
             except Exception as e:
-                print(f"Error executing action GoogleGRR_Ping for GoogleGRR: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGRR_Ping for GoogleGRR: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGRR")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGRR")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def google_grr_get_client_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], client_id: Annotated[str, Field(..., description="ID of the client. Comma separated.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GRR: Get Client Details',
+        annotations=ToolAnnotations(
+            title='Google GRR: Get Client Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_grr_get_client_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], client_id: Annotated[str, Field(..., description="ID of the client. Comma separated.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get client full details.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -351,10 +430,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -364,15 +440,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGRR")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGRR: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGRR: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Client ID"] = client_id
@@ -398,21 +478,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGRR_Get Client Details")
             except Exception as e:
-                print(f"Error executing action GoogleGRR_Get Client Details for GoogleGRR: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGRR_Get Client Details for GoogleGRR: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGRR")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGRR")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def google_grr_stop_a_hunt(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hunt_id: Annotated[str, Field(..., description="ID of the hunt to stop. Comma separated")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GRR: Stop a Hunt',
+        annotations=ToolAnnotations(
+            title='Google GRR: Stop a Hunt',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_grr_stop_a_hunt(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hunt_id: Annotated[str, Field(..., description="ID of the hunt to stop. Comma separated")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Stopping a hunt will prevent new clients from being scheduled and interrupt in-progress flows the next time they change state. This is a hard stop, so in-progress results will be lost, but results already reported are unaffected. Once a hunt is stopped, there is no way to start it again.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -426,10 +520,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -439,15 +530,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGRR")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGRR: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGRR: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Hunt ID"] = hunt_id
@@ -473,21 +568,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGRR_Stop a Hunt")
             except Exception as e:
-                print(f"Error executing action GoogleGRR_Stop a Hunt for GoogleGRR: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGRR_Stop a Hunt for GoogleGRR: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGRR")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGRR")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def google_grr_start_a_hunt(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hunt_id: Annotated[str, Field(..., description="ID of the hunt to start. Comma separated")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GRR: Start a Hunt',
+        annotations=ToolAnnotations(
+            title='Google GRR: Start a Hunt',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_grr_start_a_hunt(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hunt_id: Annotated[str, Field(..., description="ID of the hunt to start. Comma separated")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Use this to start a newly created hunt. New hunts are created in the PAUSED state, so you’ll need to do this to run them. Hunts that reach their client limit will also be set to PAUSED, use this to restart them after you have removed the client limit.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -501,10 +610,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -514,15 +620,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGRR")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGRR: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGRR: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Hunt ID"] = hunt_id
@@ -548,21 +658,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGRR_Start a Hunt")
             except Exception as e:
-                print(f"Error executing action GoogleGRR_Start a Hunt for GoogleGRR: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGRR_Start a Hunt for GoogleGRR: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGRR")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGRR")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def google_grr_list_clients(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], offset: Annotated[str, Field(default=None, description="Specify Found clients starting offset.")], max_results_to_return: Annotated[str, Field(default=None, description="Specify how many clients to return in the response.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GRR: List Clients',
+        annotations=ToolAnnotations(
+            title='Google GRR: List Clients',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_grr_list_clients(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], offset: Annotated[Optional[str], Field(default=None, description="Specify Found clients starting offset.")], max_results_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many clients to return in the response.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Search Clients in order to start interacting with them.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -576,10 +700,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -589,15 +710,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGRR")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGRR: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGRR: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if offset is not None:
@@ -626,10 +751,10 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGRR_List Clients")
             except Exception as e:
-                print(f"Error executing action GoogleGRR_List Clients for GoogleGRR: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGRR_List Clients for GoogleGRR: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGRR")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGRR")
+            return marketplace_error_result("No active instance found.")

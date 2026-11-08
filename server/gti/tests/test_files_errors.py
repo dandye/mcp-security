@@ -11,15 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import mcp
 import pytest
 from unittest import mock
-from mcp.server import fastmcp
+from mcp.server.mcpserver import Context
 from gti_mcp.tools import files
 
 @pytest.mark.asyncio
 async def test_get_file_behavior_summary_api_error_handled():
     """Test get_file_behavior_summary returns error dict on API error (e.g. 404)."""
-    mock_ctx = mock.MagicMock(spec=fastmcp.Context)
+    mock_ctx = mock.MagicMock(spec=Context)
 
     mock_response = mock.MagicMock()
     mock_response.status = 404
@@ -36,14 +37,17 @@ async def test_get_file_behavior_summary_api_error_handled():
 
     with mock.patch("gti_mcp.tools.files.vt_client", return_value=mock_vt_client):
         result = await files.get_file_behavior_summary(hash="non_existent_hash", ctx=mock_ctx)
-        assert "error" in result
-        assert "VirusTotal API Error" in result["error"]
-        assert "File not found" in result["error"]
+        assert isinstance(result, mcp.types.CallToolResult)
+        assert result.is_error is True
+        assert isinstance(result.structured_content, dict)
+        assert "error" in result.structured_content
+        assert "VirusTotal API Error" in result.structured_content["error"]
+        assert "File not found" in result.structured_content["error"]
 
 @pytest.mark.asyncio
 async def test_get_file_behavior_summary_unexpected_format_handled():
-    """Test get_file_behavior_summary returns error dict on unexpected response format."""
-    mock_ctx = mock.MagicMock(spec=fastmcp.Context)
+    """Test get_file_behavior_summary returns CallToolResult(is_error=True) on unexpected response format."""
+    mock_ctx = mock.MagicMock(spec=Context)
 
     mock_response = mock.MagicMock()
     async def json_async():
@@ -59,5 +63,31 @@ async def test_get_file_behavior_summary_unexpected_format_handled():
 
     with mock.patch("gti_mcp.tools.files.vt_client", return_value=mock_vt_client):
         result = await files.get_file_behavior_summary(hash="some_hash", ctx=mock_ctx)
-        assert "error" in result
-        assert "Unexpected response format" in result["error"]
+        assert isinstance(result, mcp.types.CallToolResult)
+        assert result.is_error is True
+        assert isinstance(result.structured_content, dict)
+        assert "error" in result.structured_content
+        assert "Unexpected response format" in result.structured_content["error"]
+
+
+@pytest.mark.asyncio
+async def test_get_entities_related_to_a_file_invalid_relationship_returns_error_dict():
+    """Invalid relationship_name returns CallToolResult(is_error=True) via MCPServer call_tool."""
+    from gti_mcp.server import server
+
+    result = await server.call_tool(
+        "get_entities_related_to_a_file",
+        {
+            "hash": "abc",
+            "relationship_name": "not_a_real_relationship",
+            "descriptors_only": True,
+        },
+    )
+    assert isinstance(result, mcp.types.CallToolResult)
+    assert result.is_error is True
+    structured = result.structured_content
+    assert isinstance(structured, dict)
+    payload = structured.get("result", structured)
+    assert isinstance(payload, dict)
+    assert "error" in payload
+    assert "not_a_real_relationship" in payload["error"]

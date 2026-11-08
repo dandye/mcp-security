@@ -1,6 +1,17 @@
 # Google Threat Intelligence (GTI) MCP Server
 
-This server provides tools for interacting with the Google Threat Intelligence (VirusTotal) API.
+This server (`gti-mcp` `0.2.0`, MCP `2026-07-28` / `mcp>=2.3.0`) provides tools, resources, prompts, and an interactive dark-mode MCP App for Google Threat Intelligence.
+
+## MCP 2026-07-28 Capabilities
+
+- **Transports**: Local `stdio` and stateless `streamable-http` (`--transport streamable-http --host 127.0.0.1 --port 8080`) with `server/discover`, `/healthz`, and `/readyz`.
+- **Caching and Tracing**: `SEP-2549` `CacheHint` (`MCP_TOOLS_CACHE_TTL_MS`) and `OpenTelemetryMiddleware` (`OTEL_EXPORTER_OTLP_ENDPOINT`).
+- **Resources and `ResourceLink` Compaction**: `gti://info/capabilities`, `gti://files/{file_hash}`, `gti://collections/{collection_id}`, and `gti://hunting-rulesets/{ruleset_id}`, plus `ResourceLink` summaries on `search_threats`.
+- **SOC Prompts**: `enrich_and_pivot_ioc(indicator)` and `profile_threat_collection(collection_id)`.
+- **MRTR Elicitation, Progress, OAuth 2.1 RS, and MCP App**: Stateless `AESGCMRequestStateCodec` elicitation (`MCP_ELICIT_DESTRUCTIVE`, `MCP_UNATTENDED_DESTRUCTIVE_POLICY`) on `analyse_file`, progress notifications on `analyse_file` and `analyse_url`, OAuth 2.1 bearer verification (`MCP_OAUTH_ISSUER_URL`, `MCP_RESOURCE_SERVER_URL`), and dark-mode MCP App `ui://gti/ioc-verdict.html` (`--disable-apps` / `MCP_ENABLE_APPS=false`).
+- **Rule Syntax**: Hunting rulesets in Google Threat Intelligence (`get_hunting_ruleset`, `gti://hunting-rulesets/{ruleset_id}`) use **standard YARA** for file and payload pattern matching, distinct from YARA-L 2.0 UDM event detection rules in Google Security Operations SIEM.
+
+See the [MCP 2026-07-28 Protocol Guide](../mcp_v2_capabilities.md) for full configuration details.
 
 ## Configuration
 
@@ -36,18 +47,22 @@ Recommended: use the `--env-file` option in `uv` to move your secrets to an `.en
 Your revised config would then be:
 
 ```json
-      ...
+{
+  "mcpServers": {
+    "gti": {
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/the/repo/server/gti/gti_mcp",
+        "/path/to/the/repo/server/gti",
         "run",
         "--env-file",
         "/path/to/the/repo/.env",
-        "server.py"
+        "gti_mcp"
       ],
-      "env": {},
-      ...
+      "env": {}
+    }
+  }
+}
 ```
 
 Example .env file:
@@ -61,7 +76,8 @@ Set up the `VT_APIKEY` environment variable in your system:
 
 **For macOS/Linux:**
 ```bash
-export VT_APIKEY="your-vt-api-key"
+GTI_KEY="your-gti-api-key"
+export VT_APIKEY="$GTI_KEY"
 ```
 
 **For Windows PowerShell:**
@@ -69,7 +85,7 @@ export VT_APIKEY="your-vt-api-key"
 $Env:VT_APIKEY = "your-vt-api-key"
 ```
 
-For more detailed instructions on setting up environment variables, refer to the [usage guide](../usage_guide.md#setting-up-environment-variables).
+For more detailed instructions on setting up environment variables, refer to the [usage guide](../usage_guide.md).
 
 ## Tools
 
@@ -139,6 +155,7 @@ Threats like actors, malware, campaigns, reports, and vulnerabilities are modele
   - `communicating_files`: Files that communicate with this URL
   - `redirecting_urls`: URLs that redirect to this URL
   - `redirected_urls`: URLs that this URL redirects to
+- **`analyse_url(url)`**: Submits a URL for live scanning and streams MCP progress updates (`ctx.report_progress`) until the Google Threat Intelligence analysis report completes.
 
 ## Query Syntax Examples
 

@@ -12,25 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
+from logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the ZohoDesk integration.
 
-    @mcp.tool()
-    async def zoho_desk_create_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], title: Annotated[str, Field(..., description="Specify the title for the ticket.")], description: Annotated[str, Field(..., description="Specify the description of the ticket.")], department_name: Annotated[str, Field(..., description="Specify the name of the department in which you want to create a ticket.")], contact: Annotated[str, Field(..., description="Specify the email of the contact for the ticket.")], assignee_type: Annotated[List[str], Field(default=None, description="Specify the type of the assignee. If \"Agent\" or \"Team\" is selected \"Assignee Name\" is required.")], assignee_name: Annotated[str, Field(default=None, description="Specify the name of the assignee for the ticket. For the agent type you can provide an email address or display name.")], priority: Annotated[List[str], Field(default=None, description="Specify the priority for the ticket.")], classification: Annotated[List[str], Field(default=None, description="Specify the classification type for the ticket.")], channel: Annotated[List[str], Field(default=None, description="Specify the channel for the ticket.")], category: Annotated[str, Field(default=None, description="Specify the category for the ticket.")], sub_category: Annotated[str, Field(default=None, description="Specify the subcategory for the ticket.")], due_date: Annotated[str, Field(default=None, description="Specify the due date for the ticket. Format: ISO 8601. Example: 2022-07-06T07:05:43Z.")], custom_fields: Annotated[str, Field(default=None, description="Specify a json object containing the custom fields that need to be added. Note: you need to provide the API names of the keys.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Zoho Desk: Create Ticket',
+        annotations=ToolAnnotations(
+            title='Zoho Desk: Create Ticket',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def zoho_desk_create_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], title: Annotated[str, Field(..., description="Specify the title for the ticket.")], description: Annotated[str, Field(..., description="Specify the description of the ticket.")], department_name: Annotated[str, Field(..., description="Specify the name of the department in which you want to create a ticket.")], contact: Annotated[str, Field(..., description="Specify the email of the contact for the ticket.")], assignee_type: Annotated[Optional[List[str]], Field(default=None, description="Specify the type of the assignee. If \"Agent\" or \"Team\" is selected \"Assignee Name\" is required.")], assignee_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the assignee for the ticket. For the agent type you can provide an email address or display name.")], priority: Annotated[Optional[List[str]], Field(default=None, description="Specify the priority for the ticket.")], classification: Annotated[Optional[List[str]], Field(default=None, description="Specify the classification type for the ticket.")], channel: Annotated[Optional[List[str]], Field(default=None, description="Specify the channel for the ticket.")], category: Annotated[Optional[str], Field(default=None, description="Specify the category for the ticket.")], sub_category: Annotated[Optional[str], Field(default=None, description="Specify the subcategory for the ticket.")], due_date: Annotated[Optional[str], Field(default=None, description="Specify the due date for the ticket. Format: ISO 8601. Example: 2022-07-06T07:05:43Z.")], custom_fields: Annotated[Optional[str], Field(default=None, description="Specify a json object containing the custom fields that need to be added. Note: you need to provide the API names of the keys.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create a ticket in Zoho Desk.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -44,10 +63,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -57,15 +73,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ZohoDesk")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ZohoDesk: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ZohoDesk: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Title"] = title
@@ -112,21 +132,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ZohoDesk_Create Ticket")
             except Exception as e:
-                print(f"Error executing action ZohoDesk_Create Ticket for ZohoDesk: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ZohoDesk_Create Ticket for ZohoDesk: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ZohoDesk")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ZohoDesk")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def zoho_desk_get_ticket_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_i_ds: Annotated[str, Field(..., description="Specify a comma-separated list of ids for which you want to return details.")], create_insight: Annotated[bool, Field(default=None, description="If enabled, action will create an insight containing information about tickets.")], additional_fields_to_return: Annotated[str, Field(default=None, description="Specify what additional fields to return. Possible values: contacts, products, assignee, departments, contract, isRead, team, skills.")], fetch_comments: Annotated[bool, Field(default=None, description="If enabled, action will fetch comments related to the tickets.")], max_comments_to_return: Annotated[str, Field(default=None, description="Specify how many comments to return per ticket. Default: 50. Maximum: 100.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Zoho Desk: Get Ticket Details',
+        annotations=ToolAnnotations(
+            title='Zoho Desk: Get Ticket Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def zoho_desk_get_ticket_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_i_ds: Annotated[str, Field(..., description="Specify a comma-separated list of ids for which you want to return details.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight containing information about tickets.")], additional_fields_to_return: Annotated[Optional[str], Field(default=None, description="Specify what additional fields to return. Possible values: contacts, products, assignee, departments, contract, isRead, team, skills.")], fetch_comments: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch comments related to the tickets.")], max_comments_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many comments to return per ticket. Default: 50. Maximum: 100.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get detailed information about the ticket from Zoho Desk.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -140,10 +174,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -153,15 +184,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ZohoDesk")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ZohoDesk: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ZohoDesk: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Ticket IDs"] = ticket_i_ds
@@ -195,21 +230,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ZohoDesk_Get Ticket Details")
             except Exception as e:
-                print(f"Error executing action ZohoDesk_Get Ticket Details for ZohoDesk: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ZohoDesk_Get Ticket Details for ZohoDesk: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ZohoDesk")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ZohoDesk")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def zoho_desk_add_comment_to_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Specify an id of the ticket to which you want to add a comment.")], text: Annotated[str, Field(..., description="Specify the content of the comment.")], visibility: Annotated[List[str], Field(default=None, description="Specify if the comment should be public or private.")], type: Annotated[List[str], Field(default=None, description="Specify what should be the type of the comment.")], wait_for_reply: Annotated[bool, Field(default=None, description="If enabled, action will wait for reply.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Zoho Desk: Add Comment to Ticket',
+        annotations=ToolAnnotations(
+            title='Zoho Desk: Add Comment to Ticket',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def zoho_desk_add_comment_to_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Specify an id of the ticket to which you want to add a comment.")], text: Annotated[str, Field(..., description="Specify the content of the comment.")], visibility: Annotated[Optional[List[str]], Field(default=None, description="Specify if the comment should be public or private.")], type: Annotated[Optional[List[str]], Field(default=None, description="Specify what should be the type of the comment.")], wait_for_reply: Annotated[Optional[bool], Field(default=None, description="If enabled, action will wait for reply.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add a comment to a ticket in Zoho Desk. Note: Action is running as async if "Wait For Reply" is enabled, please adjust script timeout value in Siemplify IDE for action as needed.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -223,10 +272,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -236,15 +282,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ZohoDesk")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ZohoDesk: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ZohoDesk: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Ticket ID"] = ticket_id
@@ -277,21 +327,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ZohoDesk_Add Comment To Ticket")
             except Exception as e:
-                print(f"Error executing action ZohoDesk_Add Comment To Ticket for ZohoDesk: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ZohoDesk_Add Comment To Ticket for ZohoDesk: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ZohoDesk")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ZohoDesk")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def zoho_desk_mark_ticket_as_spam(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Specify an id of the ticket that needs to be marked as spam.")], mark_contact: Annotated[bool, Field(default=None, description="If enabled, the contact that created the ticket will be marked as spammer.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Zoho Desk: Mark Ticket as Spam',
+        annotations=ToolAnnotations(
+            title='Zoho Desk: Mark Ticket as Spam',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def zoho_desk_mark_ticket_as_spam(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Specify an id of the ticket that needs to be marked as spam.")], mark_contact: Annotated[Optional[bool], Field(default=None, description="If enabled, the contact that created the ticket will be marked as spammer.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Mark ticket as spam in Zoho Desk.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -305,10 +369,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -318,15 +379,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ZohoDesk")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ZohoDesk: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ZohoDesk: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Ticket ID"] = ticket_id
@@ -354,21 +419,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ZohoDesk_Mark Ticket As Spam")
             except Exception as e:
-                print(f"Error executing action ZohoDesk_Mark Ticket As Spam for ZohoDesk: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ZohoDesk_Mark Ticket As Spam for ZohoDesk: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ZohoDesk")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ZohoDesk")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def zoho_desk_get_refresh_token(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], authorization_link: Annotated[str, Field(..., description="Specify the authorization link for the integration.")], authorization_code: Annotated[str, Field(..., description="Specify the authorization code that was generated in the dev console of Zoho.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Zoho Desk: Get Refresh Token',
+        annotations=ToolAnnotations(
+            title='Zoho Desk: Get Refresh Token',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def zoho_desk_get_refresh_token(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], authorization_link: Annotated[str, Field(..., description="Specify the authorization link for the integration.")], authorization_code: Annotated[str, Field(..., description="Specify the authorization code that was generated in the dev console of Zoho.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get a refresh token for the configuration.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -382,10 +461,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -395,15 +471,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ZohoDesk")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ZohoDesk: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ZohoDesk: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Authorization Link"] = authorization_link
@@ -430,21 +510,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ZohoDesk_Get Refresh Token")
             except Exception as e:
-                print(f"Error executing action ZohoDesk_Get Refresh Token for ZohoDesk: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ZohoDesk_Get Refresh Token for ZohoDesk: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ZohoDesk")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ZohoDesk")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def zoho_desk_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Zoho Desk: Ping',
+        annotations=ToolAnnotations(
+            title='Zoho Desk: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def zoho_desk_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Zoho Desk with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -458,10 +552,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -471,15 +562,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ZohoDesk")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ZohoDesk: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ZohoDesk: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -504,21 +599,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ZohoDesk_Ping")
             except Exception as e:
-                print(f"Error executing action ZohoDesk_Ping for ZohoDesk: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ZohoDesk_Ping for ZohoDesk: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ZohoDesk")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ZohoDesk")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def zoho_desk_update_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Specify an id of the ticket that needs to be updated.")], title: Annotated[str, Field(default=None, description="Specify the title that should be set for the ticket.")], description: Annotated[str, Field(default=None, description="Specify the description for the ticket.")], department_name: Annotated[str, Field(default=None, description="Specify the name of the department that should be set for the ticket.")], contact: Annotated[str, Field(default=None, description="Specify the email of the contact for the ticket.")], assignee_type: Annotated[List[str], Field(default=None, description="Specify the type of the assignee. If \u201cAgent\u201d or \u201cTeam\u201d is selected \u201cAssignee Name\u201d is required.")], assignee_name: Annotated[str, Field(default=None, description="Specify the name of the assignee for the ticket. For the agent type you can provide an email address or display name.")], resolution: Annotated[str, Field(default=None, description="Specify the resolution for the ticket.")], priority: Annotated[List[str], Field(default=None, description="Specify the priority for the ticket.")], status: Annotated[List[str], Field(default=None, description="Specify the status for the ticket.")], mark_state: Annotated[List[str], Field(default=None, description="Specify the mark state for the ticket.")], classification: Annotated[List[str], Field(default=None, description="Specify the classification type for the ticket.")], channel: Annotated[List[str], Field(default=None, description="Specify the channel for the ticket.")], category: Annotated[str, Field(default=None, description="Specify the category for the ticket.")], sub_category: Annotated[str, Field(default=None, description="Specify the subcategory for the ticket.")], due_date: Annotated[str, Field(default=None, description="Specify the due date for the ticket. Format: ISO 8601. Example: 2022-07-06T07:05:43Z. Note: this parameter doesn\u2019t have an impact, when status is \u201cOn Hold\u201d.")], custom_fields: Annotated[str, Field(default=None, description="Specify a json object containing the custom fields that need to be added. Note: you need to provide the API names of the keys.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Zoho Desk: Update Ticket',
+        annotations=ToolAnnotations(
+            title='Zoho Desk: Update Ticket',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def zoho_desk_update_ticket(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], ticket_id: Annotated[str, Field(..., description="Specify an id of the ticket that needs to be updated.")], title: Annotated[Optional[str], Field(default=None, description="Specify the title that should be set for the ticket.")], description: Annotated[Optional[str], Field(default=None, description="Specify the description for the ticket.")], department_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the department that should be set for the ticket.")], contact: Annotated[Optional[str], Field(default=None, description="Specify the email of the contact for the ticket.")], assignee_type: Annotated[Optional[List[str]], Field(default=None, description="Specify the type of the assignee. If \u201cAgent\u201d or \u201cTeam\u201d is selected \u201cAssignee Name\u201d is required.")], assignee_name: Annotated[Optional[str], Field(default=None, description="Specify the name of the assignee for the ticket. For the agent type you can provide an email address or display name.")], resolution: Annotated[Optional[str], Field(default=None, description="Specify the resolution for the ticket.")], priority: Annotated[Optional[List[str]], Field(default=None, description="Specify the priority for the ticket.")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify the status for the ticket.")], mark_state: Annotated[Optional[List[str]], Field(default=None, description="Specify the mark state for the ticket.")], classification: Annotated[Optional[List[str]], Field(default=None, description="Specify the classification type for the ticket.")], channel: Annotated[Optional[List[str]], Field(default=None, description="Specify the channel for the ticket.")], category: Annotated[Optional[str], Field(default=None, description="Specify the category for the ticket.")], sub_category: Annotated[Optional[str], Field(default=None, description="Specify the subcategory for the ticket.")], due_date: Annotated[Optional[str], Field(default=None, description="Specify the due date for the ticket. Format: ISO 8601. Example: 2022-07-06T07:05:43Z. Note: this parameter doesn\u2019t have an impact, when status is \u201cOn Hold\u201d.")], custom_fields: Annotated[Optional[str], Field(default=None, description="Specify a json object containing the custom fields that need to be added. Note: you need to provide the API names of the keys.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update a ticket in Zoho Desk.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -532,10 +641,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -545,15 +651,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ZohoDesk")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ZohoDesk: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ZohoDesk: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Ticket ID"] = ticket_id
@@ -611,10 +721,10 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ZohoDesk_Update Ticket")
             except Exception as e:
-                print(f"Error executing action ZohoDesk_Update Ticket for ZohoDesk: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ZohoDesk_Update Ticket for ZohoDesk: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ZohoDesk")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ZohoDesk")
+            return marketplace_error_result("No active instance found.")

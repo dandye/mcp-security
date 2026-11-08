@@ -12,25 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
+from logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the MicrosoftAzureSentinel integration.
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_run_kql_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], kql_query: Annotated[str, Field(..., description="A KQL Query to execute in Azure Sentinel. For example, to get security alerts available in Sentinel, query will be \"SecurityAlert\". Use other action input parameters (time span, limit) to filter the query results. For the examples of KQL queries consider Sentinel \"Logs\" Web page")], time_span: Annotated[str, Field(default=None, description="Time span to look for, use the following format: \nPT + number + (M, H), where M - minutes, H - hours. \nUse P + number + D to specify a number of days. \nCan be combined as P1DT1H1M - 1 day, 1 hour and 1 minute.")], query_timeout: Annotated[str, Field(default=None, description="Timeout value for the Azure Sentinel hunting rule API call. Note that Siemplify action python process timeout should be adjusted accordingly for this parameter, to not timeout action sooner than specified value because of the python process timeout.")], record_limit: Annotated[str, Field(default=None, description="How many records should be fetched. Optional parameter, if set, adds a \"| limit x\" to the kql query where x is the value set for the record limit. Can be removed if \"limit\" is already set in kql query or not needed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: Run KQL Query',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: Run KQL Query',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_run_kql_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], kql_query: Annotated[str, Field(..., description="A KQL Query to execute in Azure Sentinel. For example, to get security alerts available in Sentinel, query will be \"SecurityAlert\". Use other action input parameters (time span, limit) to filter the query results. For the examples of KQL queries consider Sentinel \"Logs\" Web page")], time_span: Annotated[Optional[str], Field(default=None, description="Time span to look for, use the following format: \nPT + number + (M, H), where M - minutes, H - hours. \nUse P + number + D to specify a number of days. \nCan be combined as P1DT1H1M - 1 day, 1 hour and 1 minute.")], query_timeout: Annotated[Optional[str], Field(default=None, description="Timeout value for the Azure Sentinel hunting rule API call. Note that Siemplify action python process timeout should be adjusted accordingly for this parameter, to not timeout action sooner than specified value because of the python process timeout.")], record_limit: Annotated[Optional[str], Field(default=None, description="How many records should be fetched. Optional parameter, if set, adds a \"| limit x\" to the kql query where x is the value set for the record limit. Can be removed if \"limit\" is already set in kql query or not needed.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Run Azure Sentinel KQL Query based on the provided action input parameters.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -44,10 +63,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -57,15 +73,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["KQL Query"] = kql_query
@@ -97,21 +117,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_Run KQL Query")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_Run KQL Query for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_Run KQL Query for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_get_alert_rule_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_rule_id: Annotated[str, Field(..., description="Alert Rule ID")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: Get Alert Rule Details',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: Get Alert Rule Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_get_alert_rule_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_rule_id: Annotated[str, Field(..., description="Alert Rule ID")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get Details of the Azure Sentinel Scheduled Alert Rule
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -125,10 +159,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -138,15 +169,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Alert Rule ID"] = alert_rule_id
@@ -172,21 +207,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_Get Alert Rule Details")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_Get Alert Rule Details for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_Get Alert Rule Details for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_list_custom_hunting_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hunting_rule_names_to_return: Annotated[str, Field(default=None, description="Names for the hunting rules action should return. Comma-separated string")], fetch_specific_hunting_rule_tactics: Annotated[str, Field(default=None, description="What hunting rule tactics action should return. Comma-separated string")], max_rules_to_return: Annotated[str, Field(default=None, description="How many scheduled alert rules the action should return, for example, 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: List Custom Hunting Rules',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: List Custom Hunting Rules',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_list_custom_hunting_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hunting_rule_names_to_return: Annotated[Optional[str], Field(default=None, description="Names for the hunting rules action should return. Comma-separated string")], fetch_specific_hunting_rule_tactics: Annotated[Optional[str], Field(default=None, description="What hunting rule tactics action should return. Comma-separated string")], max_rules_to_return: Annotated[Optional[str], Field(default=None, description="How many scheduled alert rules the action should return, for example, 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List Custom Hunting Rules available in Sentinel
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -200,10 +249,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -213,15 +259,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if hunting_rule_names_to_return is not None:
@@ -252,21 +302,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_List Custom Hunting Rules")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_List Custom Hunting Rules for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_List Custom Hunting Rules for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_get_incident_statistic(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], time_frame: Annotated[str, Field(default=None, description="Time frame in hours for which to fetch Incidents")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: Get Incident Statistic',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: Get Incident Statistic',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_get_incident_statistic(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], time_frame: Annotated[Optional[str], Field(default=None, description="Time frame in hours for which to fetch Incidents")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get Azure Sentinel Incident Statistics
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -280,10 +344,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -293,15 +354,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if time_frame is not None:
@@ -328,21 +393,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_Get Incident Statistic")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_Get Incident Statistic for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_Get Incident Statistic for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_create_alert_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], enable_alert_rule: Annotated[bool, Field(..., description="Enable or disable new alert rule")], name: Annotated[str, Field(..., description="Display name of the new alert rule")], severity: Annotated[List[str], Field(..., description="Severity of the new alert rule")], query: Annotated[str, Field(..., description="Query of the new alert rule")], frequency: Annotated[str, Field(..., description="How frequently to run the query, use the following format: \nPT + number + (M, H), where M - minutes, H - hours. \nUse P + number + D to specify a number of days. \nCan be combined as P1DT1H1M - 1 day, 1 hour and 1 minute. \nMinimum is 5 minutes, maximum is 14 days.")], period_of_lookup_data: Annotated[str, Field(..., description="Time of the last lookup data, use the following format: \nPT + number + (M, H), where M - minutes, H - hours. \nUse P + number + D to specify a number of days. \nCan be combined as P1DT1H1M - 1 day, 1 hour and 1 minute. \nMinimum is 5 minutes, maximum is 14 days.")], trigger_operator: Annotated[List[str], Field(..., description="Trigger operator for this alert rule.\nPossible values are: GreaterThan, LessThan, Equal, NotEqual")], trigger_threshold: Annotated[str, Field(..., description="Trigger threshold for this alert rule")], enable_suppression: Annotated[bool, Field(..., description="Whether you want to stop running query after alert is generated")], suppression_duration: Annotated[str, Field(..., description="How long you want to stop running query after alert is generated, use the following format: \nPT + number + (M, H), where M - minutes, H - hours. \nUse P + number + D to specify a number of days. \nCan be combined as P1DT1H1M - 1 day, 1 hour and 1 minute. \nMinimum is 5 minutes, maximum is 14 days.")], description: Annotated[str, Field(default=None, description="Description of the new alert rule")], tactics: Annotated[str, Field(default=None, description="Tactics of the new alert rule. Comma-separated values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: Create Alert Rule',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: Create Alert Rule',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_create_alert_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], enable_alert_rule: Annotated[bool, Field(..., description="Enable or disable new alert rule")], name: Annotated[str, Field(..., description="Display name of the new alert rule")], severity: Annotated[List[str], Field(..., description="Severity of the new alert rule")], query: Annotated[str, Field(..., description="Query of the new alert rule")], frequency: Annotated[str, Field(..., description="How frequently to run the query, use the following format: \nPT + number + (M, H), where M - minutes, H - hours. \nUse P + number + D to specify a number of days. \nCan be combined as P1DT1H1M - 1 day, 1 hour and 1 minute. \nMinimum is 5 minutes, maximum is 14 days.")], period_of_lookup_data: Annotated[str, Field(..., description="Time of the last lookup data, use the following format: \nPT + number + (M, H), where M - minutes, H - hours. \nUse P + number + D to specify a number of days. \nCan be combined as P1DT1H1M - 1 day, 1 hour and 1 minute. \nMinimum is 5 minutes, maximum is 14 days.")], trigger_operator: Annotated[List[str], Field(..., description="Trigger operator for this alert rule.\nPossible values are: GreaterThan, LessThan, Equal, NotEqual")], trigger_threshold: Annotated[str, Field(..., description="Trigger threshold for this alert rule")], enable_suppression: Annotated[bool, Field(..., description="Whether you want to stop running query after alert is generated")], suppression_duration: Annotated[str, Field(..., description="How long you want to stop running query after alert is generated, use the following format: \nPT + number + (M, H), where M - minutes, H - hours. \nUse P + number + D to specify a number of days. \nCan be combined as P1DT1H1M - 1 day, 1 hour and 1 minute. \nMinimum is 5 minutes, maximum is 14 days.")], description: Annotated[Optional[str], Field(default=None, description="Description of the new alert rule")], tactics: Annotated[Optional[str], Field(default=None, description="Tactics of the new alert rule. Comma-separated values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create Azure Sentinel Scheduled Alert Rule
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -356,10 +435,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -369,15 +445,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Enable Alert Rule"] = enable_alert_rule
@@ -416,21 +496,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_Create Alert Rule")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_Create Alert Rule for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_Create Alert Rule for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_update_alert_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_rule_id: Annotated[str, Field(..., description="Alert Rule ID")], enable_alert_rule: Annotated[bool, Field(default=None, description="Enable or disable new alert rule")], name: Annotated[str, Field(default=None, description="Display name of the new alert rule")], severity: Annotated[List[str], Field(default=None, description="Severity of the new alert rule")], query: Annotated[str, Field(default=None, description="Query of the new alert rule")], frequency: Annotated[str, Field(default=None, description="How frequently to run the query, use the following format: \nPT + number + (M, H), where M - minutes, H - hours. \nUse P + number + D to specify a number of days. \nCan be combined as P1DT1H1M - 1 day, 1 hour and 1 minute. \nMinimum is 5 minutes, maximum is 14 days.")], period_of_lookup_data: Annotated[str, Field(default=None, description="Time of the last lookup data, use the following format: \nPT + number + (M, H), where M - minutes, H - hours. \nUse P + number + D to specify a number of days. \nCan be combined as P1DT1H1M - 1 day, 1 hour and 1 minute. \nMinimum is 5 minutes, maximum is 14 days.")], trigger_operator: Annotated[List[str], Field(default=None, description="Trigger operator for this alert rule.\nPossible values are: GreaterThan, LessThan, Equal, NotEqual")], trigger_threshold: Annotated[str, Field(default=None, description="Trigger threshold for this alert rule")], enable_suppression: Annotated[bool, Field(default=None, description="Whether you want to stop running query after alert is generated")], suppression_duration: Annotated[str, Field(default=None, description="How long you want to stop running query after alert is generated, use the following format: \nPT + number + (M, H), where M - minutes, H - hours. \nUse P + number + D to specify a number of days. \nCan be combined as P1DT1H1M - 1 day, 1 hour and 1 minute. \nMinimum is 5 minutes, maximum is 14 days.")], description: Annotated[str, Field(default=None, description="Description of the new alert rule")], tactics: Annotated[str, Field(default=None, description="Tactics of the new alert rule. Comma-separated values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: Update Alert Rule',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: Update Alert Rule',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_update_alert_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_rule_id: Annotated[str, Field(..., description="Alert Rule ID")], enable_alert_rule: Annotated[Optional[bool], Field(default=None, description="Enable or disable new alert rule")], name: Annotated[Optional[str], Field(default=None, description="Display name of the new alert rule")], severity: Annotated[Optional[List[str]], Field(default=None, description="Severity of the new alert rule")], query: Annotated[Optional[str], Field(default=None, description="Query of the new alert rule")], frequency: Annotated[Optional[str], Field(default=None, description="How frequently to run the query, use the following format: \nPT + number + (M, H), where M - minutes, H - hours. \nUse P + number + D to specify a number of days. \nCan be combined as P1DT1H1M - 1 day, 1 hour and 1 minute. \nMinimum is 5 minutes, maximum is 14 days.")], period_of_lookup_data: Annotated[Optional[str], Field(default=None, description="Time of the last lookup data, use the following format: \nPT + number + (M, H), where M - minutes, H - hours. \nUse P + number + D to specify a number of days. \nCan be combined as P1DT1H1M - 1 day, 1 hour and 1 minute. \nMinimum is 5 minutes, maximum is 14 days.")], trigger_operator: Annotated[Optional[List[str]], Field(default=None, description="Trigger operator for this alert rule.\nPossible values are: GreaterThan, LessThan, Equal, NotEqual")], trigger_threshold: Annotated[Optional[str], Field(default=None, description="Trigger threshold for this alert rule")], enable_suppression: Annotated[Optional[bool], Field(default=None, description="Whether you want to stop running query after alert is generated")], suppression_duration: Annotated[Optional[str], Field(default=None, description="How long you want to stop running query after alert is generated, use the following format: \nPT + number + (M, H), where M - minutes, H - hours. \nUse P + number + D to specify a number of days. \nCan be combined as P1DT1H1M - 1 day, 1 hour and 1 minute. \nMinimum is 5 minutes, maximum is 14 days.")], description: Annotated[Optional[str], Field(default=None, description="Description of the new alert rule")], tactics: Annotated[Optional[str], Field(default=None, description="Tactics of the new alert rule. Comma-separated values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update Azure Sentinel Scheduled Alert Rule
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -444,10 +538,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -457,15 +548,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Alert Rule ID"] = alert_rule_id
@@ -515,21 +610,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_Update Alert Rule")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_Update Alert Rule for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_Update Alert Rule for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_list_incidents(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], time_frame: Annotated[str, Field(default=None, description="Time frame in hours for which to fetch Incidents")], status: Annotated[str, Field(default=None, description="Statuses of the incidents to look for. Comma-separated string")], severity: Annotated[str, Field(default=None, description="Severities of the incidents to look for. Comma-separated string.")], how_many_incidents_to_fetch: Annotated[str, Field(default=None, description="How many incidents to fetch")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: List Incidents',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: List Incidents',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_list_incidents(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], time_frame: Annotated[Optional[str], Field(default=None, description="Time frame in hours for which to fetch Incidents")], status: Annotated[Optional[str], Field(default=None, description="Statuses of the incidents to look for. Comma-separated string")], severity: Annotated[Optional[str], Field(default=None, description="Severities of the incidents to look for. Comma-separated string.")], how_many_incidents_to_fetch: Annotated[Optional[str], Field(default=None, description="How many incidents to fetch")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List Microsoft Azure Sentinel Incidents based on the provided search criteria.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -543,10 +652,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -556,15 +662,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if time_frame is not None:
@@ -597,21 +707,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_List Incidents")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_List Incidents for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_List Incidents for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_add_comment_to_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_number: Annotated[str, Field(..., description="Specify Incident number to add comment to.")], comment_to_add: Annotated[str, Field(..., description="Specify comment to add to Incident")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: Add Comment to Incident',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: Add Comment to Incident',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_add_comment_to_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_number: Annotated[str, Field(..., description="Specify Incident number to add comment to.")], comment_to_add: Annotated[str, Field(..., description="Specify comment to add to Incident")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add a comment to Azure Sentinel Incident.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -625,10 +749,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -638,15 +759,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Incident Number"] = incident_number
@@ -673,21 +798,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_Add Comment to Incident")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_Add Comment to Incident for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_Add Comment to Incident for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_update_incident_details_v2(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_case_number: Annotated[str, Field(..., description="Specify Azure Sentinel incident number to update.")], title: Annotated[str, Field(default=None, description="Specify new title for the Azure Sentinel incident.")], status: Annotated[List[str], Field(default=None, description="Specify new status for the Azure Sentinel incident.")], severity: Annotated[List[str], Field(default=None, description="Specify new severity for the Azure Sentinel incident.")], description: Annotated[str, Field(default=None, description="Specify new description for the Azure Sentinel incident.")], assigned_to: Annotated[str, Field(default=None, description="Specify the user to assign the incident to.")], closed_reason: Annotated[List[str], Field(default=None, description="If status of the incident is set to Closed, provide a Closed Reason for the incident.")], closing_comment: Annotated[str, Field(default=None, description="Optional closing comment to provide for the closed Azure Sentinel Incident.")], number_of_retries: Annotated[str, Field(default=None, description="Specify the number of retry attempts the action should make if the incident update was unsuccessful.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: Update Incident Details V2',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: Update Incident Details V2',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_update_incident_details_v2(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_case_number: Annotated[str, Field(..., description="Specify Azure Sentinel incident number to update.")], title: Annotated[Optional[str], Field(default=None, description="Specify new title for the Azure Sentinel incident.")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify new status for the Azure Sentinel incident.")], severity: Annotated[Optional[List[str]], Field(default=None, description="Specify new severity for the Azure Sentinel incident.")], description: Annotated[Optional[str], Field(default=None, description="Specify new description for the Azure Sentinel incident.")], assigned_to: Annotated[Optional[str], Field(default=None, description="Specify the user to assign the incident to.")], closed_reason: Annotated[Optional[List[str]], Field(default=None, description="If status of the incident is set to Closed, provide a Closed Reason for the incident.")], closing_comment: Annotated[Optional[str], Field(default=None, description="Optional closing comment to provide for the closed Azure Sentinel Incident.")], number_of_retries: Annotated[Optional[str], Field(default=None, description="Specify the number of retry attempts the action should make if the incident update was unsuccessful.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update Incident Details v2. Action is a Chronicle SOAR async action and can be configured for a retry for a longer period of time.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -701,10 +840,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -714,15 +850,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Incident Case Number"] = incident_case_number
@@ -764,21 +904,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_Update Incident Details v2")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_Update Incident Details v2 for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_Update Incident Details v2 for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: Ping',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to Microsoft Azure Sentinel
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -792,10 +946,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -805,15 +956,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -838,21 +993,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_Ping")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_Ping for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_Ping for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_get_custom_hunting_rule_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hunting_rule_id: Annotated[str, Field(..., description="Hunting Rule ID")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: Get Custom Hunting Rule Details',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: Get Custom Hunting Rule Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_get_custom_hunting_rule_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hunting_rule_id: Annotated[str, Field(..., description="Hunting Rule ID")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get Details of the Azure Sentinel Custom Hunting Rule
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -866,10 +1035,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -879,15 +1045,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Hunting Rule ID"] = hunting_rule_id
@@ -913,21 +1083,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_Get Custom Hunting Rule Details")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_Get Custom Hunting Rule Details for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_Get Custom Hunting Rule Details for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_create_custom_hunting_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], display_name: Annotated[str, Field(..., description="Display name of the new custom hunting rule")], query: Annotated[str, Field(..., description="Query of the new custom hunting rule")], description: Annotated[str, Field(default=None, description="Description of the new custom hunting rule")], tactics: Annotated[str, Field(default=None, description="Tactics of the new custom hunting rule. Comma-separated values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: Create Custom Hunting Rule',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: Create Custom Hunting Rule',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_create_custom_hunting_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], display_name: Annotated[str, Field(..., description="Display name of the new custom hunting rule")], query: Annotated[str, Field(..., description="Query of the new custom hunting rule")], description: Annotated[Optional[str], Field(default=None, description="Description of the new custom hunting rule")], tactics: Annotated[Optional[str], Field(default=None, description="Tactics of the new custom hunting rule. Comma-separated values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create Azure Sentinel Custom Hunting Rule
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -941,10 +1125,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -954,15 +1135,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Display Name"] = display_name
@@ -993,21 +1178,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_Create Custom Hunting Rule")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_Create Custom Hunting Rule for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_Create Custom Hunting Rule for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_delete_custom_hunting_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hunting_rule_id: Annotated[str, Field(..., description="Hunting Rule ID")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: Delete Custom Hunting Rule',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: Delete Custom Hunting Rule',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_delete_custom_hunting_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hunting_rule_id: Annotated[str, Field(..., description="Hunting Rule ID")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete Azure Sentinel Custom Hunting Rule
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1021,10 +1220,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1034,15 +1230,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Hunting Rule ID"] = hunting_rule_id
@@ -1068,21 +1268,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_Delete Custom Hunting Rule")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_Delete Custom Hunting Rule for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_Delete Custom Hunting Rule for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_update_incident_labels(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_case_number: Annotated[str, Field(..., description="Specify Azure Sentinel incident number to update with new labels.")], labels: Annotated[str, Field(..., description="Specify new labels that should be appended to the Incident. Parameter accepts multiple values as a comma-separated string.")], number_of_retries: Annotated[str, Field(default=None, description="Specify the number of retry attempts the action should make if the incident update was unsuccessful.")], retry_every: Annotated[str, Field(default=None, description="Specify what time period in seconds action should wait between incident update retries.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: Update Incident Labels',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: Update Incident Labels',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_update_incident_labels(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_case_number: Annotated[str, Field(..., description="Specify Azure Sentinel incident number to update with new labels.")], labels: Annotated[str, Field(..., description="Specify new labels that should be appended to the Incident. Parameter accepts multiple values as a comma-separated string.")], number_of_retries: Annotated[Optional[str], Field(default=None, description="Specify the number of retry attempts the action should make if the incident update was unsuccessful.")], retry_every: Annotated[Optional[str], Field(default=None, description="Specify what time period in seconds action should wait between incident update retries.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update Incident Labels. Please consider moving to the v2 version of the action, as it is implemented as a SOAR async action and provides more consistent results.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1096,10 +1310,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1109,15 +1320,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Incident Case Number"] = incident_case_number
@@ -1148,21 +1363,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_Update Incident Labels")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_Update Incident Labels for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_Update Incident Labels for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_update_incident_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_case_number: Annotated[str, Field(..., description="Specify Azure Sentinel incident number to update.")], title: Annotated[str, Field(default=None, description="Specify new title for the Azure Sentinel incident.")], status: Annotated[List[str], Field(default=None, description="Specify new status for the Azure Sentinel incident.")], severity: Annotated[List[str], Field(default=None, description="Specify new severity for the Azure Sentinel incident.")], description: Annotated[str, Field(default=None, description="Specify new description for the Azure Sentinel incident.")], assigned_to: Annotated[str, Field(default=None, description="Specify the user to assign the incident to.")], closed_reason: Annotated[List[str], Field(default=None, description="If status of the incident is set to Closed, provide a Closed Reason for the incident.")], closing_comment: Annotated[str, Field(default=None, description="Optional closing comment to provide for the closed Azure Sentinel Incident.")], number_of_retries: Annotated[str, Field(default=None, description="Specify the number of retry attempts the action should make if the incident update was unsuccessful.")], retry_every: Annotated[str, Field(default=None, description="Specify what time period action should wait between incident update retries.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: Update Incident Details',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: Update Incident Details',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_update_incident_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_case_number: Annotated[str, Field(..., description="Specify Azure Sentinel incident number to update.")], title: Annotated[Optional[str], Field(default=None, description="Specify new title for the Azure Sentinel incident.")], status: Annotated[Optional[List[str]], Field(default=None, description="Specify new status for the Azure Sentinel incident.")], severity: Annotated[Optional[List[str]], Field(default=None, description="Specify new severity for the Azure Sentinel incident.")], description: Annotated[Optional[str], Field(default=None, description="Specify new description for the Azure Sentinel incident.")], assigned_to: Annotated[Optional[str], Field(default=None, description="Specify the user to assign the incident to.")], closed_reason: Annotated[Optional[List[str]], Field(default=None, description="If status of the incident is set to Closed, provide a Closed Reason for the incident.")], closing_comment: Annotated[Optional[str], Field(default=None, description="Optional closing comment to provide for the closed Azure Sentinel Incident.")], number_of_retries: Annotated[Optional[str], Field(default=None, description="Specify the number of retry attempts the action should make if the incident update was unsuccessful.")], retry_every: Annotated[Optional[str], Field(default=None, description="Specify what time period action should wait between incident update retries.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update Incident Details. Please consider moving to the v2 version of the action, as it is implemented as a SOAR async action and provides more consistent results.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1176,10 +1405,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1189,15 +1415,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Incident Case Number"] = incident_case_number
@@ -1241,21 +1471,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_Update Incident Details")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_Update Incident Details for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_Update Incident Details for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_update_incident_labels_v2(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_case_number: Annotated[str, Field(..., description="Specify Azure Sentinel incident number to update with new labels.")], labels: Annotated[str, Field(..., description="Specify new labels that should be appended to the Incident. Parameter accepts multiple values as a comma-separated string.")], number_of_retries: Annotated[str, Field(default=None, description="Specify the number of retry attempts the action should make if the incident update was unsuccessful.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: Update Incident Labels V2',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: Update Incident Labels V2',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_update_incident_labels_v2(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_case_number: Annotated[str, Field(..., description="Specify Azure Sentinel incident number to update with new labels.")], labels: Annotated[str, Field(..., description="Specify new labels that should be appended to the Incident. Parameter accepts multiple values as a comma-separated string.")], number_of_retries: Annotated[Optional[str], Field(default=None, description="Specify the number of retry attempts the action should make if the incident update was unsuccessful.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update Incident Labels v2. Action is a Chronicle SOAR async action and can be configured for a retry for a longer period of time.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1269,10 +1513,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1282,15 +1523,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Incident Case Number"] = incident_case_number
@@ -1319,21 +1564,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_Update Incident Labels v2")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_Update Incident Labels v2 for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_Update Incident Labels v2 for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_list_alert_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_rule_severity: Annotated[str, Field(default=None, description="Severities of the alert rules to look for. Comma-separated string")], fetch_specific_alert_rule_types: Annotated[str, Field(default=None, description="What alert rule types action should return. Comma-separated string")], fetch_specific_alert_rule_tactics: Annotated[str, Field(default=None, description="What alert rule tactics action should return. Comma-separated string")], fetch_only_enabled_alert_rules: Annotated[bool, Field(default=None, description="If action should return only enabled alert rules")], max_rules_to_return: Annotated[str, Field(default=None, description="How many scheduled alert rules the action should return, for example, 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: List Alert Rules',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: List Alert Rules',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_list_alert_rules(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_rule_severity: Annotated[Optional[str], Field(default=None, description="Severities of the alert rules to look for. Comma-separated string")], fetch_specific_alert_rule_types: Annotated[Optional[str], Field(default=None, description="What alert rule types action should return. Comma-separated string")], fetch_specific_alert_rule_tactics: Annotated[Optional[str], Field(default=None, description="What alert rule tactics action should return. Comma-separated string")], fetch_only_enabled_alert_rules: Annotated[Optional[bool], Field(default=None, description="If action should return only enabled alert rules")], max_rules_to_return: Annotated[Optional[str], Field(default=None, description="How many scheduled alert rules the action should return, for example, 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get Azure Sentinel Scheduled Rules list
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1347,10 +1606,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1360,15 +1616,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if alert_rule_severity is not None:
@@ -1403,21 +1663,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_List Alert Rules")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_List Alert Rules for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_List Alert Rules for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_delete_alert_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_rule_id: Annotated[str, Field(..., description="Alert Rule ID")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: Delete Alert Rule',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: Delete Alert Rule',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_delete_alert_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], alert_rule_id: Annotated[str, Field(..., description="Alert Rule ID")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete Azure Sentinel Scheduled Alert Rule
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1431,10 +1705,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1444,15 +1715,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Alert Rule ID"] = alert_rule_id
@@ -1478,21 +1753,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_Delete Alert Rule")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_Delete Alert Rule for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_Delete Alert Rule for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_update_custom_hunting_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hunting_rule_id: Annotated[str, Field(..., description="Hunting Rule ID")], display_name: Annotated[str, Field(default=None, description="Display name of the new custom hunting rule")], query: Annotated[str, Field(default=None, description="Query of the new custom hunting rule")], description: Annotated[str, Field(default=None, description="Description of the new custom hunting rule")], tactics: Annotated[str, Field(default=None, description="Tactics of the new custom hunting rule. Comma-separated values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: Update Custom Hunting Rule',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: Update Custom Hunting Rule',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_update_custom_hunting_rule(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hunting_rule_id: Annotated[str, Field(..., description="Hunting Rule ID")], display_name: Annotated[Optional[str], Field(default=None, description="Display name of the new custom hunting rule")], query: Annotated[Optional[str], Field(default=None, description="Query of the new custom hunting rule")], description: Annotated[Optional[str], Field(default=None, description="Description of the new custom hunting rule")], tactics: Annotated[Optional[str], Field(default=None, description="Tactics of the new custom hunting rule. Comma-separated values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update Azure Sentinel Custom Hunting Rule
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1506,10 +1795,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1519,15 +1805,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Hunting Rule ID"] = hunting_rule_id
@@ -1561,21 +1851,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_Update Custom Hunting Rule")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_Update Custom Hunting Rule for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_Update Custom Hunting Rule for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_azure_sentinel_run_custom_hunting_rule_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hunting_rule_id: Annotated[str, Field(..., description="Hunting Rule ID")], timeout: Annotated[str, Field(default=None, description="Timeout value for the Azure Sentinel hunting rule API call")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Azure Sentinel: Run Custom Hunting Rule Query',
+        annotations=ToolAnnotations(
+            title='Microsoft Azure Sentinel: Run Custom Hunting Rule Query',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_azure_sentinel_run_custom_hunting_rule_query(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], hunting_rule_id: Annotated[str, Field(..., description="Hunting Rule ID")], timeout: Annotated[Optional[str], Field(default=None, description="Timeout value for the Azure Sentinel hunting rule API call")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Run Custom Hunting Rule Query
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1589,10 +1893,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1602,15 +1903,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftAzureSentinel")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftAzureSentinel: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftAzureSentinel: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Hunting Rule ID"] = hunting_rule_id
@@ -1638,10 +1943,10 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftAzureSentinel_Run Custom Hunting Rule Query")
             except Exception as e:
-                print(f"Error executing action MicrosoftAzureSentinel_Run Custom Hunting Rule Query for MicrosoftAzureSentinel: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftAzureSentinel_Run Custom Hunting Rule Query for MicrosoftAzureSentinel: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftAzureSentinel")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftAzureSentinel")
+            return marketplace_error_result("No active instance found.")

@@ -19,10 +19,15 @@ setup = setuptools.setup
 
 setup(
     name="gti-mcp",
-    version="0.1.3",
+    version="0.2.0",
     packages=setuptools.find_packages(),
     install_requires=[
-        "mcp>=1.23.0,<2.0",
+        "cryptography>=42.0.0",
+        "httpx2>=2.10.0",
+        "mcp[cli]>=2.3.0,<3.0.0",
+        "pydantic>=2.11.2",
+        "starlette>=0.40.0",
+        "uvicorn>=0.30.0",
         "vt-py",
     ],
     extras_require={
@@ -31,6 +36,9 @@ setup(
     entry_points={
         "console_scripts": [
             "gti_mcp=gti_mcp.server:main",
+        ],
+        "mcp": [
+            "gti-mcp=gti_mcp.server:main",
         ],
     },
 )

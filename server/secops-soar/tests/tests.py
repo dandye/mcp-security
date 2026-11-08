@@ -28,10 +28,10 @@ from typing import Optional
 
 from secops_soar_mcp.server import mcp as mcp_server
 
-from mcp.shared.memory import (
-    create_connected_server_and_client_session as client_session,
-)
+from mcp.client import Client
 from tests.conftest import setup_bindings
+
+pytestmark = pytest.mark.integration
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -55,13 +55,13 @@ async def call_tool_and_get_text_response(
     Raises AssertionError if standard checks fail.
     """
     # Execute tool call.
-    async with client_session(mcp_server._mcp_server) as client:
+    async with Client(mcp_server) as client:
         if tool_arguments:
             result = await client.call_tool(tool_name, tool_arguments)
         else:
             result = await client.call_tool(tool_name)
         assert isinstance(result, mcp.types.CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert len(result.content) == 1
         assert isinstance(result.content[0], mcp.types.TextContent)
         return result.content[0].text
@@ -71,7 +71,7 @@ async def call_tool_and_get_text_response(
 async def test_server_connection(setup_bindings):
     """Test that the server is running and accessible."""
 
-    async with client_session(mcp_server._mcp_server) as client:
+    async with Client(mcp_server) as client:
         tools_result = await client.list_tools()
         assert isinstance(tools_result, mcp.ListToolsResult)
         assert len(tools_result.tools) > 0

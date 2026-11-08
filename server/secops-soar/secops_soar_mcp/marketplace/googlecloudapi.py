@@ -12,25 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
+from logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the GoogleCloudApi integration.
 
-    @mcp.tool()
-    async def google_cloud_api_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google Cloud API: Ping',
+        annotations=ToolAnnotations(
+            title='Google Cloud API: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_cloud_api_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -44,10 +63,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -57,15 +73,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleCloudApi")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleCloudApi: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleCloudApi: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -90,21 +110,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleCloudApi_Ping")
             except Exception as e:
-                print(f"Error executing action GoogleCloudApi_Ping for GoogleCloudApi: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleCloudApi_Ping for GoogleCloudApi: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleCloudApi")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleCloudApi")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def google_cloud_api_execute_http_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], method: Annotated[List[str], Field(..., description="Specify the method for the request.")], url_path: Annotated[str, Field(..., description="Specify the URL that needs to be executed.")], fields_to_return: Annotated[str, Field(..., description="Specify what fields to return. Possible values: response_data, redirects, response_code,response_cookies,response_headers,apparent_encoding")], request_timeout: Annotated[str, Field(..., description="How long to wait for the server to send data before giving up")], url_params: Annotated[str, Field(default=None, description="Specify the parameters for the URL. Any value provided in this parameter will be used alongside the values that are directly provided in the URL path parameters.")], headers: Annotated[str, Field(default=None, description="Specify headers for the HTTP request.")], cookie: Annotated[str, Field(default=None, description="Specify the parameters that should be constructed into the \"Cookie\" header. This parameter will overwrite the cookie provided in the \"Headers\" parameter.")], body_payload: Annotated[str, Field(default=None, description="Specify body for the HTTP request.")], expected_response_values: Annotated[str, Field(default=None, description="Specify the expected response values. If this parameter is not empty, then action will work in ASYNC mode and action will execute until the expected values will be seen or until timeout.")], follow_redirects: Annotated[bool, Field(default=None, description="If enabled, action will follow the redirects.")], fail_on_4xx_5xx: Annotated[bool, Field(default=None, description="If enabled, action will fail, if the status code of the response is 4xx or 5xx.")], base64_output: Annotated[bool, Field(default=None, description="If enabled, action will convert the response to base64. This is useful when downloading files. Note: JSON result can't be bigger than 15 mb.")], save_to_case_wall: Annotated[bool, Field(default=None, description="If enabled, action will save the file and attach it to the case wall. Note: the file will be archived with \".zip\" extension. This zip will not be password protected.")], password_protect_zip: Annotated[bool, Field(default=None, description="If enabled, action will add an \"infected\" password to the zip created with \"Save To Case Wall\" parameter. Use this, when you are dealing with suspicious files.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google Cloud API: Execute HTTP Request',
+        annotations=ToolAnnotations(
+            title='Google Cloud API: Execute HTTP Request',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def google_cloud_api_execute_http_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], method: Annotated[List[str], Field(..., description="Specify the method for the request.")], url_path: Annotated[str, Field(..., description="Specify the URL that needs to be executed.")], fields_to_return: Annotated[str, Field(..., description="Specify what fields to return. Possible values: response_data, redirects, response_code,response_cookies,response_headers,apparent_encoding")], request_timeout: Annotated[str, Field(..., description="How long to wait for the server to send data before giving up")], url_params: Annotated[Optional[str], Field(default=None, description="Specify the parameters for the URL. Any value provided in this parameter will be used alongside the values that are directly provided in the URL path parameters.")], headers: Annotated[Optional[str], Field(default=None, description="Specify headers for the HTTP request.")], cookie: Annotated[Optional[str], Field(default=None, description="Specify the parameters that should be constructed into the \"Cookie\" header. This parameter will overwrite the cookie provided in the \"Headers\" parameter.")], body_payload: Annotated[Optional[str], Field(default=None, description="Specify body for the HTTP request.")], expected_response_values: Annotated[Optional[str], Field(default=None, description="Specify the expected response values. If this parameter is not empty, then action will work in ASYNC mode and action will execute until the expected values will be seen or until timeout.")], follow_redirects: Annotated[Optional[bool], Field(default=None, description="If enabled, action will follow the redirects.")], fail_on_4xx_5xx: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fail, if the status code of the response is 4xx or 5xx.")], base64_output: Annotated[Optional[bool], Field(default=None, description="If enabled, action will convert the response to base64. This is useful when downloading files. Note: JSON result can't be bigger than 15 mb.")], save_to_case_wall: Annotated[Optional[bool], Field(default=None, description="If enabled, action will save the file and attach it to the case wall. Note: the file will be archived with \".zip\" extension. This zip will not be password protected.")], password_protect_zip: Annotated[Optional[bool], Field(default=None, description="If enabled, action will add an \"infected\" password to the zip created with \"Save To Case Wall\" parameter. Use this, when you are dealing with suspicious files.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Execute HTTP request.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -118,10 +152,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -131,15 +162,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleCloudApi")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleCloudApi: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleCloudApi: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Method"] = method
@@ -188,10 +223,10 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleCloudApi_Execute HTTP Request")
             except Exception as e:
-                print(f"Error executing action GoogleCloudApi_Execute HTTP Request for GoogleCloudApi: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleCloudApi_Execute HTTP Request for GoogleCloudApi: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleCloudApi")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleCloudApi")
+            return marketplace_error_result("No active instance found.")

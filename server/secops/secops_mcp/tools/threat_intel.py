@@ -15,21 +15,33 @@
 
 import json
 import logging
-from typing import Optional
+from typing import Any, Optional
 
+from mcp.types import ToolAnnotations as _ToolAnnotations
 from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.utils import tool_error_result as _tool_error_result
 
 
 # Configure logging
 logger = logging.getLogger('secops-mcp')
 
-@server.tool()
+
+@server.tool(
+    title='Ask Chronicle Threat Intelligence',
+    annotations=_ToolAnnotations(
+        title='Ask Chronicle Threat Intelligence',
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_threat_intel(
     query: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> str:
+) -> dict[str, Any]:
     """Get answers to security questions using Chronicle's integrated Gemini model.
 
     Leverages Gemini to answer general security domain questions or provide specific
@@ -70,7 +82,7 @@ async def get_threat_intel(
         - Document relevant findings in the appropriate case management or ticketing system using an MCP tool.
     """
     try:
-        logger.info(f'Getting threat intelligence for query: {query}')
+        logger.info('Getting threat intelligence for query: %s', query)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -79,26 +91,23 @@ async def get_threat_intel(
 
         # Handle GeminiResponse object
         if hasattr(response, 'get_text_content'):
-            # This is a GeminiResponse object, extract text content
-            return response.get_text_content()
+            answer = response.get_text_content()
         elif hasattr(response, 'blocks') and isinstance(response.blocks, list):
-            # Handle direct access to blocks if get_text_content isn't available
             text_content = []
             for block in response.blocks:
                 if hasattr(block, 'block_type') and hasattr(block, 'content'):
-                    if block.block_type == "TEXT":
+                    if block.block_type == 'TEXT':
                         text_content.append(block.content)
-            return "\n\n".join(text_content) if text_content else "No text content found in response."
+            answer = '\n\n'.join(text_content) if text_content else 'No text content found in response.'
         elif isinstance(response, dict) and 'answer' in response:
-            # Legacy format or different API response
-            return response.get('answer', 'No answer was provided by the model.')
+            answer = response.get('answer', 'No answer was provided by the model.')
         elif isinstance(response, str):
-            # Direct string response
-            return response
+            answer = response
         else:
-            # If response is in an unexpected format, try to convert it to string
-            return json.dumps(response)
+            answer = json.dumps(response)
+
+        return {'query': query, 'answer': answer, 'summary': answer}
 
     except Exception as e:
-        logger.error(f'Error getting threat intelligence: {str(e)}', exc_info=True)
-        return f'Error retrieving threat intelligence: {str(e)}'
+        logger.error('Error getting threat intelligence: %s', e, exc_info=True)
+        return _tool_error_result(f'Error retrieving threat intelligence: {e}', query=query)

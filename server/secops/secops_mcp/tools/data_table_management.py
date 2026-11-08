@@ -16,13 +16,25 @@
 import logging
 from typing import Any, Dict, List, Optional
 
+from mcp.types import ToolAnnotations as _ToolAnnotations
 from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.utils import tool_error_result as _tool_error_result
 
 
 # Configure logging
 logger = logging.getLogger('secops-mcp')
 
-@server.tool()
+
+@server.tool(
+    title="Create Chronicle Data Table",
+    annotations=_ToolAnnotations(
+        title="Create Chronicle Data Table",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=False,
+    ),
+)
 async def create_data_table(
     name: str,
     description: str,
@@ -31,7 +43,7 @@ async def create_data_table(
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
     rows: Optional[List[List[str]]] = None,
-) -> str:
+) -> dict[str, Any]:
     """Create a new data table in Chronicle SIEM.
 
     Creates a structured data table that can be referenced in detection rules to enhance
@@ -115,10 +127,8 @@ async def create_data_table(
         - Use the table data to enhance detection logic and reduce false positives.
     """
     try:
-        logger.info(f'Creating data table: {name}')
+        logger.info('Creating data table: %s', name)
 
-        
-        
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # Create the data table
@@ -155,20 +165,38 @@ async def create_data_table(
         
         result += f'\nThe table can now be referenced in detection rules as: data_table.{name}'
         
-        return result
+        return {
+            "status": "success",
+            "summary": result,
+            "table_name": name,
+            "table_id": table_name,
+            "create_time": create_time,
+            "column_count": column_count,
+            "initial_rows_added": len(rows) if rows else 0,
+        }
 
     except Exception as e:
-        logger.error(f'Error creating data table {name}: {str(e)}', exc_info=True)
-        return f'Error creating data table {name}: {str(e)}'
+        logger.error('Error creating data table %s: %s', name, e, exc_info=True)
+        return _tool_error_result(f'Error creating data table {name}: {e}', table_name=name)
 
-@server.tool()
+
+@server.tool(
+    title="Add Rows to Data Table",
+    annotations=_ToolAnnotations(
+        title="Add Rows to Data Table",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=False,
+    ),
+)
 async def add_rows_to_data_table(
     table_name: str,
     rows: List[List[str]],
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> str:
+) -> dict[str, Any]:
     """Add rows to an existing data table in Chronicle SIEM.
 
     Adds new data rows to an existing data table, expanding the dataset available for
@@ -241,14 +269,12 @@ async def add_rows_to_data_table(
         - Document the data sources and update procedures for operational teams.
     """
     try:
-        logger.info(f'Adding {len(rows)} rows to data table: {table_name}')
+        logger.info('Adding %s rows to data table: %s', len(rows), table_name)
 
-        
-        
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # Add rows to the data table
-        result_response = chronicle.create_data_table_rows(table_name, rows)
+        chronicle.create_data_table_rows(table_name, rows)
 
         result = f'Successfully added rows to data table: {table_name}\n'
         result += f'Rows added: {len(rows)}\n'
@@ -264,20 +290,38 @@ async def add_rows_to_data_table(
         
         result += f'\nThe updated table can be used in detection rules as: data_table.{table_name}'
         
-        return result
+        return {
+            "status": "success",
+            "summary": result,
+            "table_name": table_name,
+            "rows_added": len(rows),
+        }
 
     except Exception as e:
-        logger.error(f'Error adding rows to data table {table_name}: {str(e)}', exc_info=True)
-        return f'Error adding rows to data table {table_name}: {str(e)}'
+        logger.error('Error adding rows to data table %s: %s', table_name, e, exc_info=True)
+        return _tool_error_result(
+            f'Error adding rows to data table {table_name}: {e}',
+            table_name=table_name,
+        )
 
-@server.tool()
+
+@server.tool(
+    title="List Data Table Rows",
+    annotations=_ToolAnnotations(
+        title="List Data Table Rows",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def list_data_table_rows(
     table_name: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
     max_rows: int = 50,
-) -> str:
+) -> dict[str, Any]:
     """List rows in a data table in Chronicle SIEM.
 
     Retrieves and displays the contents of a data table, showing all rows and their data.
@@ -336,17 +380,20 @@ async def list_data_table_rows(
         - Set up regular reviews to maintain data quality and relevance.
     """
     try:
-        logger.info(f'Listing rows in data table: {table_name}')
+        logger.info('Listing rows in data table: %s', table_name)
 
-        
-        
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # List rows in the data table
         rows = chronicle.list_data_table_rows(table_name)
 
         if not rows:
-            return f'Data table "{table_name}" has no rows or was not found.'
+            return {
+                "summary": f'Data table "{table_name}" has no rows or was not found.',
+                "table_name": table_name,
+                "total_rows": 0,
+                "rows": [],
+            }
 
         result = f'Data Table: {table_name}\n'
         result += f'Total rows found: {len(rows)}\n'
@@ -365,22 +412,41 @@ async def list_data_table_rows(
 
         if len(rows) > max_rows:
             result += f'Note: Showing first {max_rows} rows out of {len(rows)} total rows.\n'
-            result += f'Increase max_rows parameter to see more rows.'
+            result += 'Increase max_rows parameter to see more rows.'
         
-        return result
+        return {
+            "summary": result,
+            "table_name": table_name,
+            "total_rows": len(rows),
+            "rows": displayed_rows,
+        }
 
     except Exception as e:
-        logger.error(f'Error listing rows in data table {table_name}: {str(e)}', exc_info=True)
-        return f'Error listing rows in data table {table_name}: {str(e)}'
+        logger.error('Error listing rows in data table %s: %s', table_name, e, exc_info=True)
+        return _tool_error_result(
+            f'Error listing rows in data table {table_name}: {e}',
+            table_name=table_name,
+            rows=[],
+        )
 
-@server.tool()
+
+@server.tool(
+    title="Delete Data Table Rows",
+    annotations=_ToolAnnotations(
+        title="Delete Data Table Rows",
+        read_only_hint=False,
+        destructive_hint=True,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def delete_data_table_rows(
     table_name: str,
     row_ids: List[str],
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> str:
+) -> dict[str, Any]:
     """Delete specific rows from a data table in Chronicle SIEM.
 
     Removes specific rows from a data table based on their row IDs. This is useful for
@@ -449,10 +515,8 @@ async def delete_data_table_rows(
         - Review and update any documentation that references the deleted data.
     """
     try:
-        logger.info(f'Deleting {len(row_ids)} rows from data table: {table_name}')
+        logger.info('Deleting %s rows from data table: %s', len(row_ids), table_name)
 
-        
-        
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # Delete rows from the data table
@@ -466,11 +530,20 @@ async def delete_data_table_rows(
         for row_id in row_ids:
             result += f'  - {row_id}\n'
         
-        result += f'\nWarning: This operation cannot be undone. '
-        result += f'Verify the table contents using list_data_table_rows if needed.'
+        result += '\nWarning: This operation cannot be undone. '
+        result += 'Verify the table contents using list_data_table_rows if needed.'
         
-        return result
+        return {
+            "status": "success",
+            "summary": result,
+            "table_name": table_name,
+            "rows_deleted": len(row_ids),
+            "deleted_row_ids": row_ids,
+        }
 
     except Exception as e:
-        logger.error(f'Error deleting rows from data table {table_name}: {str(e)}', exc_info=True)
-        return f'Error deleting rows from data table {table_name}: {str(e)}' 
+        logger.error('Error deleting rows from data table %s: %s', table_name, e, exc_info=True)
+        return _tool_error_result(
+            f'Error deleting rows from data table {table_name}: {e}',
+            table_name=table_name,
+        )

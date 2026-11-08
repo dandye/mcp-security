@@ -1,95 +1,155 @@
-# Google Security Operations and Threat Intelligence MCP Server
+# Google Security Operations and Threat Intelligence MCP Servers
 
-This repository contains Model Context Protocol (MCP) servers that enable MCP clients (like Claude Desktop or the cline.bot VS Code extension) to access Google's security products and services:
+This repository provides Model Context Protocol (MCP) servers targeting the MCP `2026-07-28` specification (`mcp>=2.3.0,<3.0.0`) and a prebuilt Autonomous Security Operations Center (SOC) Agent built on Google Agent Development Kit (`google-adk[mcp]>=2.13.0,<3.0.0`):
 
-1. **Remote MCP Server for Google SecOps** - Fully managed, enterprise-ready MCP server (Recommended)
-2. **Google Security Operations (Chronicle)** - For threat detection, investigation, and hunting
-3. **Google Security Operations SOAR** - For security orchestration, automation, and response
-4. **Google Threat Intelligence (GTI)** - For access to Google's threat intelligence data
-5. **Security Command Center (SCC)** - For cloud security and risk management
+1. **Remote MCP Server for Google Security Operations** - Fully managed Google Cloud MCP endpoint (Recommended for Google SecOps SIEM)
+2. **Google Security Operations SIEM (`google-secops-mcp` `0.9.0`)** - UDM event search, alerts, entity context, retrohunts, and YARA-L 2.0 detection rules
+3. **Google Security Operations SOAR (`secops-soar-mcp` `0.3.0`)** - Case management, alert grouping, entity enrichment, and 313 marketplace integrations
+4. **Google Threat Intelligence (`gti-mcp` `0.2.0`)** - IOC enrichment, threat actor and campaign collections, sandbox behavior reports, and standard YARA file/payload hunting rulesets
+5. **Google Cloud Security Command Center (`scc-mcp` `0.3.0`)** - Cloud security posture findings, attack exposure prioritization, compliance search, and Cloud Asset Inventory context
 
-For the new **Remote MCP Server**, please see the [launch announcement](https://security.googlecloudcommunity.com/community-blog-42/google-cloud-remote-mcp-server-for-secops-6559) and the [setup guide](docs/remote_server.md).
+For the managed **Remote MCP Server**, see the [launch announcement](https://security.googlecloudcommunity.com/community-blog-42/google-cloud-remote-mcp-server-for-secops-6559) and the [remote server setup guide](docs/remote_server.md).
 
-Each server can be enabled and run separately, allowing flexibility for environments that don't require all capabilities.
+## MCP 2026-07-28 Capabilities
+
+All four local/self-hosted MCP servers implement the MCP `2026-07-28` protocol specification on `MCPServer` (`mcp>=2.3.0`):
+
+- **Dual Transports (`stdio` and Stateless `streamable-http`)**: Run locally over `stdio` or deploy over stateless single-exchange Streamable HTTP (`--transport streamable-http --host 127.0.0.1 --port 8080`) with `server/discover`, `/healthz`, and `/readyz` endpoints.
+- **Discovery Caching (`SEP-2549`) and OpenTelemetry**: Configurable `CacheHint` TTLs (`MCP_TOOLS_CACHE_TTL_MS`, plus `MCP_TOOLS_CACHE_SCOPE` on `secops-soar-mcp`) and built-in `OpenTelemetryMiddleware` span instrumentation (`OTEL_EXPORTER_OTLP_ENDPOINT`).
+- **100% `ToolAnnotations` and Typed `structuredContent`**: Every registered tool declares human-readable `title` metadata and `ToolAnnotations` (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`), returns typed `structuredContent` envelopes, and signals operational failures with `is_error=True`.
+- **Sandboxed Resources (`DEFAULT_RESOURCE_SECURITY`) and `ResourceLink` Compaction**: Addressable resources under `secops://`, `gti://`, `soar://`, and `scc://` URI templates paired with `ResourceLink` summaries on high-volume listing tools (`list_security_rules`, `get_security_alerts`, `search_threats`, `list_cases`, `top_vulnerability_findings`).
+- **Parameterized SOC `@server.prompt()` Workflows**: Reusable investigation, YARA-L 2.0 rule validation, threat profiling, case triage, and cloud exposure prompts across all four servers.
+- **Stateless Multi-Round Tool Requests (MRTR) and Progress Notifications**: Encrypted `AESGCMRequestStateCodec` elicitation (`MCP_ELICIT_DESTRUCTIVE=true`, `MCP_UNATTENDED_DESTRUCTIVE_POLICY`) before high-impact mutations (`delete_rule`, `analyse_file`, `close_case`, `set_finding_mute`) and streaming `ctx.report_progress(...)` updates on long-running operations (`test_rule`, `export_udm_search_csv`, `analyse_file`, `analyse_url`).
+- **OAuth 2.1 Resource Server**: Optional RFC 9728 Protected Resource Metadata (`/.well-known/oauth-protected-resource`) and JWT/JWKS bearer verification (`MCP_OAUTH_ISSUER_URL`, `MCP_RESOURCE_SERVER_URL`, `MCP_OAUTH_JWKS_URL`, `MCP_OAUTH_JWKS_JSON`, `MCP_REQUIRED_SCOPES`).
+- **Dark-Mode MCP Apps**: Interactive HTML UI resources (`ui://secops/entity-timeline.html`, `ui://gti/ioc-verdict.html`, `ui://scc/finding-card.html`) rendered by MCP Apps-capable hosts, with `--disable-apps` / `MCP_ENABLE_APPS=false` opt-out.
+- **Official MCP Registry Manifests**: Validated `server.json` manifests (`2025-12-11/server.schema.json`) in every server package directory (`io.github.google/google-secops-mcp`, `io.github.google/gti-mcp`, `io.github.google/secops-soar-mcp`, `io.github.google/scc-mcp`).
 
 ## Documentation
 
-Comprehensive documentation is available in the `docs` folder. You can:
+Full documentation is available in `docs/` and published at [https://google.github.io/mcp-security/](https://google.github.io/mcp-security/). Start at [docs/index.md](docs/index.md) or [docs/usage_guide.md](docs/usage_guide.md).
 
-1. Read the markdown files directly in the repository
-2. View the documentation website at [https://google.github.io/mcp-security/](https://google.github.io/mcp-security/)
-3. Generate HTML documentation locally using Sphinx (see instructions in the docs folder)
+To build the Sphinx HTML documentation locally:
 
-The documentation covers:
-- Detailed information about each MCP server
-- Configuration options and requirements
-- Usage examples and best practices
-
-To get started with the documentation, see [docs/index.md](docs/index.md).
+```bash
+DOCS_OUT_DIR="/tmp/mcp-security-docs-html"
+uv run --python 3.11 \
+  --with sphinx \
+  --with furo \
+  --with myst-parser \
+  --with sphinx-copybutton \
+  --with sphinx-click \
+  sphinx-build -W --keep-going -b html docs "$DOCS_OUT_DIR"
+```
 
 ## Authentication
 
-The server uses Google's authentication. Make sure you have either:
+Google Security Operations SIEM and Security Command Center servers authenticate via Google Cloud credentials:
 
-1. Set up Application Default Credentials (ADC)
-2. Set a GOOGLE_APPLICATION_CREDENTIALS environment variable
-3. Used `gcloud auth application-default login`
+1. Application Default Credentials (ADC) configured via `gcloud`
+2. `GOOGLE_APPLICATION_CREDENTIALS` (or `SECOPS_SA_PATH` for `google-secops-mcp`) pointing to a service account key file
+3. Service account impersonation via `SECOPS_IMPERSONATE_SERVICE_ACCOUNT`
 
-## Standalone Usage
+Google Threat Intelligence uses `VT_APIKEY`, and Google Security Operations SOAR uses `SOAR_URL` and `SOAR_APP_KEY`.
 
-Each MCP server can be installed and used as a standalone package.
+## Standalone Installation and Transport Modes
 
-### Installation
-
-You can install the packages using `uv tool install` (recommended):
+Install individual server packages with `uv tool install` (recommended) or `pip`:
 
 ```bash
-# Install packages
 uv tool install google-secops-mcp
 uv tool install gti-mcp
 uv tool install scc-mcp
 uv tool install secops-soar-mcp
 ```
 
-Alternatively, you can use pip:
+### Running Over `stdio` (Default)
 
 ```bash
-pip install google-secops-mcp
-pip install gti-mcp
-pip install scc-mcp
-pip install secops-soar-mcp
-```
+PROJECT_ID="my-secops-project"
+CUSTOMER_ID="a1b2c3d4-e5f6-4321-abcd-ef1234567890"
+CHRONICLE_REGION="us"
 
-### Running Standalone
-
-After installation, you can run the servers directly using uvx:
-
-```bash
-# Run SecOps MCP server
+CHRONICLE_PROJECT_ID="$PROJECT_ID" \
+CHRONICLE_CUSTOMER_ID="$CUSTOMER_ID" \
+CHRONICLE_REGION="$CHRONICLE_REGION" \
 uvx --from google-secops-mcp secops_mcp
-
-# Run GTI MCP server
-uvx gti_mcp
-
-# Run SCC MCP server
-uvx scc_mcp
-
-# Run SecOps SOAR MCP server (with optional integrations)
-uvx secops_soar_mcp --integrations CSV,OKTA
 ```
 
-With environment variables:
+### Running Over Stateless `streamable-http`
+
+Every server exposes `/mcp`, `/healthz`, and `/readyz` when started with `--transport streamable-http`:
 
 ```bash
-CHRONICLE_PROJECT_ID="your-project-id" \
-CHRONICLE_CUSTOMER_ID="01234567-abcd-4321-1234-0123456789ab" \
+PROJECT_ID="my-secops-project"
+CUSTOMER_ID="a1b2c3d4-e5f6-4321-abcd-ef1234567890"
+MCP_HOST="127.0.0.1"
+MCP_PORT="8080"
+
+CHRONICLE_PROJECT_ID="$PROJECT_ID" \
+CHRONICLE_CUSTOMER_ID="$CUSTOMER_ID" \
 CHRONICLE_REGION="us" \
-uvx secops_mcp
+MCP_TOOLS_CACHE_TTL_MS="300000" \
+MCP_ELICIT_DESTRUCTIVE="true" \
+uvx --from google-secops-mcp secops_mcp \
+  --transport streamable-http \
+  --host "$MCP_HOST" \
+  --port "$MCP_PORT"
 ```
 
-### Using with MCP Clients (Recommended)
+Verify readiness and stateless `2026-07-28` single-exchange `server/discover` without an `initialize` handshake:
 
-You can configure MCP clients to use the installed packages with uvx. Here's an example configuration:
+```bash
+MCP_URL="http://127.0.0.1:8080"
+
+curl -fsS "$MCP_URL/readyz"
+
+curl -fsS "$MCP_URL/mcp" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2026-07-28" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}'
+```
+
+## Using the Google ADK Autonomous SOC Agent
+
+The repository includes `mcp-security-agent` (`0.3.0`) in [`run-with-google-adk`](./run-with-google-adk/README.md), built on `google-adk[mcp]>=2.13.0` and defaulting to `gemini-3.1-pro-preview` (with `gemini-3-flash-preview` supported for low-latency triage) on Vertex AI `GOOGLE_CLOUD_LOCATION="global"`.
+
+It connects to both local `stdio` servers and remote `streamable-http` endpoints (`SECOPS_MCP_URL`, `CHRONICLE_REMOTE_MCP_URL`, `GTI_MCP_URL`, `SOAR_MCP_URL`, `SCC_MCP_URL`) with dynamic Google Cloud OAuth/OIDC header providers, `use_mcp_resources=True`, `tool_name_prefix`, destructive-tool confirmation (`ADK_CONFIRM_DESTRUCTIVE_TOOLS`), MRTR elicitation callbacks (`ADK_ELICITATION_POLICY`), output schema size guards, and W3C OpenTelemetry `traceparent` propagation.
+
+```bash
+ADK_PORT="8080"
+cd run-with-google-adk
+cp .env.example .env
+
+# Interactive terminal investigation REPL
+uv run mcp-security-agent chat
+
+# Web UI and Cloud Run FastAPI server
+uv run mcp-security-agent serve --port "$ADK_PORT"
+```
+
+See [`run-with-google-adk/README.md`](./run-with-google-adk/README.md) for full configuration and Cloud Run deployment instructions.
+
+## MCP Client Configurations
+
+These MCP servers work with standard MCP clients and agent harnesses, including:
+
+1. **Google ADK (`google-adk>=2.13.0`)** - Prebuilt agent in [`run-with-google-adk`](./run-with-google-adk/README.md)
+2. **Gemini CLI** - With optional [Google SecOps Extension](docs/google_secops_extension.md) skills
+3. **Goose (`aaif-goose/goose`)** - Open-source developer and security agent ([https://goose-docs.ai/](https://goose-docs.ai/))
+4. **Claude Desktop and Claude Code**
+5. **Cursor IDE and VS Code (Cline)**
+
+| Client Application | Scope | macOS / Linux Location | Windows Location | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **Gemini CLI** | Global | `~/.gemini/settings.json` | `%USERPROFILE%\.gemini\settings.json` | Uses `mcpServers` block; supports `httpUrl` and `stdio`. |
+| **Goose (`aaif-goose/goose`)** | Global | `~/.config/goose/config.yaml` | `%APPDATA%\Block\goose\config\config.yaml` | Configure `stdio` or `streamable_http` extensions; see [Goose docs](https://goose-docs.ai/). |
+| **Claude Desktop** | Global | `~/Library/Application Support/Claude/claude_desktop_config.json` | `%APPDATA%\Claude\claude_desktop_config.json` | Accessible via *Claude -> Settings -> Developer -> Edit Config*. |
+| **Claude Code** | Global | `~/.claude.json` | `%USERPROFILE%\.claude.json` | Supports `stdio` and HTTP MCP servers. |
+| **Cursor IDE** | Global / Project | `~/.cursor/mcp.json` or `.cursor/mcp.json` | `%USERPROFILE%\.cursor\mcp.json` | Project file overrides global settings. |
+| **VS Code (Cline)** | Workspace | `<project-root>/.vscode/mcp.json` | `<project-root>/.vscode/mcp.json` | Workspace-level MCP configuration. |
+
+### JSON Client Configuration (`uvx` Recommended)
 
 ```json
 {
@@ -102,114 +162,76 @@ You can configure MCP clients to use the installed packages with uvx. Here's an 
         "secops_mcp"
       ],
       "env": {
-        "CHRONICLE_PROJECT_ID": "your-project-id",
-        "CHRONICLE_CUSTOMER_ID": "01234567-abcd-4321-1234-0123456789ab",
+        "CHRONICLE_PROJECT_ID": "my-secops-project",
+        "CHRONICLE_CUSTOMER_ID": "a1b2c3d4-e5f6-4321-abcd-ef1234567890",
         "CHRONICLE_REGION": "us"
       }
     },
     "gti": {
       "command": "uvx",
       "args": [
+        "--from",
+        "gti-mcp",
         "gti_mcp"
       ],
       "env": {
-        "VT_APIKEY": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        "VT_APIKEY": "your-gti-api-key"
       }
-    },
-    "scc-mcp": {
-      "command": "uvx",
-      "args": [
-        "scc_mcp"
-      ],
-      "env": {}
     },
     "secops-soar": {
       "command": "uvx",
       "args": [
+        "--from",
+        "secops-soar-mcp",
         "secops_soar_mcp",
         "--integrations",
         "CSV,OKTA"
       ],
       "env": {
-        "SOAR_URL": "https://yours-here.siemplify-soar.com:443",
-        "SOAR_APP_KEY": "01234567-abcd-4321-1234-0123456789ab"
+        "SOAR_URL": "https://your-tenant.siemplify-soar.com:443",
+        "SOAR_APP_KEY": "a1b2c3d4-e5f6-4321-abcd-ef1234567890"
       }
-    }
-  }
-}
-```
-
-You can also use environment files with uvx:
-
-```json
-{
-  "mcpServers": {
-    "secops": {
+    },
+    "scc-mcp": {
       "command": "uvx",
       "args": [
-        "--env-file",
-        "/path/to/.env",
-        "secops_mcp"
-      ]
+        "--from",
+        "scc-mcp",
+        "scc_mcp"
+      ],
+      "env": {}
     }
   }
 }
 ```
 
-## Client Configurations
-The MCP servers from this repo can be used with the following clients
-1. Cline, Claude Desktop, and other MCP supported clients
-2. [Google ADK(Agent Development Kit)](https://google.github.io/adk-docs/) Agents (a prebuilt agent is provided, details [below](#using-the-google-adk-autonomous-soc-agent))
-3. [Google SecOps Extension](https://google.github.io/mcp-security/google_secops_extension.html) - Install our example extension for Gemini CLI to get specialized security skills (Triage, Investigate, Hunt).
+### Goose Configuration (`~/.config/goose/config.yaml`)
 
-The configuration for Claude Desktop and Cline is the same (provided below for [uv](#using-uv-recommended) and [pip](#using-pip)).  We use the stdio transport.
+Goose ([https://goose-docs.ai/](https://goose-docs.ai/)) supports both `stdio` and `streamable_http` MCP extensions:
 
-### Using the Google ADK Autonomous SOC Agent
-
-The repository includes a prebuilt Autonomous Security Operations Center (SOC) Agent powered by Google ADK v2 and the Model Context Protocol in [`run-with-google-adk`](./run-with-google-adk/README.md).
-
-It can be run locally via an interactive CLI REPL or launched as a FastAPI service for Google Cloud Run:
-
-```bash
-cd run-with-google-adk
-cp .env.example .env
-
-# Interactive terminal investigation REPL
-uv run mcp-security-agent chat
-
-# Web UI and Cloud Run REST API server
-uv run mcp-security-agent serve --port 8080
+```yaml
+extensions:
+  secops:
+    name: Google Security Operations SIEM
+    type: stdio
+    cmd: uvx
+    args:
+      - --from
+      - google-secops-mcp
+      - secops_mcp
+    envs:
+      CHRONICLE_PROJECT_ID: my-secops-project
+      CHRONICLE_CUSTOMER_ID: a1b2c3d4-e5f6-4321-abcd-ef1234567890
+      CHRONICLE_REGION: us
+  gti-remote:
+    name: Google Threat Intelligence HTTP
+    type: streamable_http
+    uri: https://gti-mcp.example.run.app/mcp
 ```
 
-For full setup, architecture details, and Cloud Run deployment guides, see the [ADK Agent Guide](./run-with-google-adk/README.md).
+### Local Source Checkout Configuration (`uv --directory`)
 
-## MCP Client Config Locations
-
-MCP clients all use the same JSON configuration format (see the [MCP Server Configuration Reference](https://google.github.io/mcp-security/usage_guide.html#mcp-server-configuration-reference)), but they expect the file in different locations.
-
-| Client Application       | Scope     | macOS / Linux Location                | Windows Location                                                                    | Notes                                                                                                                                                                                                |
-| ------------------------ | --------- | ------------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Gemini CLI**           | Global    | `~/.gemini/settings.json`             | `%USERPROFILE%\.gemini\settings.json`                                               | File must include `mcpServers`. Confirmed in [Google Security Ops post](https://security.googlecloudcommunity.com/google-security-operations-2/google-cloud-security-mcp-servers-in-gemini-cli-922). |
-| **Claude Desktop**       | Global    | `~/Claude/claude_desktop_config.json` | `%USERPROFILE%\Claude\claude_desktop_config.json`                                   | Config accessible via *Claude > Settings > Developer > Edit Config*.                                                                                                                                 |
-| **Claude Code**          | Global    | `~/.claude.json`                      | `%USERPROFILE%\.claude.json`                                                             | Primary config file for Claude Code CLI and extensions.                                                                                                                                              |
-| **Cursor IDE (Global)**  | Global    | `~/.cursor/mcp.json`                  | `%USERPROFILE%\.cursor\mcp.json`                                                    | Enables MCP servers globally across all projects.                                                                                                                                                    |
-| **Cursor IDE (Project)** | Project   | `<project-root>/.cursor/mcp.json`     | `<project-root>/.cursor/mcp.json`                                                   | Workspace/project-specific config file.                                                                                                                                                              |
-| **VS Code (Workspace)**  | Workspace | `<project-root>/.vscode/mcp.json`     | `<project-root>/.vscode/mcp.json`                                                   | Workspace-level config used when an MCP extension (like **Cline**) is installed. Overrides global config if present.                                                                                 |
-| **Cline (VS Code Ext.)** | Global    | Inside VS Code extension data         | `%APPDATA%\Code\User\globalStorage\<extension-id>\settings\cline_mcp_settings.json` | Exact path varies by VS Code variant and platform. `<extension-id>` corresponds to the installed extension folder (e.g., `saoudrizwan.claude-dev`).                                                  |
-
-### Additional Notes for Windows
-
-- `%USERPROFILE%` → `C:\Users\<username>`
-- `%APPDATA%` → `C:\Users\<username>\AppData\Roaming`
-- `<project-root>` → folder opened in VS Code or IDE for the project
-- `<extension-id>` → name of the installed extension folder (e.g., `saoudrizwan.claude-dev` for Claude/Cline)
-
-### Tip: Single Config with Symlinks
-
-If you use multiple MCP clients, you can maintain a **single config file** and symlink it into each expected location. This avoids drift and keeps your server definitions consistent.
-
-
-### Using uv (Recommended)
+When developing from a local repository clone:
 
 ```json
 {
@@ -218,188 +240,80 @@ If you use multiple MCP clients, you can maintain a **single config file** and s
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/the/repo/server/secops/secops_mcp",
+        "/path/to/mcp-security/server/secops",
         "run",
-        "server.py"
+        "secops_mcp"
       ],
       "env": {
-        "CHRONICLE_PROJECT_ID": "your-project-id",
-        "CHRONICLE_CUSTOMER_ID": "01234567-abcd-4321-1234-0123456789ab",
+        "CHRONICLE_PROJECT_ID": "my-secops-project",
+        "CHRONICLE_CUSTOMER_ID": "a1b2c3d4-e5f6-4321-abcd-ef1234567890",
         "CHRONICLE_REGION": "us"
+      }
+    },
+    "gti": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/mcp-security/server/gti",
+        "run",
+        "gti_mcp"
+      ],
+      "env": {
+        "VT_APIKEY": "your-gti-api-key"
       }
     },
     "secops-soar": {
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/the/repo/server/secops-soar/secops_soar_mcp",
+        "/path/to/mcp-security/server/secops-soar",
         "run",
-        "server.py",
+        "secops_soar_mcp",
         "--integrations",
         "CSV,OKTA"
       ],
       "env": {
-        "SOAR_URL": "https://yours-here.siemplify-soar.com:443",
-        "SOAR_APP_KEY": "01234567-abcd-4321-1234-0123456789ab"
-      }
-    },
-    "gti": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "/path/to/the/repo/server/gti/gti_mcp",
-        "run",
-        "server.py"
-      ],
-      "env": {
-        "VT_APIKEY": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        "SOAR_URL": "https://your-tenant.siemplify-soar.com:443",
+        "SOAR_APP_KEY": "a1b2c3d4-e5f6-4321-abcd-ef1234567890"
       }
     },
     "scc-mcp": {
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/the/repo/server/scc",
+        "/path/to/mcp-security/server/scc",
         "run",
-        "scc_mcp.py"
+        "scc_mcp"
       ],
-      "env": {
-      }
+      "env": {}
     }
   }
 }
 ```
 
-NOTE: `uv` also supports passing an `.env` file like so:
-```
-      "command": "uv",
-      "args": [
-        "--directory",
-        "/path/to/the/repo/server/...",
-        "run",
-        "--env-file",
-        "/path/to/the/repo/server/.env",
-        "server.py"
-      ]
-```
+You can load secrets from an `.env` file via `--env-file /path/to/.env` or `UV_ENV_FILE`. See [docs/usage_guide.md](docs/usage_guide.md) for corporate proxy (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`) and custom CA bundle configuration.
 
-`SOAR_APP_KEY` and `VT_APIKEY` are good candidates for `.env`
+## Troubleshooting
 
+Run any server directly from the terminal to inspect startup logs:
 
-### Using pip
+```bash
+REPO_DIR="/path/to/mcp-security"
+ENV_FILE="$REPO_DIR/.env"
 
-You can also use pip instead of uv to install and run the MCP servers. This approach uses a bash command to:
-1. Change to the server directory
-2. Install the package in development mode
-3. Run the server binary
-
-```json
-{
-  "mcpServers": {
-    "secops": {
-      "command": "/bin/bash",
-      "args": [
-        "-c",
-        "cd /path/to/the/repo/server/secops && pip install -e . && secops_mcp"
-      ],
-      "env": {
-        "CHRONICLE_PROJECT_ID": "your-project-id",
-        "CHRONICLE_CUSTOMER_ID": "01234567-abcd-4321-1234-0123456789ab",
-        "CHRONICLE_REGION": "us"
-      },
-      "alwaysAllow": [
-      ]
-    },
-    "gti": {
-      "command": "/bin/bash",
-      "args": [
-        "-c",
-        "cd /path/to/the/repo/server/gti && pip install -e . && gti_mcp"
-      ],
-      "env": {
-        "VT_APIKEY": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-      },
-      "alwaysAllow": [
-      ]
-    },
-    "scc-mcp": {
-      "command": "/bin/bash",
-      "args": [
-        "-c",
-        "cd /path/to/the/repo/server/scc && pip install -e . && scc_mcp"
-      ],
-      "env": {
-      },
-      "alwaysAllow": []
-    },
-    "secops-soar": {
-      "timeout": 60,
-      "command": "/bin/bash",
-      "args": [
-        "-c",
-        "cd /path/to/the/repo/server/secops-soar && pip install -e . && python secops_soar_mcp/server.py"
-      ],
-      "env": {
-        "SOAR_URL": "https://yours-here.siemplify-soar.com:443",
-        "SOAR_APP_KEY": "01234567-abcd-4321-1234-0123456789ab"
-      },
-      "transportType": "stdio"
-    }
-  }
-}
-```
-
-### When to use uv vs pip
-
-- **uv**: Recommended for most users because it offers faster package installation, better dependency resolution, and isolated environments. It also supports loading environment variables from a file.
-- **pip**: Use when you prefer the standard Python package manager or when you have specific environment setup requirements.
-
-#### `UV_ENV_FILE`
-
-The `--env-file` option allows `uv` to use a .env file for environment variables. You can create this file or use system environment variables as described in the usage guide.
-
-Alternatively, you can set `UV_ENV_FILE` to your `.env` file and omit the `--env-file` portion of the configuration.
-
-Refer to the [usage guide](docs/usage_guide.md#setting-up-environment-variables) for detailed instructions on how to set up these environment variables.
-
-
-### Troubleshooting
-
-Running the MCP Server from the CLI (and outside of your MCP client) can reveal issues:
-```
 uv --verbose \
-  --directory "/Users/dandye/Projects/google-mcp-security/server/scc" \
+  --directory "$REPO_DIR/server/scc" \
   run \
-  --env-file "/Users/dandye/Projects/google-mcp-security/.env" \
-  scc_mcp.py
+  --env-file "$ENV_FILE" \
+  scc_mcp
 ```
 
-Check your PATH(s):
+Verify `uv` and Python 3.11+ are on your `PATH`:
 
-```which uv``` # you may need to restart MCP Client after installing uv
-
-```which python || which python3```
-
-```python --version || python3 --version```
-
-
-
-### Installing in Claude Desktop
-
-To use the MCP servers with Claude Desktop:
-
-1. Install Claude Desktop
-2. Open Claude Desktop and select "Settings" from the Claude menu
-3. Click on "Developer" in the lefthand bar, then click "Edit Config"
-4. Update your `claude_desktop_config.json` with the configuration (replace paths with your actual paths)
-5. Save the file and restart Claude Desktop
-6. You should now see the hammer icon in the Claude Desktop interface, indicating the MCP server is active
-
-### Installing in cline (vscode extension)
-
-1. Install cline.bot extension in VSCode
-2. Update your `cline_mcp_settings.json` with the configuration (replace paths with your actual paths)
-3. Save the file and restart VS Code
+```bash
+which uv
+python3 --version
+```
 
 ## License
 

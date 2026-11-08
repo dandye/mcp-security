@@ -12,10 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import typing
 import logging
 
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
+from mcp.types import (
+    CallToolResult as _CallToolResult,
+    ResourceLink as _ResourceLink,
+    TextContent as _TextContent,
+    ToolAnnotations as _ToolAnnotations,
+)
 
 from .. import utils
 from ..server import server, vt_client
@@ -54,8 +61,17 @@ COLLECTION_TYPES = {
 }
 
 
-@server.tool()
-async def get_collection_report(id: str, ctx: Context) -> typing.Dict[str, typing.Any]:
+@server.tool(
+    title="Get Threat Collection Report",
+    annotations=_ToolAnnotations(
+        title="Get Threat Collection Report",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
+async def get_collection_report(id: str, ctx: Context) -> dict[str, typing.Any]:
   """At Google Threat Intelligence, threats are modeled as "collections". This tool retrieves them from the platform.
 
   They have different collections types like: 
@@ -72,21 +88,36 @@ async def get_collection_report(id: str, ctx: Context) -> typing.Dict[str, typin
   Returns:
     A collection object. Put attention to the collection type to correctly understand what it represents.
   """
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object(
-        client,
-        "collections",
-        "collection",
-        id,
-        relationships=COLLECTION_KEY_RELATIONSHIPS,
-        params={"exclude_attributes": COLLECTION_EXCLUDED_ATTRS})
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object(
+          client,
+          "collections",
+          "collection",
+          id,
+          relationships=COLLECTION_KEY_RELATIONSHIPS,
+          params={"exclude_attributes": COLLECTION_EXCLUDED_ATTRS})
+  except Exception as e:
+    logging.exception("Error fetching collection report for %s: %s", id, e)
+    return utils.tool_error_result(f"Failed to fetch collection report: {e}")  # type: ignore[return-value]
+  if utils.is_error_dict(res):
+    return utils.tool_error_result_from_dict(res)  # type: ignore[return-value]
   return res
 
 
-@server.tool()
+@server.tool(
+    title="Get Entities Related to Threat Collection",
+    annotations=_ToolAnnotations(
+        title="Get Entities Related to Threat Collection",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def get_entities_related_to_a_collection(
     id: str, relationship_name: str, ctx: Context, limit: int = 10, descriptors_only: bool = True
-) -> typing.List[typing.Dict[str, typing.Any]]:
+) -> list[dict[str, typing.Any]]:
   """Retrieve entities related to the the given collection ID.
 
     The following table shows a summary of available relationships for collection objects.
@@ -120,19 +151,23 @@ async def get_entities_related_to_a_collection(
     Returns:
       List of objects related to the collection.
   """
-  if not relationship_name in COLLECTION_RELATIONSHIPS:
-      return {
-          "error": f"Relationship {relationship_name} does not exist. "
-          f"Available relationships are: {','.join(COLLECTION_RELATIONSHIPS)}"
-      }
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object_relationships(
-        client, 
-        "collections", 
-        id, 
-        [relationship_name],
-        descriptors_only=descriptors_only,
-        limit=limit)
+  if relationship_name not in COLLECTION_RELATIONSHIPS:
+    return utils.tool_error_result(  # type: ignore[return-value]
+        f"Relationship {relationship_name} does not exist. "
+        f"Available relationships are: {','.join(COLLECTION_RELATIONSHIPS)}"
+    )
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object_relationships(
+          client,
+          "collections",
+          id,
+          [relationship_name],
+          descriptors_only=descriptors_only,
+          limit=limit)
+  except Exception as e:
+    logging.exception("Error fetching relationships for collection %s: %s", id, e)
+    return utils.tool_error_result(f"Failed to fetch collection relationships: {e}")  # type: ignore[return-value]
   return utils.sanitize_response(res.get(relationship_name, []))
 
 
@@ -142,7 +177,7 @@ async def _search_threats_by_collection_type(
     ctx: Context,
     limit: int = 10,
     order_by: str = "relevance-",
-) -> typing.List[typing.Dict[str, typing.Any]]:
+) -> list[dict[str, typing.Any]]:
   """Search a given threat type in the Google Threat Intelligence platform,
 
   Args:
@@ -155,32 +190,46 @@ async def _search_threats_by_collection_type(
     List of collections, aka threats.
   """
   if collection_type not in COLLECTION_TYPES:
-      raise ValueError(
-          f"wrong collection_type. Available collection_type are: {','.join(COLLECTION_TYPES)} ")
-
-  async with vt_client(ctx) as client:
-    res = await utils.consume_vt_iterator(
-        client,
-        "/collections",
-        params={
-            "filter": f"collection_type:{collection_type} {query}",
-            "order": order_by,
-            "relationships": COLLECTION_KEY_RELATIONSHIPS,
-            "exclude_attributes": COLLECTION_EXCLUDED_ATTRS,
-        },
-        limit=limit,
+    return utils.tool_error_result(  # type: ignore[return-value]
+        f"wrong collection_type. Available collection_type are: {','.join(COLLECTION_TYPES)} "
     )
+
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.consume_vt_iterator(
+          client,
+          "/collections",
+          params={
+              "filter": f"collection_type:{collection_type} {query}",
+              "order": order_by,
+              "relationships": COLLECTION_KEY_RELATIONSHIPS,
+              "exclude_attributes": COLLECTION_EXCLUDED_ATTRS,
+          },
+          limit=limit,
+      )
+  except Exception as e:
+    logging.exception("Error searching threats (%s): %s", collection_type, e)
+    return utils.tool_error_result(f"Failed to search threats: {e}")  # type: ignore[return-value]
   return utils.sanitize_response([o.to_dict() for o in res])
 
 
-@server.tool()
+@server.tool(
+    title="Search Threat Intelligence Collections",
+    annotations=_ToolAnnotations(
+        title="Search Threat Intelligence Collections",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def search_threats(
     ctx: Context,
     query: str,
     collection_type: typing.Optional[str] = None,
     limit: int = 5,
     order_by: str = "relevance-",
-) -> typing.List[typing.Dict[str, typing.Any]]:
+) -> list[dict[str, typing.Any]]:
   """Search threats in the Google Threat Intelligence platform.
 
   Threats are modeled as collections. Once you get collections from this tool, you can use `get_collection_report` to fetch the full reports and their relationships.
@@ -215,31 +264,93 @@ async def search_threats(
   filter = ""
   if collection_type:
     if collection_type not in COLLECTION_TYPES:
-      raise ValueError(
-          f"unknown collection_type. Available are {','.join(COLLECTION_TYPES)}")
+      return utils.tool_error_result(  # type: ignore[return-value]
+          f"unknown collection_type. Available are {','.join(sorted(COLLECTION_TYPES))}"
+      )
     filter += f"collection_type:{collection_type} "
   if query:
     filter += query
-  
-  async with vt_client(ctx) as client:
-    res = await utils.consume_vt_iterator(
-        client,
-        "/collections",
-        params={
-            "filter": filter,
-            "order": order_by,
-            "relationships": COLLECTION_KEY_RELATIONSHIPS,
-            "exclude_attributes": COLLECTION_EXCLUDED_ATTRS,
-        },
-        limit=limit,
+
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.consume_vt_iterator(
+          client,
+          "/collections",
+          params={
+              "filter": filter,
+              "order": order_by,
+              "relationships": COLLECTION_KEY_RELATIONSHIPS,
+              "exclude_attributes": COLLECTION_EXCLUDED_ATTRS,
+          },
+          limit=limit,
+      )
+  except Exception as e:
+    logging.exception("Error searching threats: %s", e)
+    return utils.tool_error_result(f"Failed to search threats: {e}")  # type: ignore[return-value]
+  sanitized = utils.sanitize_response([o.to_dict() for o in res])
+  if isinstance(ctx, Context) and isinstance(sanitized, list):
+    text_items = [
+        _TextContent(type="text", text=json.dumps(item, indent=2))
+        for item in sanitized
+    ]
+    resource_links: list[_ResourceLink] = []
+    seen_ids: set[str] = set()
+    for item in sanitized:
+      if not isinstance(item, dict):
+        continue
+      col_id = str(item.get("id") or "").strip()
+      if (
+          not col_id
+          or col_id in {".", ".."}
+          or ".." in col_id
+          or any(
+              ord(ch) < 32
+              or ord(ch) == 127
+              or ch.isspace()
+              or ch in {"/", "\\", "%", "?", "#"}
+              for ch in col_id
+          )
+          or col_id in seen_ids
+      ):
+        continue
+      seen_ids.add(col_id)
+      attrs = item.get("attributes") if isinstance(item.get("attributes"), dict) else {}
+      col_name = str(attrs.get("name") or col_id)
+      col_type = str(
+          attrs.get("collection_type") or item.get("type") or "collection"
+      )
+      resource_links.append(
+          _ResourceLink(
+              type="resource_link",
+              uri=f"gti://collections/{col_id}",
+              name=col_name,
+              title=f"GTI {col_type}: {col_name}",
+              description=(
+                  f"Google Threat Intelligence {col_type} profile {col_id}"
+              ),
+              mime_type="application/json",
+          )
+      )
+    return _CallToolResult(  # type: ignore[return-value]
+        content=[*text_items, *resource_links],
+        structured_content={"result": sanitized},
     )
-  return utils.sanitize_response([o.to_dict() for o in res])
+  return sanitized
 
 
-@server.tool()
+@server.tool(
+    title="Search Threat Campaigns",
+    annotations=_ToolAnnotations(
+        title="Search Threat Campaigns",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def search_campaigns(
     query: str, ctx: Context, limit: int = 10, order_by: str = "relevance-"
-) -> typing.List[typing.Dict[str, typing.Any]]:
+) -> list[dict[str, typing.Any]]:
   """Search threat campaigns in the Google Threat Intelligence platform.
 
   Campaigns are modeled as collections. Once you get collections from this tool, you can use `get_collection_report` to fetch the full reports and their relationships.
@@ -259,10 +370,19 @@ async def search_campaigns(
   return res
 
 
-@server.tool()
+@server.tool(
+    title="Search Threat Actors",
+    annotations=_ToolAnnotations(
+        title="Search Threat Actors",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def search_threat_actors(
     query: str, ctx: Context, limit: int = 10, order_by: str = "relevance-"
-) -> typing.List[typing.Dict[str, typing.Any]]:
+) -> list[dict[str, typing.Any]]:
   """Search threat actors in the Google Threat Intelligence platform.
 
   Threat actors are modeled as collections. Once you get collections from this tool, you can use `get_collection_report` to fetch the full reports and their relationships.
@@ -282,10 +402,19 @@ async def search_threat_actors(
   return res
 
 
-@server.tool()
+@server.tool(
+    title="Search Malware Families",
+    annotations=_ToolAnnotations(
+        title="Search Malware Families",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def search_malware_families(
     query: str, ctx: Context, limit: int = 10, order_by: str = "relevance-"
-) -> typing.List[typing.Dict[str, typing.Any]]:
+) -> list[dict[str, typing.Any]]:
   """Search malware families in the Google Threat Intelligence platform.
 
   Malware families are modeled as collections. Once you get collections from this tool, you can use `get_collection_report` to fetch the full reports and their relationships.
@@ -305,10 +434,19 @@ async def search_malware_families(
   return res
 
 
-@server.tool()
+@server.tool(
+    title="Search Software Toolkits",
+    annotations=_ToolAnnotations(
+        title="Search Software Toolkits",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def search_software_toolkits(
     query: str, ctx: Context, limit: int = 10, order_by: str = "relevance-"
-) -> typing.List[typing.Dict[str, typing.Any]]:
+) -> list[dict[str, typing.Any]]:
   """Search software toolkits (or just tools) in the Google Threat Intelligence platform.
 
   Software toolkits are modeled as collections. Once you get collections from this tool, you can use `get_collection_report` to fetch the full reports and their relationships.
@@ -328,10 +466,19 @@ async def search_software_toolkits(
   return res
 
 
-@server.tool()
+@server.tool(
+    title="Search Threat Intelligence Reports",
+    annotations=_ToolAnnotations(
+        title="Search Threat Intelligence Reports",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def search_threat_reports(
     query: str, ctx: Context, limit: int = 10, order_by: str = "relevance-"
-) -> typing.List[typing.Dict[str, typing.Any]]:
+) -> list[dict[str, typing.Any]]:
   """Search threat reports in the Google Threat Intelligence platform.
 
   Google Threat Intelligence provides continuously updated reports and analysis of threat actors, campaigns, vulnerabilities, malware, and tools
@@ -353,10 +500,19 @@ async def search_threat_reports(
   return res
 
 
-@server.tool()
+@server.tool(
+    title="Search Threat Vulnerabilities",
+    annotations=_ToolAnnotations(
+        title="Search Threat Vulnerabilities",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def search_vulnerabilities(
     query: str, ctx: Context, limit: int = 10, order_by: str = "relevance-"
-) -> typing.List[typing.Dict[str, typing.Any]]:
+) -> list[dict[str, typing.Any]]:
   """Search vulnerabilities (CVEs) in the Google Threat Intelligence platform.
 
   Vulnerabilities are modeled as collections. Once you get collections from this tool, you can use `get_collection_report` to fetch the full reports and their relationships.
@@ -376,8 +532,17 @@ async def search_vulnerabilities(
   return res
 
 
-@server.tool()
-async def get_collection_timeline_events(id: str, ctx: Context):
+@server.tool(
+    title="Get Threat Collection Timeline Events",
+    annotations=_ToolAnnotations(
+        title="Get Threat Collection Timeline Events",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
+async def get_collection_timeline_events(id: str, ctx: Context) -> list[dict[str, typing.Any]]:
   """Retrieves timeline events from the given collection, when available.
 
   This is super valuable curated information produced by security analysits at Google Threat Intelligence.
@@ -391,18 +556,33 @@ async def get_collection_timeline_events(id: str, ctx: Context):
   Return:
     List of events related to the given collection.
   """
-  async with vt_client(ctx) as client:
-    resp = await client.get_async(f"/collections/{id}/timeline/events")
-    if resp.status != 200:
+  try:
+    async with vt_client(ctx) as client:
+      resp = await client.get_async(f"/collections/{id}/timeline/events")
+      if resp.status != 200:
         error_json = await resp.json_async()
-        error_info = error_json.get("error", {})
-        return [{"error": f"API Error: {error_info.get('message', 'Unknown error')}"}]
-    data = await resp.json_async()
+        error_info = error_json.get("error", {}) if isinstance(error_json, dict) else {}
+        return utils.tool_error_result(  # type: ignore[return-value]
+            f"API Error: {error_info.get('message', 'Unknown error')}"
+        )
+      data = await resp.json_async()
+  except Exception as e:
+    logging.exception("Error fetching collection timeline events for %s: %s", id, e)
+    return utils.tool_error_result(f"Failed to fetch collection timeline events: {e}")  # type: ignore[return-value]
   return utils.sanitize_response(data.get("data", []))
 
 
-@server.tool()
-async def get_collection_mitre_tree(id: str, ctx: Context) -> typing.Dict:
+@server.tool(
+    title="Get Threat Collection MITRE ATT&CK Tree",
+    annotations=_ToolAnnotations(
+        title="Get Threat Collection MITRE ATT&CK Tree",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
+async def get_collection_mitre_tree(id: str, ctx: Context) -> dict[str, typing.Any]:
   """Retrieves the Mitre tactics and techniques associated with a threat.
 
   Args:
@@ -410,24 +590,39 @@ async def get_collection_mitre_tree(id: str, ctx: Context) -> typing.Dict:
   Return:
     A dictionary including the tactics and techniques associated to the given threat.
   """
-  async with vt_client(ctx) as client:
-    resp = await client.get_async(f"/collections/{id}/mitre_tree")
-    if resp.status != 200:
+  try:
+    async with vt_client(ctx) as client:
+      resp = await client.get_async(f"/collections/{id}/mitre_tree")
+      if resp.status != 200:
         error_json = await resp.json_async()
-        error_info = error_json.get("error", {})
-        return {"error": f"API Error: {error_info.get('message', 'Unknown error')}"}
-    data = await resp.json_async()
+        error_info = error_json.get("error", {}) if isinstance(error_json, dict) else {}
+        return utils.tool_error_result(  # type: ignore[return-value]
+            f"API Error: {error_info.get('message', 'Unknown error')}"
+        )
+      data = await resp.json_async()
+  except Exception as e:
+    logging.exception("Error fetching collection MITRE tree for %s: %s", id, e)
+    return utils.tool_error_result(f"Failed to fetch collection MITRE tree: {e}")  # type: ignore[return-value]
   return utils.sanitize_response(data.get("data", {}))
 
 
-@server.tool()
+@server.tool(
+    title="Create Threat Collection",
+    annotations=_ToolAnnotations(
+        title="Create Threat Collection",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=True,
+    ),
+)
 async def create_collection(
     name: str,
     description: str,
     iocs: typing.List[str],
     ctx: Context,
     private: bool = True,
-) -> typing.Dict[str, typing.Any]:
+) -> dict[str, typing.Any]:
   """Creates a new collection in Google Threat Intelligence.
       Ask for the collection's privacy (public or private) if the user doesn't specify.
 
@@ -441,26 +636,43 @@ async def create_collection(
   Returns:
     A dictionary representing the newly created collection.
   """
-  async with vt_client(ctx) as client:
-    collection_data = {
-        "data": {
-            "attributes": {"name": name, "description": description, "private": private},
-            "type": "collection",
-            "raw_items": ", ".join(iocs),
-        }
-    }
-    
-    res = await client.post_async("/collections", json_data=collection_data)
-    data = await res.json_async()
+  try:
+    async with vt_client(ctx) as client:
+      collection_data = {
+          "data": {
+              "attributes": {"name": name, "description": description, "private": private},
+              "type": "collection",
+              "raw_items": ", ".join(iocs),
+          }
+      }
+
+      res = await client.post_async("/collections", json_data=collection_data)
+      data = await res.json_async()
+  except Exception as e:
+    logging.exception("Error creating collection: %s", e)
+    return utils.tool_error_result(f"Failed to create collection: {e}")  # type: ignore[return-value]
+  if not isinstance(data, dict) or "data" not in data:
+    error_info = data.get("error", {}) if isinstance(data, dict) else {}
+    msg = error_info.get("message", "Unexpected response creating collection") if isinstance(error_info, dict) else str(error_info)
+    return utils.tool_error_result(f"API Error: {msg}")  # type: ignore[return-value]
   return utils.sanitize_response(data["data"])
 
 
-@server.tool()
+@server.tool(
+    title="Update Threat Collection Attributes",
+    annotations=_ToolAnnotations(
+        title="Update Threat Collection Attributes",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def update_collection_attributes(
     id: str,
     ctx: Context,
     attributes: typing.Dict[str, typing.Any],
-) -> typing.Dict[str, typing.Any]:
+) -> dict[str, typing.Any]:
   """Allows updating a collection's attributes (such as name or description)
   Args:
     id (required): The ID of the collection to update.
@@ -473,24 +685,41 @@ async def update_collection_attributes(
   Returns:
     A dictionary representing the updated collection.
   """
-  async with vt_client(ctx) as client:
-    collection_data = {"data": {"attributes": attributes, "type": "collection"}}          
+  try:
+    async with vt_client(ctx) as client:
+      collection_data = {"data": {"attributes": attributes, "type": "collection"}}
 
-    res = await client.patch_async(
-        f"/collections/{id}", json_data=collection_data
-    )
-    data = await res.json_async()
+      res = await client.patch_async(
+          f"/collections/{id}", json_data=collection_data
+      )
+      data = await res.json_async()
+  except Exception as e:
+    logging.exception("Error updating collection %s: %s", id, e)
+    return utils.tool_error_result(f"Failed to update collection: {e}")  # type: ignore[return-value]
+  if not isinstance(data, dict) or "data" not in data:
+    error_info = data.get("error", {}) if isinstance(data, dict) else {}
+    msg = error_info.get("message", "Unexpected response updating collection") if isinstance(error_info, dict) else str(error_info)
+    return utils.tool_error_result(f"API Error: {msg}")  # type: ignore[return-value]
   return utils.sanitize_response(data["data"])
 
 
-@server.tool()
+@server.tool(
+    title="Update IOCs in Threat Collection",
+    annotations=_ToolAnnotations(
+        title="Update IOCs in Threat Collection",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def update_iocs_in_collection(
     id: str,
     ctx: Context,
     relationship: str,
     iocs: typing.List[str],
     operation: str,
-) -> str:
+) -> dict[str, typing.Any]:
   """Updates (add or remove) Indicators of Compromise (IOCs) to a collection.
   Args:
     id (required): The ID of the collection to update.
@@ -502,40 +731,71 @@ async def update_iocs_in_collection(
     operation (required): The operation to perform. Can be "add" or "remove".
 
   Returns:
-    A string indicating the success or failure of the operation.
+    A structured dictionary indicating the status and summary message of the operation.
   """
-  async with vt_client(ctx) as client:
+  singular_type_map = {
+      "domains": "domain",
+      "files": "file",
+      "ip_addresses": "ip_address",
+      "urls": "url",
+  }
 
-    singular_type_map = {
-        "domains": "domain",
-        "files": "file",
-        "ip_addresses": "ip_address",
-        "urls": "url",
-    }
+  if relationship not in singular_type_map:
+    return utils.tool_error_result(  # type: ignore[return-value]
+        f"Error: Invalid IOC type '{relationship}'. Must be one of {list(singular_type_map.keys())}"
+    )
 
-    if relationship not in singular_type_map:
-      return f"Error: Invalid IOC type '{relationship}'. Must be one of {list(singular_type_map.keys())}"
+  if operation not in ("add", "remove"):
+    return utils.tool_error_result(  # type: ignore[return-value]
+        f"Error: Invalid operation '{operation}'. Must be one of 'add' or 'remove'"
+    )
 
-    singular_type = singular_type_map[relationship]
+  singular_type = singular_type_map[relationship]
+  if relationship == "urls":
+    items = [{"type": singular_type, "url": ioc} for ioc in iocs]
+  else:
+    items = [{"type": singular_type, "id": ioc} for ioc in iocs]
 
-    if relationship == "urls":
-      items = [{"type": singular_type, "url": ioc} for ioc in iocs]
-    else:
-      items = [{"type": singular_type, "id": ioc} for ioc in iocs]
+  payload = {"data": items}
+  try:
+    async with vt_client(ctx) as client:
+      if operation == "add":
+        res = await client.post_async(f"/collections/{id}/{relationship}", json_data=payload)
+      else:
+        res = await client.delete_async(f"/collections/{id}/{relationship}", json_data=payload)
+      status = res._aiohttp_resp.status
+  except Exception as e:
+    logging.exception("Error updating IOCs in collection %s: %s", id, e)
+    return utils.tool_error_result(f"Error updating collection: {e}")  # type: ignore[return-value]
 
-    payload = {"data": items}
-    if operation == "add":
-      res = await client.post_async(f"/collections/{id}/{relationship}", json_data=payload)
-    elif operation == "remove":
-      res = await client.delete_async(f"/collections/{id}/{relationship}", json_data=payload)
-    else:
-      return f"Error: Invalid operation '{operation}'. Must be one of 'add' or 'remove'"
+  if status != 200:
+    return utils.tool_error_result(  # type: ignore[return-value]
+        "Error updating collection",
+        status_code=status,
+        collection_id=id,
+        relationship=relationship,
+        operation=operation,
+    )
+  return {
+      "status": "success",
+      "message": "Successfully updated collection",
+      "collection_id": id,
+      "relationship": relationship,
+      "operation": operation,
+      "count": len(iocs),
+  }
 
-    status = res._aiohttp_resp.status
-    return 'Sucesssfully updated collection' if status == 200 else 'Error updating collection'
 
-
-@server.tool()
+@server.tool(
+    title="Get Threat Collection Feature Matches",
+    annotations=_ToolAnnotations(
+        title="Get Threat Collection Feature Matches",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def get_collection_feature_matches(
     collection_id: str,
     feature_type: str,
@@ -545,7 +805,7 @@ async def get_collection_feature_matches(
     entity_type_plural: str,
     ctx: Context,
     descriptors_only: bool=True,
-) -> typing.List[typing.Dict[str, typing.Any]]:
+) -> list[dict[str, typing.Any]]:
   """Retrieves Indicators of Compromise (IOCs) from a collection that match a specific feature.
 
   This tool allows pivoting from a commonality to the specific IOCs within a collection that exhibit that feature.
@@ -617,39 +877,74 @@ async def get_collection_feature_matches(
   Returns:
     A dictionary containing the list of matching IOCs.
   """
-  async with vt_client(ctx) as client:
-    params = {
-        "feature_type": feature_type,
-        "feature_id": feature_id,
-        "entity_type": entity_type,
-        "search_space": search_space,
-        "type": entity_type_plural,
-        "descriptors_only": str(descriptors_only).lower(),
-    }
-    
-    response = await client.get_async(f"/collections/{collection_id}/features/search", params=params)
-    if response.status != 200:
+  try:
+    async with vt_client(ctx) as client:
+      params = {
+          "feature_type": feature_type,
+          "feature_id": feature_id,
+          "entity_type": entity_type,
+          "search_space": search_space,
+          "type": entity_type_plural,
+          "descriptors_only": str(descriptors_only).lower(),
+      }
+
+      response = await client.get_async(f"/collections/{collection_id}/features/search", params=params)
+      if response.status != 200:
         error_json = await response.json_async()
-        error_info = error_json.get("error", {})
-        return [{"error": f"API Error: {error_info.get('message', 'Unknown error')}"}]
-    data = await response.json_async()
-    return utils.sanitize_response(data.get("data", []))
+        error_info = error_json.get("error", {}) if isinstance(error_json, dict) else {}
+        return utils.tool_error_result(  # type: ignore[return-value]
+            f"API Error: {error_info.get('message', 'Unknown error')}"
+        )
+      data = await response.json_async()
+  except Exception as e:
+    logging.exception("Error fetching collection feature matches for %s: %s", collection_id, e)
+    return utils.tool_error_result(f"Failed to fetch collection feature matches: {e}")  # type: ignore[return-value]
+  return utils.sanitize_response(data.get("data", []))
 
 
-@server.tool()
-async def get_collections_commonalities(collection_id: str, ctx: Context) -> str:
+@server.tool(
+    title="Get Threat Collection Commonalities",
+    annotations=_ToolAnnotations(
+        title="Get Threat Collection Commonalities",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
+async def get_collections_commonalities(collection_id: str, ctx: Context) -> dict[str, typing.Any]:
   """Retrieve the common characteristics or features (attributes / relationships) of the indicators of compromise (IoC) within a collection, identified by its ID.
   Args:
     collection_id (required): Collection identifier.
   Returns:
-    Markdown-formatted string with the commonalities of the collection.
+    Structured dictionary with markdown summary and commonality aggregations of the collection.
   """
-  async with vt_client(ctx) as client:
-    data = await client.get_async(f"/collections/{collection_id}?attributes=aggregations")
-    data = await data.json_async()
-    sanitized_data = utils.sanitize_response(data["data"])
-    markdown_output = utils.parse_collection_commonalities(sanitized_data)
-  return markdown_output
+  try:
+    async with vt_client(ctx) as client:
+      response = await client.get_async(
+          f"/collections/{collection_id}?attributes=aggregations")
+      data = await response.json_async()
+  except Exception as e:
+    logging.exception("Error fetching collection commonalities for %s: %s", collection_id, e)
+    return utils.tool_error_result(f"Error: {e}")  # type: ignore[return-value]
+
+  if not isinstance(data, dict) or not isinstance(data.get("data"), dict):
+    error_info = data.get("error", {}) if isinstance(data, dict) else {}
+    message = (
+        error_info.get("message")
+        if isinstance(error_info, dict) else None)
+    if message:
+      return utils.tool_error_result(f"Error: {message}")  # type: ignore[return-value]
+    return utils.tool_error_result("Error: Collection not found or unexpected API response")  # type: ignore[return-value]
+
+  sanitized_data = utils.sanitize_response(data["data"])
+  summary = utils.parse_collection_commonalities(sanitized_data)
+  aggregations = sanitized_data.get("attributes", {}).get("aggregations", {})
+  return {
+      "collection_id": collection_id,
+      "summary": summary,
+      "aggregations": aggregations,
+  }
 
 
 async def _get_yara_rule_details(ctx: Context, rule: dict, rule_type: str) -> typing.Dict[str, typing.Any]:
@@ -706,8 +1001,17 @@ async def _get_sigma_rule_details(ctx: Context, rule: dict, rule_type: str) -> t
     logging.exception("Error fetching Sigma ruleset %s: %s", ruleset_id, e)
     return {"error": f"Error fetching Sigma ruleset {ruleset_id}: {e}"}
 
-@server.tool()
-async def get_collection_rules(collection_id: str, ctx: Context, top_n: int = 4, rule_types: typing.Optional[typing.List[str]] = None) -> typing.Union[typing.List[typing.Dict[str, typing.Any]], typing.Dict[str, str]]:
+@server.tool(
+    title="Get Threat Collection Detection Rules",
+    annotations=_ToolAnnotations(
+        title="Get Threat Collection Detection Rules",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
+async def get_collection_rules(collection_id: str, ctx: Context, top_n: int = 4, rule_types: typing.Optional[typing.List[str]] = None) -> list[dict[str, typing.Any]]:
   """Retrieve top N community rules and all curated hunting rules for a specific collection.
 
   Note:
@@ -731,6 +1035,8 @@ async def get_collection_rules(collection_id: str, ctx: Context, top_n: int = 4,
     A list of dictionaries, where each dictionary contains a rule and its metadata, or an error dictionary.
   """
   crowsourced_rules = []
+  primary_attempts = 0
+  primary_errors: list[str] = []
   if rule_types is None:
     rule_types = ["crowdsourced_ids", "crowdsourced_sigma", "crowdsourced_yara", "curated_yara_rule"]
 
@@ -741,6 +1047,7 @@ async def get_collection_rules(collection_id: str, ctx: Context, top_n: int = 4,
   }
   # Fetch community rules from aggregations if requested
   if any(rt in rule_types for rt in ["crowdsourced_ids", "crowdsourced_sigma", "crowdsourced_yara"]):
+      primary_attempts += 1
       try:
         async with vt_client(ctx) as client:
           data = await client.get_async(f"/collections/{collection_id}?attributes=aggregations")
@@ -752,7 +1059,7 @@ async def get_collection_rules(collection_id: str, ctx: Context, top_n: int = 4,
           # Iterate through different community rule types
           for key, rule_type in rule_keys_map.items():
             rules = files_aggregations.get(key, [])
-            if rule_type not in rule_type and not rules:
+            if rule_type not in rule_types or not rules:
               continue
 
             # Sort rules by count and take the top N
@@ -780,11 +1087,12 @@ async def get_collection_rules(collection_id: str, ctx: Context, top_n: int = 4,
                   })
       except Exception as e:
         logging.exception("Error fetching community rules aggregations: %s", e)
-        # Continue execution to fetch other rule types
+        primary_errors.append(str(e))
   crowsourced_rules = sorted(crowsourced_rules, key=lambda x: x.get("count", 0), reverse=True)
   curated_rules = []
   # Fetch curated hunting rulesets if requested
   if "curated_yara_rule" in rule_types:
+    primary_attempts += 1
     try:
       async with vt_client(ctx) as client:
         # 1. Get related hunting ruleset IDs from the collection
@@ -827,5 +1135,10 @@ async def get_collection_rules(collection_id: str, ctx: Context, top_n: int = 4,
             })
     except Exception as e:
       logging.exception("Error fetching curated rules: %s", e)
+      primary_errors.append(str(e))
+  if primary_attempts > 0 and len(primary_errors) == primary_attempts:
+    return utils.tool_error_result(  # type: ignore[return-value]
+        f"Failed to fetch collection rules: {primary_errors[0]}"
+    )
   all_rules = curated_rules + crowsourced_rules
   return utils.sanitize_response(all_rules)

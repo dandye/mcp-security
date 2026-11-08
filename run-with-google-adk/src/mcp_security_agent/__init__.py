@@ -13,7 +13,7 @@
 # limitations under the License.
 """MCP Security Agent powered by Google ADK v2."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __all__ = ["create_security_agent", "root_agent", "__version__"]
 
 

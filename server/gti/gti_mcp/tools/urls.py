@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import base64
+import logging
 import typing
 
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
+from mcp.types import ToolAnnotations as _ToolAnnotations
 
 from .. import utils
 from ..server import server, vt_client
@@ -69,8 +71,17 @@ def url_to_base64(url: str) -> str:
   return b.decode('utf-8').rstrip("=")
 
 
-@server.tool()
-async def get_url_report(url: str, ctx: Context) -> typing.Dict[str, typing.Any]:
+@server.tool(
+    title="Get URL Threat Report",
+    annotations=_ToolAnnotations(
+        title="Get URL Threat Report",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
+async def get_url_report(url: str, ctx: Context) -> dict[str, typing.Any]:
   """Get a comprehensive URL analysis report from Google Threat Intelligence.
 
   Args:
@@ -78,19 +89,34 @@ async def get_url_report(url: str, ctx: Context) -> typing.Dict[str, typing.Any]
   Returns:
     Report with insights about the URL.
   """
-  url_id = url_to_base64(url)
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object(
-        client,
-        "urls",
-        "url",
-        url_id,
-        relationships=["associations"],
-        params={"exclude_attributes": "last_analysis_results"})
+  try:
+    url_id = url_to_base64(url)
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object(
+          client,
+          "urls",
+          "url",
+          url_id,
+          relationships=["associations"],
+          params={"exclude_attributes": "last_analysis_results"})
+  except Exception as e:
+    logging.exception("Error fetching URL report for %s: %s", url, e)
+    return utils.tool_error_result(f"Failed to fetch URL report: {e}")  # type: ignore[return-value]
+  if utils.is_error_dict(res):
+    return utils.tool_error_result_from_dict(res)  # type: ignore[return-value]
   return utils.sanitize_response(res)
 
 
-@server.tool()
+@server.tool(
+    title="Get Entities Related to URL",
+    annotations=_ToolAnnotations(
+        title="Get Entities Related to URL",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def get_entities_related_to_an_url(
     url: str, relationship_name: str, descriptors_only: bool, ctx: Context, limit: int = 10
 ) -> list[dict[str, typing.Any]]:
@@ -141,19 +167,80 @@ async def get_entities_related_to_an_url(
     Returns:
       List of entities related to the URL.
   """
-  if not relationship_name in URL_RELATIONSHIPS:
-    return {
-       "error": f"Relationship {relationship_name} does not exist. "
-                f"Available relationships are: {','.join(URL_RELATIONSHIPS)}"
-    }
+  if relationship_name not in URL_RELATIONSHIPS:
+    return utils.tool_error_result(  # type: ignore[return-value]
+        f"Relationship {relationship_name} does not exist. "
+        f"Available relationships are: {','.join(URL_RELATIONSHIPS)}"
+    )
 
   url_id = url_to_base64(url)
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object_relationships(
-        client,
-        "urls", 
-        url_id,
-        relationships=[relationship_name],
-        descriptors_only=descriptors_only,
-        limit=limit)
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object_relationships(
+          client,
+          "urls",
+          url_id,
+          relationships=[relationship_name],
+          descriptors_only=descriptors_only,
+          limit=limit)
+  except Exception as e:
+    logging.exception("Error fetching relationships for URL %s: %s", url, e)
+    return utils.tool_error_result(f"Failed to fetch URL relationships: {e}")  # type: ignore[return-value]
   return utils.sanitize_response(res.get(relationship_name, []))
+
+
+@server.tool(
+    title="Submit and Analyze URL",
+    annotations=_ToolAnnotations(
+        title="Submit and Analyze URL",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=True,
+    ),
+)
+async def analyse_url(
+    url: str, ctx: typing.Optional[Context] = None
+) -> dict[str, typing.Any]:
+  """Submit a URL for live scanning and wait for the Google Threat Intelligence analysis report.
+
+  Args:
+    url (required): The URL to submit for scanning and analysis.
+    ctx: Optional MCP request context for progress reporting.
+
+  Returns:
+    Sanitized analysis report dictionary from VirusTotal / Google Threat Intelligence.
+  """
+  try:
+    if ctx is not None:
+      await ctx.report_progress(
+          progress=0,
+          total=3,
+          message="Submitting URL for scanning...",
+      )
+    async with vt_client(ctx) as client:  # type: ignore[arg-type]
+      analysis = await client.scan_url_async(url)
+      if ctx is not None:
+        await ctx.report_progress(
+            progress=1,
+            total=3,
+            message="Polling URL analysis completion...",
+        )
+      res = await client.wait_for_analysis_completion(analysis)
+      if ctx is not None:
+        await ctx.report_progress(
+            progress=2,
+            total=3,
+            message="Fetching URL threat analysis report...",
+        )
+      sanitized = utils.sanitize_response(res.to_dict())
+    if ctx is not None:
+      await ctx.report_progress(
+          progress=3,
+          total=3,
+          message="URL analysis complete.",
+      )
+    return sanitized
+  except Exception as e:
+    logging.error("Error analysing URL %s: %s", url, e)
+    return utils.tool_error_result(f"Failed to analyse URL: {e}")  # type: ignore[return-value]

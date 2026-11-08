@@ -16,19 +16,30 @@
 import logging
 from typing import Any, Dict, Optional
 
+from mcp.types import ToolAnnotations as _ToolAnnotations
 from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.utils import tool_error_result as _tool_error_result
 
 
 # Configure logging
 logger = logging.getLogger("secops-mcp")
 
 
-@server.tool()
+@server.tool(
+    title="List Chronicle Ingestion Feeds",
+    annotations=_ToolAnnotations(
+        title="List Chronicle Ingestion Feeds",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def list_feeds(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """List all feeds configured in Chronicle.
 
     Retrieves a list of all feeds that are configured in the
@@ -98,17 +109,26 @@ async def list_feeds(
 
         return result
     except Exception as e:
-        logger.error(f"Error listing feeds: {e}", exc_info=True)
-        return {"error": f"Error listing feeds: {e}"}
+        logger.error("Error listing feeds: %s", e, exc_info=True)
+        return _tool_error_result(f"Error listing feeds: {e}", feeds=[])
 
 
-@server.tool()
+@server.tool(
+    title="Get Chronicle Feed Details",
+    annotations=_ToolAnnotations(
+        title="Get Chronicle Feed Details",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_feed(
     feed_id: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get detailed information about a specific feed.
 
     Retrieves complete configuration details for a specified feed by its ID,
@@ -151,29 +171,40 @@ async def get_feed(
         - Search for recent events from this feed using security events search
     """
     try:
-        logger.info(f"Getting details for feed with ID: {feed_id}")
+        logger.info("Getting details for feed with ID: %s", feed_id)
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # Get feed details
         feed = chronicle.get_feed(feed_id)
 
         if not feed:
-            return {"error": f"Feed with ID {feed_id} not found"}
+            return _tool_error_result(
+                f"Feed with ID {feed_id} not found", feed_id=feed_id
+            )
 
         return feed
     except Exception as e:
-        logger.error(f"Error getting feed: {e}", exc_info=True)
-        return {"error": f"Error getting feed: {e}"}
+        logger.error("Error getting feed: %s", e, exc_info=True)
+        return _tool_error_result(f"Error getting feed: {e}", feed_id=feed_id)
 
 
-@server.tool()
+@server.tool(
+    title="Create Chronicle Ingestion Feed",
+    annotations=_ToolAnnotations(
+        title="Create Chronicle Ingestion Feed",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=False,
+    ),
+)
 async def create_feed(
     display_name: str,
     feed_details: Dict[str, Any],
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create a new feed in Chronicle.
 
     Creates a new feed configuration for ingesting security data into Chronicle.
@@ -229,7 +260,7 @@ async def create_feed(
         - Document the new data source in your security operations runbook
     """
     try:
-        logger.info(f"Creating new feed: {display_name}")
+        logger.info("Creating new feed: %s", display_name)
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # Create the feed
@@ -238,19 +269,28 @@ async def create_feed(
         )
 
     except Exception as e:
-        logger.error(f"Error creating feed: {e}", exc_info=True)
-        return {"error": f"Error creating feed: {e}"}
+        logger.error("Error creating feed: %s", e, exc_info=True)
+        return _tool_error_result(f"Error creating feed: {e}")
 
 
-@server.tool()
+@server.tool(
+    title="Update Chronicle Ingestion Feed",
+    annotations=_ToolAnnotations(
+        title="Update Chronicle Ingestion Feed",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def update_feed(
     feed_id: str,
     display_name: Optional[str] = None,
-    feed_details: Dict[str, Any] = None,
+    feed_details: Optional[Dict[str, Any]] = None,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Update an existing feed in Chronicle.
 
     Modifies the configuration of an existing feed in Chronicle. Can
@@ -303,7 +343,7 @@ async def update_feed(
         - Monitor the feed for any issues after the update
     """
     try:
-        logger.info(f"Updating feed with ID: {feed_id}")
+        logger.info("Updating feed with ID: %s", feed_id)
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # Update the feed
@@ -313,17 +353,26 @@ async def update_feed(
             details=feed_details or {},
         )
     except Exception as e:
-        logger.error(f"Error updating feed: {e}", exc_info=True)
-        return {"error": f"Error updating feed: {e}"}
+        logger.error("Error updating feed: %s", e, exc_info=True)
+        return _tool_error_result(f"Error updating feed: {e}", feed_id=feed_id)
 
 
-@server.tool()
+@server.tool(
+    title="Enable Chronicle Ingestion Feed",
+    annotations=_ToolAnnotations(
+        title="Enable Chronicle Ingestion Feed",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def enable_feed(
     feed_id: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Enable a inactive feed in Chronicle.
 
     Activates a feed that is currently in the INACTIVE state, allowing it
@@ -363,7 +412,7 @@ async def enable_feed(
         - Monitor the feed for any issues after enabling
     """
     try:
-        logger.info(f"Enabling feed with ID: {feed_id}")
+        logger.info("Enabling feed with ID: %s", feed_id)
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # Enable the feed
@@ -378,17 +427,26 @@ async def enable_feed(
 
         return result
     except Exception as e:
-        logger.error(f"Error enabling feed: {e}", exc_info=True)
-        return {"error": f"Error enabling feed: {e}"}
+        logger.error("Error enabling feed: %s", e, exc_info=True)
+        return _tool_error_result(f"Error enabling feed: {e}", feed_id=feed_id)
 
 
-@server.tool()
+@server.tool(
+    title="Disable Chronicle Ingestion Feed",
+    annotations=_ToolAnnotations(
+        title="Disable Chronicle Ingestion Feed",
+        read_only_hint=False,
+        destructive_hint=True,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def disable_feed(
     feed_id: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Disable an active feed in Chronicle.
 
     Stops data ingestion for a feed by setting its state to INACTIVE.
@@ -428,7 +486,7 @@ async def disable_feed(
         - Document the reason for disabling in your security operations runbook
     """
     try:
-        logger.info(f"Disabling feed with ID: {feed_id}")
+        logger.info("Disabling feed with ID: %s", feed_id)
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # Disable the feed
@@ -443,17 +501,28 @@ async def disable_feed(
 
         return result
     except Exception as e:
-        logger.error(f"Error disabling feed: {e}", exc_info=True)
-        return {"error": f"Error disabling feed: {e}"}
+        logger.error("Error disabling feed: %s", e, exc_info=True)
+        return _tool_error_result(
+            f"Error disabling feed: {e}", feed_id=feed_id
+        )
 
 
-@server.tool()
+@server.tool(
+    title="Delete Chronicle Ingestion Feed",
+    annotations=_ToolAnnotations(
+        title="Delete Chronicle Ingestion Feed",
+        read_only_hint=False,
+        destructive_hint=True,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def delete_feed(
     feed_id: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Delete a feed from Chronicle.
 
     Permanently removes a feed from Chronicle. This action cannot be undone
@@ -493,7 +562,7 @@ async def delete_feed(
         - Consider archiving historical data if needed
     """
     try:
-        logger.info(f"Deleting feed with ID: {feed_id}")
+        logger.info("Deleting feed with ID: %s", feed_id)
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # Delete the feed
@@ -504,17 +573,26 @@ async def delete_feed(
 
         return result
     except Exception as e:
-        logger.error(f"Error deleting feed: {e}", exc_info=True)
-        return {"error": f"Error deleting feed: {e}"}
+        logger.error("Error deleting feed: %s", e, exc_info=True)
+        return _tool_error_result(f"Error deleting feed: {e}", feed_id=feed_id)
 
 
-@server.tool()
+@server.tool(
+    title="Generate Chronicle Feed Secret",
+    annotations=_ToolAnnotations(
+        title="Generate Chronicle Feed Secret",
+        read_only_hint=False,
+        destructive_hint=True,
+        idempotent_hint=False,
+        open_world_hint=False,
+    ),
+)
 async def generate_feed_secret(
     feed_id: str,
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Generate authentication secret for a feed.
 
     Generates a new secret for https push feeds which do not support jwt tokens.
@@ -555,7 +633,7 @@ async def generate_feed_secret(
         - Set a reminder for next credential rotation
     """
     try:
-        logger.info(f"Generating secret for feed with ID: {feed_id}")
+        logger.info("Generating secret for feed with ID: %s", feed_id)
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # Generate the secret
@@ -570,5 +648,7 @@ async def generate_feed_secret(
 
         return result
     except Exception as e:
-        logger.error(f"Error generating feed secret: {e}", exc_info=True)
-        return {"error": f"Error generating feed secret: {e}"}
+        logger.error("Error generating feed secret: %s", e, exc_info=True)
+        return _tool_error_result(
+            f"Error generating feed secret: {e}", feed_id=feed_id
+        )

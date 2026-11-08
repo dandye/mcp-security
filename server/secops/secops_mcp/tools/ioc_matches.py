@@ -15,22 +15,34 @@
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 
+from mcp.types import ToolAnnotations as _ToolAnnotations
 from secops_mcp.server import get_chronicle_client, server
+from secops_mcp.utils import tool_error_result as _tool_error_result
 
 
 # Configure logging
 logger = logging.getLogger('secops-mcp')
 
-@server.tool()
+
+@server.tool(
+    title="Get Chronicle IOC Matches",
+    annotations=_ToolAnnotations(
+        title="Get Chronicle IOC Matches",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def get_ioc_matches(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     hours_back: int = 24,
     max_matches: int = 20,
     region: Optional[str] = None,
-) -> str:
+) -> dict[str, Any]:
     """Get Indicators of Compromise (IoCs) matches from Chronicle SIEM.
 
     Retrieves IoCs (e.g., malicious IPs, domains, hashes) from configured threat
@@ -87,7 +99,11 @@ async def get_ioc_matches(
             matches = iocs
 
         if not matches:
-            return 'No IoC matches found for the specified time range.'
+            return {
+                'summary': 'No IoC matches found for the specified time range.',
+                'count': 0,
+                'matches': [],
+            }
 
         result = f'Found {len(matches)} IoC matches:\n\n'
 
@@ -117,6 +133,15 @@ async def get_ioc_matches(
             result += f'Value: {indicator_value}\n'
             result += f'Sources: {sources_str}\n\n'
 
-        return result
+        return {
+            'summary': result,
+            'count': len(matches),
+            'matches': matches,
+        }
     except Exception as e:
-        return f'Error retrieving IoC matches: {str(e)}'
+        logger.error('Error retrieving IoC matches: %s', e, exc_info=True)
+        return _tool_error_result(
+            f'Error retrieving IoC matches: {e}',
+            count=0,
+            matches=[],
+        )

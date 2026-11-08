@@ -12,25 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
+from logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the MicrosoftGraphMail integration.
 
-    @mcp.tool()
-    async def microsoft_graph_mail_send_vote_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], send_from: Annotated[str, Field(..., description="Optional email address to send an email from (if permissions allow it). By default, the email is sent from the default mailbox specified in the integration configuration.")], subject: Annotated[str, Field(..., description="Email subject.")], send_to: Annotated[str, Field(..., description="Arbitrary comma-separated list of email addresses for the email recipients, for example, user1@company.co, user2@company.co.")], email_html_template: Annotated[EmailContent, Field(..., description="The question you would like to ask, or describe the decision you would like the recipient to be able to respond to")], structure_of_voting_options: Annotated[List[str], Field(..., description="Structure of the vote to send to the recipients.")], attachment_location: Annotated[List[str], Field(..., description="Location where the attachments to be added are stored. By default, the action attempts to get the attachment from the Google Cloud storage bucket, another option is to fetch it from the local file system.")], cc: Annotated[str, Field(default=None, description="Arbitrary comma-separated list of email addresses to use in the CC email field. Use the same format as for the \"Send to\" field.")], bcc: Annotated[str, Field(default=None, description="Arbitrary comma-separated list of email addresses to use in the BCC email field. Use the same format for the \"Send to\" field.")], attachments_paths: Annotated[str, Field(default=None, description="Specify the attachments to be added, parameter expects full paths to be provided, for example: /<work directory>/file1.pdf. Parameter accepts multiple values as a comma separated string.")], reply_to_recipients: Annotated[str, Field(default=None, description="Comma-separated list of recipients used in the Reply-To header. Note: The Reply-To header is added to force email replies to specific email addresses instead of the email sender address stated in the From field.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Graph Mail: Send Vote Email',
+        annotations=ToolAnnotations(
+            title='Microsoft Graph Mail: Send Vote Email',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_graph_mail_send_vote_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], send_from: Annotated[str, Field(..., description="Optional email address to send an email from (if permissions allow it). By default, the email is sent from the default mailbox specified in the integration configuration.")], subject: Annotated[str, Field(..., description="Email subject.")], send_to: Annotated[str, Field(..., description="Arbitrary comma-separated list of email addresses for the email recipients, for example, user1@company.co, user2@company.co.")], email_html_template: Annotated[EmailContent, Field(..., description="The question you would like to ask, or describe the decision you would like the recipient to be able to respond to")], structure_of_voting_options: Annotated[List[str], Field(..., description="Structure of the vote to send to the recipients.")], attachment_location: Annotated[List[str], Field(..., description="Location where the attachments to be added are stored. By default, the action attempts to get the attachment from the Google Cloud storage bucket, another option is to fetch it from the local file system.")], cc: Annotated[Optional[str], Field(default=None, description="Arbitrary comma-separated list of email addresses to use in the CC email field. Use the same format as for the \"Send to\" field.")], bcc: Annotated[Optional[str], Field(default=None, description="Arbitrary comma-separated list of email addresses to use in the BCC email field. Use the same format for the \"Send to\" field.")], attachments_paths: Annotated[Optional[str], Field(default=None, description="Specify the attachments to be added, parameter expects full paths to be provided, for example: /<work directory>/file1.pdf. Parameter accepts multiple values as a comma separated string.")], reply_to_recipients: Annotated[Optional[str], Field(default=None, description="Comma-separated list of recipients used in the Reply-To header. Note: The Reply-To header is added to force email replies to specific email addresses instead of the email sender address stated in the From field.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Send email with easy answering options, to allow stakeholders to be included in workflow processes. This action uses Google SecOps HTML templates to format the email. If permissions allow, the action sends an email from a mailbox different than the one specified in the integration configuration. Note: This action is not running on Google SecOps entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -44,10 +63,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -57,15 +73,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftGraphMail")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftGraphMail: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftGraphMail: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Send From"] = send_from
@@ -105,21 +125,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftGraphMail_Send Vote Email")
             except Exception as e:
-                print(f"Error executing action MicrosoftGraphMail_Send Vote Email for MicrosoftGraphMail: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftGraphMail_Send Vote Email for MicrosoftGraphMail: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftGraphMail")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftGraphMail")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_graph_mail_mark_email_as_not_junk(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_in_mailbox: Annotated[str, Field(..., description="A mailbox to search for an email in. By default, the action  attempts to search for the email in the default mailbox that you specified in the integration configuration. With correct permissions, the action can execute a search in other mailboxes. Parameter accepts multiple values as a comma separated string.")], folder_name: Annotated[str, Field(..., description="A mailbox folder to search in.")], mail_i_ds: Annotated[str, Field(..., description="Specify the mail ids or internetMessageIds to mark as not junk. Parameter accepts multiple values as a comma separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Graph Mail: Mark Email as Not Junk',
+        annotations=ToolAnnotations(
+            title='Microsoft Graph Mail: Mark Email as Not Junk',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_graph_mail_mark_email_as_not_junk(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_in_mailbox: Annotated[str, Field(..., description="A mailbox to search for an email in. By default, the action  attempts to search for the email in the default mailbox that you specified in the integration configuration. With correct permissions, the action can execute a search in other mailboxes. Parameter accepts multiple values as a comma separated string.")], folder_name: Annotated[str, Field(..., description="A mailbox folder to search in.")], mail_i_ds: Annotated[str, Field(..., description="Specify the mail ids or internetMessageIds to mark as not junk. Parameter accepts multiple values as a comma separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Mark an email as not junk for a specific mailbox. This action removes the sender from the list of blocked senders and moves the message to the Inbox folder. Note: This action uses the beta version of Microsoft Graph APIs and is not running on Google SecOps entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -133,10 +167,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -146,15 +177,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftGraphMail")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftGraphMail: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftGraphMail: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Search In Mailbox"] = search_in_mailbox
@@ -182,21 +217,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftGraphMail_Mark Email as Not Junk")
             except Exception as e:
-                print(f"Error executing action MicrosoftGraphMail_Mark Email as Not Junk for MicrosoftGraphMail: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftGraphMail_Mark Email as Not Junk for MicrosoftGraphMail: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftGraphMail")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftGraphMail")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_graph_mail_send_thread_reply(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], send_from: Annotated[str, Field(..., description="Specify the optional email address from which if permissions allow, email should be sent. By default, the email will be sent from the default mailbox specified in the integration configuration.")], mail_id: Annotated[str, Field(..., description="Specify the ID or internetMessageId of the message to which you want to send a reply.")], folder_name: Annotated[str, Field(..., description="Specify the mailbox folder to search in. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], mail_content: Annotated[str, Field(..., description="Specify the email body part.")], attachment_location: Annotated[List[str], Field(..., description="Location where the attachments to be added are stored. By default, the action attempts to get the attachment from the Google Cloud storage bucket, another option is to fetch it from the local file system.")], attachments_paths: Annotated[str, Field(default=None, description="Specify the attachments to be added, parameter expects full paths to be provided, for example: /<work directory>/file1.pdf. Parameter accepts multiple values as a comma separated string.")], reply_all: Annotated[bool, Field(default=None, description="If enabled, action will send a reply to all recipients related to the original email. Note: this parameter has priority over \u201cReply To\u201c parameter.")], reply_to: Annotated[str, Field(default=None, description="Specify a comma-separated list of emails to which you want to send this reply. If nothing is provided and \u201cReply All\u201c is disabled, action will only send a reply to the sender of the email. If \u201cReply All\u201c is enabled, action will ignore this parameter.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Graph Mail: Send Thread Reply',
+        annotations=ToolAnnotations(
+            title='Microsoft Graph Mail: Send Thread Reply',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_graph_mail_send_thread_reply(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], send_from: Annotated[str, Field(..., description="Specify the optional email address from which if permissions allow, email should be sent. By default, the email will be sent from the default mailbox specified in the integration configuration.")], mail_id: Annotated[str, Field(..., description="Specify the ID or internetMessageId of the message to which you want to send a reply.")], folder_name: Annotated[str, Field(..., description="Specify the mailbox folder to search in. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], mail_content: Annotated[str, Field(..., description="Specify the email body part.")], attachment_location: Annotated[List[str], Field(..., description="Location where the attachments to be added are stored. By default, the action attempts to get the attachment from the Google Cloud storage bucket, another option is to fetch it from the local file system.")], attachments_paths: Annotated[Optional[str], Field(default=None, description="Specify the attachments to be added, parameter expects full paths to be provided, for example: /<work directory>/file1.pdf. Parameter accepts multiple values as a comma separated string.")], reply_all: Annotated[Optional[bool], Field(default=None, description="If enabled, action will send a reply to all recipients related to the original email. Note: this parameter has priority over \u201cReply To\u201c parameter.")], reply_to: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of emails to which you want to send this reply. If nothing is provided and \u201cReply All\u201c is disabled, action will only send a reply to the sender of the email. If \u201cReply All\u201c is enabled, action will ignore this parameter.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Send a message as a reply to the email thread. If permissions allow, action can send an email from a mailbox different that is specified in the integration configuration. Note: Action is not running on Chronicle entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -210,10 +259,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -223,15 +269,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftGraphMail")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftGraphMail: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftGraphMail: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Send From"] = send_from
@@ -267,21 +317,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftGraphMail_Send Thread Reply")
             except Exception as e:
-                print(f"Error executing action MicrosoftGraphMail_Send Thread Reply for MicrosoftGraphMail: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftGraphMail_Send Thread Reply for MicrosoftGraphMail: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftGraphMail")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftGraphMail")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_graph_mail_wait_for_email_from_user(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], mail_id: Annotated[str, Field(..., description="Specify the id or internetMessageId of the email, which current action would be waiting for. If the message has been sent using Send Email action, please select SendEmail.JSONResult|id or Send Email.JsonResult|internetMessageId field as a placeholder. Search Emails action also can return ids for emails.")], wait_for_all_recipients_to_reply: Annotated[bool, Field(default=None, description="If enabled,  the action will wait for responses from all of the recipients until timeout, and not finish upon getting the first response.")], wait_stage_exclude_pattern: Annotated[str, Field(default=None, description="Specify the regular expression to exclude specific replies from the wait stage. Works with subject and body parts of the email. Example is, to exclude automatic Out-Of-Office emails to be considered as recipient reply, and instead wait for actual user reply.")], folder_to_check_for_reply: Annotated[str, Field(default=None, description="Specify the mailbox email folder (mailbox that was used to send the email with question) to search for the user reply in this folder. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], fetch_response_attachments: Annotated[bool, Field(default=None, description="If enabled, if recipient replies with attachment - fetch recipient response and add it as attachment for the action result.")], limit_the_amount_of_information_returned_in_the_json_result: Annotated[bool, Field(default=None, description="If enabled, the amount of information returned by the action will be limited only to the key email fields.")], disable_the_action_json_result: Annotated[bool, Field(default=None, description="If enabled, action will not return JSON result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Graph Mail: Wait for Email from User',
+        annotations=ToolAnnotations(
+            title='Microsoft Graph Mail: Wait for Email from User',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_graph_mail_wait_for_email_from_user(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], mail_id: Annotated[str, Field(..., description="Specify the id or internetMessageId of the email, which current action would be waiting for. If the message has been sent using Send Email action, please select SendEmail.JSONResult|id or Send Email.JsonResult|internetMessageId field as a placeholder. Search Emails action also can return ids for emails.")], wait_for_all_recipients_to_reply: Annotated[Optional[bool], Field(default=None, description="If enabled,  the action will wait for responses from all of the recipients until timeout, and not finish upon getting the first response.")], wait_stage_exclude_pattern: Annotated[Optional[str], Field(default=None, description="Specify the regular expression to exclude specific replies from the wait stage. Works with subject and body parts of the email. Example is, to exclude automatic Out-Of-Office emails to be considered as recipient reply, and instead wait for actual user reply.")], folder_to_check_for_reply: Annotated[Optional[str], Field(default=None, description="Specify the mailbox email folder (mailbox that was used to send the email with question) to search for the user reply in this folder. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], fetch_response_attachments: Annotated[Optional[bool], Field(default=None, description="If enabled, if recipient replies with attachment - fetch recipient response and add it as attachment for the action result.")], limit_the_amount_of_information_returned_in_the_json_result: Annotated[Optional[bool], Field(default=None, description="If enabled, the amount of information returned by the action will be limited only to the key email fields.")], disable_the_action_json_result: Annotated[Optional[bool], Field(default=None, description="If enabled, action will not return JSON result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Wait for user's response based on an email sent via the "Send Mail" action. Action is async, please adjust action timeout in IDE accordingly. Action is not working on Chronicle entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -295,10 +359,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -308,15 +369,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftGraphMail")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftGraphMail: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftGraphMail: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Mail ID"] = mail_id
@@ -354,21 +419,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftGraphMail_Wait For Email From User")
             except Exception as e:
-                print(f"Error executing action MicrosoftGraphMail_Wait For Email From User for MicrosoftGraphMail: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftGraphMail_Wait For Email From User for MicrosoftGraphMail: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftGraphMail")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftGraphMail")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_graph_mail_forward_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], send_from: Annotated[str, Field(..., description="Specify the optional email address from which if permissions allow, email should be sent. By default, the email will be sent from the default mailbox specified in the integration configuration.")], mail_id: Annotated[str, Field(..., description="Specify the mail ids or internetMessageIds of the message that you want to forward.")], subject: Annotated[str, Field(..., description="Specify the mail subject part.")], send_to: Annotated[str, Field(..., description="Specify the arbitrary comma separated list of email addresses for the email recipients. For example: user1@company.co, user2@company.co")], mail_content: Annotated[str, Field(..., description="Specify the email body part.")], attachment_location: Annotated[List[str], Field(..., description="Location where the attachments to be added are stored. By default, the action attempts to get the attachment from the Google Cloud storage bucket, another option is to fetch it from the local file system.")], folder_name: Annotated[str, Field(default=None, description="Specify the mailbox folder to search in. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], cc: Annotated[str, Field(default=None, description="Specify the arbitrary comma separated list of email addresses to be put in the CC field of email. Format is the same as for the 'Send to' field.")], bcc: Annotated[str, Field(default=None, description="Arbitrary comma separated list of email addresses to be put in the BCC field of email. Format is the same as for the 'Send to' field.")], attachments_paths: Annotated[str, Field(default=None, description="Specify the attachments to be added, parameter expects full paths to be provided, for example: /<work directory>/file1.pdf. Parameter accepts multiple values as a comma separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Graph Mail: Forward Email',
+        annotations=ToolAnnotations(
+            title='Microsoft Graph Mail: Forward Email',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_graph_mail_forward_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], send_from: Annotated[str, Field(..., description="Specify the optional email address from which if permissions allow, email should be sent. By default, the email will be sent from the default mailbox specified in the integration configuration.")], mail_id: Annotated[str, Field(..., description="Specify the mail ids or internetMessageIds of the message that you want to forward.")], subject: Annotated[str, Field(..., description="Specify the mail subject part.")], send_to: Annotated[str, Field(..., description="Specify the arbitrary comma separated list of email addresses for the email recipients. For example: user1@company.co, user2@company.co")], mail_content: Annotated[str, Field(..., description="Specify the email body part.")], attachment_location: Annotated[List[str], Field(..., description="Location where the attachments to be added are stored. By default, the action attempts to get the attachment from the Google Cloud storage bucket, another option is to fetch it from the local file system.")], folder_name: Annotated[Optional[str], Field(default=None, description="Specify the mailbox folder to search in. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], cc: Annotated[Optional[str], Field(default=None, description="Specify the arbitrary comma separated list of email addresses to be put in the CC field of email. Format is the same as for the 'Send to' field.")], bcc: Annotated[Optional[str], Field(default=None, description="Arbitrary comma separated list of email addresses to be put in the BCC field of email. Format is the same as for the 'Send to' field.")], attachments_paths: Annotated[Optional[str], Field(default=None, description="Specify the attachments to be added, parameter expects full paths to be provided, for example: /<work directory>/file1.pdf. Parameter accepts multiple values as a comma separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Forward email including previous threads. If permissions allow, action can send an email from a mailbox different that is specified in the integration configuration. Note: Action is not running on Siemplify entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -382,10 +461,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -395,15 +471,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftGraphMail")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftGraphMail: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftGraphMail: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Send From"] = send_from
@@ -442,21 +522,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftGraphMail_Forward Email")
             except Exception as e:
-                print(f"Error executing action MicrosoftGraphMail_Forward Email for MicrosoftGraphMail: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftGraphMail_Forward Email for MicrosoftGraphMail: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftGraphMail")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftGraphMail")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_graph_mail_move_email_to_folder(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], move_in_mailbox: Annotated[str, Field(..., description="By default, move operation will be executed in the default mailbox specified in the integration configuration. If permissions allow, action can search in other mailboxes as well. If permissions allow, action can search in other mailboxes as well. Parameter accepts multiple values as a comma separated string.")], source_folder_name: Annotated[str, Field(..., description="Specify the source folder name to move mail from. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], destination_folder_name: Annotated[str, Field(..., description="Specify the destination folder name to move mail to. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], mail_i_ds: Annotated[str, Field(default=None, description="Specify the mail ids or internetMessageIds to search for. Parameter accepts multiple values as a comma separated string. If mail id or internet message id is provided, it takes priority for the search, subject and sender filters are ignored.")], subject_filter: Annotated[str, Field(default=None, description="Specify the subject of the email to search for. Filter works with \"contains\" logic.")], sender_filter: Annotated[str, Field(default=None, description="Specify the sender of the email to search for. Filter works with \"equals\" logic.")], time_frame_minutes: Annotated[str, Field(default=None, description="Specify time frame in minutes to search emails for.")], only_unread: Annotated[bool, Field(default=None, description="If enabled, action searches only for the unread emails.")], how_many_mailboxes_to_process_in_a_single_batch: Annotated[str, Field(default=None, description="Specify how many mailboxes action should process in a single batch (single connection to O365). If nothing is provided, default value of 25 will be used.")], limit_the_amount_of_information_returned_in_the_json_result: Annotated[bool, Field(default=None, description="If enabled, the amount of information returned by the action will be limited only to the key email fields.")], disable_the_action_json_result: Annotated[bool, Field(default=None, description="If enabled, action will not return JSON result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Graph Mail: Move Email to Folder',
+        annotations=ToolAnnotations(
+            title='Microsoft Graph Mail: Move Email to Folder',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_graph_mail_move_email_to_folder(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], move_in_mailbox: Annotated[str, Field(..., description="By default, move operation will be executed in the default mailbox specified in the integration configuration. If permissions allow, action can search in other mailboxes as well. If permissions allow, action can search in other mailboxes as well. Parameter accepts multiple values as a comma separated string.")], source_folder_name: Annotated[str, Field(..., description="Specify the source folder name to move mail from. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], destination_folder_name: Annotated[str, Field(..., description="Specify the destination folder name to move mail to. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], mail_i_ds: Annotated[Optional[str], Field(default=None, description="Specify the mail ids or internetMessageIds to search for. Parameter accepts multiple values as a comma separated string. If mail id or internet message id is provided, it takes priority for the search, subject and sender filters are ignored.")], subject_filter: Annotated[Optional[str], Field(default=None, description="Specify the subject of the email to search for. Filter works with \"contains\" logic.")], sender_filter: Annotated[Optional[str], Field(default=None, description="Specify the sender of the email to search for. Filter works with \"equals\" logic.")], time_frame_minutes: Annotated[Optional[str], Field(default=None, description="Specify time frame in minutes to search emails for.")], only_unread: Annotated[Optional[bool], Field(default=None, description="If enabled, action searches only for the unread emails.")], how_many_mailboxes_to_process_in_a_single_batch: Annotated[Optional[str], Field(default=None, description="Specify how many mailboxes action should process in a single batch (single connection to O365). If nothing is provided, default value of 25 will be used.")], limit_the_amount_of_information_returned_in_the_json_result: Annotated[Optional[bool], Field(default=None, description="If enabled, the amount of information returned by the action will be limited only to the key email fields.")], disable_the_action_json_result: Annotated[Optional[bool], Field(default=None, description="If enabled, action will not return JSON result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Move one or multiple emails from source email folder to another folder in the mailbox. If permissions allow, action can move emails in mailboxes other than the one provided in the integration configuration. Action is async, please adjust action timeout in IDE accordingly. Action is not working on Chronicle entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -470,10 +564,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -483,15 +574,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftGraphMail")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftGraphMail: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftGraphMail: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Move In Mailbox"] = move_in_mailbox
@@ -535,21 +630,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftGraphMail_Move Email To Folder")
             except Exception as e:
-                print(f"Error executing action MicrosoftGraphMail_Move Email To Folder for MicrosoftGraphMail: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftGraphMail_Move Email To Folder for MicrosoftGraphMail: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftGraphMail")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftGraphMail")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_graph_mail_wait_for_vote_email_results(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vote_mail_sent_from: Annotated[str, Field(..., description="By default, the email is sent from the default mailbox specified in the integration configuration. In this parameter optionally a different value can be specified, if the vote mail was sent from a different mailbox.")], mail_id: Annotated[str, Field(..., description="ID or internetMessageId of the vote email that the action waits for. If the message was sent using Send Vote Email action, select SendVoteEmail.JSONResult|id or Send Email.JsonResult|internetMessageId field as a placeholder. The Search Emails action also can return email IDs.")], wait_for_all_recipients_to_reply: Annotated[bool, Field(default=None, description="If selected, the action waits for responses from all recipients until timeout and doesn't complete execution receiving the first response.")], wait_stage_exclude_pattern: Annotated[str, Field(default=None, description="Regular expression to exclude specific replies from the wait stage. The regular expression works with the email subject and body. For example, you can use this parameter to exclude  automatic Out of Office emails wait for an actual user reply.")], folder_to_check_for_reply: Annotated[str, Field(default=None, description="Email folder in the mailbox that was used to send the email with question to search for the user reply in. Parameter also accepts a comma separated list of folders to check the user response in multiple folders. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], folder_to_check_for_sent_mail: Annotated[str, Field(default=None, description="Parameter can be used to specify mailbox email folder (mailbox that was used to send the email with question) to search for the sent mail in this folder. Parameter also accepts a comma separated list of folders to check the user response in multiple folders. Parameter is case sensitive. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], fetch_response_attachments: Annotated[bool, Field(default=None, description="If selected and the recipient replies with an attachment, the action fetches the recipient response and adds it as an attachment for the action result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Graph Mail: Wait for Vote Email Results',
+        annotations=ToolAnnotations(
+            title='Microsoft Graph Mail: Wait for Vote Email Results',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_graph_mail_wait_for_vote_email_results(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], vote_mail_sent_from: Annotated[str, Field(..., description="By default, the email is sent from the default mailbox specified in the integration configuration. In this parameter optionally a different value can be specified, if the vote mail was sent from a different mailbox.")], mail_id: Annotated[str, Field(..., description="ID or internetMessageId of the vote email that the action waits for. If the message was sent using Send Vote Email action, select SendVoteEmail.JSONResult|id or Send Email.JsonResult|internetMessageId field as a placeholder. The Search Emails action also can return email IDs.")], wait_for_all_recipients_to_reply: Annotated[Optional[bool], Field(default=None, description="If selected, the action waits for responses from all recipients until timeout and doesn't complete execution receiving the first response.")], wait_stage_exclude_pattern: Annotated[Optional[str], Field(default=None, description="Regular expression to exclude specific replies from the wait stage. The regular expression works with the email subject and body. For example, you can use this parameter to exclude  automatic Out of Office emails wait for an actual user reply.")], folder_to_check_for_reply: Annotated[Optional[str], Field(default=None, description="Email folder in the mailbox that was used to send the email with question to search for the user reply in. Parameter also accepts a comma separated list of folders to check the user response in multiple folders. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], folder_to_check_for_sent_mail: Annotated[Optional[str], Field(default=None, description="Parameter can be used to specify mailbox email folder (mailbox that was used to send the email with question) to search for the sent mail in this folder. Parameter also accepts a comma separated list of folders to check the user response in multiple folders. Parameter is case sensitive. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], fetch_response_attachments: Annotated[Optional[bool], Field(default=None, description="If selected and the recipient replies with an attachment, the action fetches the recipient response and adds it as an attachment for the action result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Wait for the user response based on the vote email sent using the Send Vote Email action. This action is asynchronous. Adjust the action timeout in the IDE accordingly. This action is not working on Google SecOps entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -563,10 +672,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -576,15 +682,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftGraphMail")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftGraphMail: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftGraphMail: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Vote Mail Sent From"] = vote_mail_sent_from
@@ -621,21 +731,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftGraphMail_Wait For Vote Email Results")
             except Exception as e:
-                print(f"Error executing action MicrosoftGraphMail_Wait For Vote Email Results for MicrosoftGraphMail: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftGraphMail_Wait For Vote Email Results for MicrosoftGraphMail: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftGraphMail")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftGraphMail")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_graph_mail_send_email_html(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], send_from: Annotated[str, Field(..., description="Optional email address to send an email from (if permissions allow it). By default, the email is sent from the default mailbox specified in the integration configuration.")], subject: Annotated[str, Field(..., description="Email subject.")], send_to: Annotated[str, Field(..., description="Specify the arbitrary comma-separated list of email addresses for the email recipients,for example, user1@company.co, user2@company.co.")], email_html_template: Annotated[EmailContent, Field(..., description="The question you would like to ask, or describe the decision you would like the recipient to be able to respond to")], attachment_location: Annotated[List[str], Field(..., description="Location where the attachments to be added are stored. By default, the action attempts to get the attachment from the Google Cloud storage bucket, another option is to fetch it from the local file system.")], cc: Annotated[str, Field(default=None, description="Arbitrary comma-separated list of email addresses to use in the CC email field. Use the same format as for the \"Send to\" field.")], bcc: Annotated[str, Field(default=None, description="Arbitrary comma-separated list of email addresses to use in the BCC email field. Use the same format for the \"Send to\" field.")], attachments_paths: Annotated[str, Field(default=None, description="Specify the attachments to be added, parameter expects full paths to be provided, for example: /<work directory>/file1.pdf. Parameter accepts multiple values as a comma separated string.")], reply_to_recipients: Annotated[str, Field(default=None, description="Comma-separated list of recipients used in the Reply-To header. Note: The Reply-To header is added to force email replies to specific email addresses instead of the email sender address stated in the From field.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Graph Mail: Send Email HTML',
+        annotations=ToolAnnotations(
+            title='Microsoft Graph Mail: Send Email HTML',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_graph_mail_send_email_html(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], send_from: Annotated[str, Field(..., description="Optional email address to send an email from (if permissions allow it). By default, the email is sent from the default mailbox specified in the integration configuration.")], subject: Annotated[str, Field(..., description="Email subject.")], send_to: Annotated[str, Field(..., description="Specify the arbitrary comma-separated list of email addresses for the email recipients,for example, user1@company.co, user2@company.co.")], email_html_template: Annotated[EmailContent, Field(..., description="The question you would like to ask, or describe the decision you would like the recipient to be able to respond to")], attachment_location: Annotated[List[str], Field(..., description="Location where the attachments to be added are stored. By default, the action attempts to get the attachment from the Google Cloud storage bucket, another option is to fetch it from the local file system.")], cc: Annotated[Optional[str], Field(default=None, description="Arbitrary comma-separated list of email addresses to use in the CC email field. Use the same format as for the \"Send to\" field.")], bcc: Annotated[Optional[str], Field(default=None, description="Arbitrary comma-separated list of email addresses to use in the BCC email field. Use the same format for the \"Send to\" field.")], attachments_paths: Annotated[Optional[str], Field(default=None, description="Specify the attachments to be added, parameter expects full paths to be provided, for example: /<work directory>/file1.pdf. Parameter accepts multiple values as a comma separated string.")], reply_to_recipients: Annotated[Optional[str], Field(default=None, description="Comma-separated list of recipients used in the Reply-To header. Note: The Reply-To header is added to force email replies to specific email addresses instead of the email sender address stated in the From field.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Send email with the Google SecOps HTML template from a specific mailbox to an arbitrary list of recipients. If permissions allow, the action sends an email from a mailbox different than the one specified in the integration configuration. Note: Action is not running on Google SecOps entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -649,10 +773,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -662,15 +783,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftGraphMail")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftGraphMail: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftGraphMail: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Send From"] = send_from
@@ -709,21 +834,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftGraphMail_Send Email HTML")
             except Exception as e:
-                print(f"Error executing action MicrosoftGraphMail_Send Email HTML for MicrosoftGraphMail: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftGraphMail_Send Email HTML for MicrosoftGraphMail: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftGraphMail")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftGraphMail")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_graph_mail_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Graph Mail: Ping',
+        annotations=ToolAnnotations(
+            title='Microsoft Graph Mail: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_graph_mail_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test Connectivity
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -737,10 +876,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -750,15 +886,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftGraphMail")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftGraphMail: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftGraphMail: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -783,21 +923,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftGraphMail_Ping")
             except Exception as e:
-                print(f"Error executing action MicrosoftGraphMail_Ping for MicrosoftGraphMail: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftGraphMail_Ping for MicrosoftGraphMail: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftGraphMail")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftGraphMail")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_graph_mail_search_emails(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_in_mailbox: Annotated[str, Field(..., description="By default, the search will be executed in the default mailbox specified in the integration configuration. If permissions allow, action can search in other mailboxes as well. Parameter accepts multiple values as a comma separated string. Note that it\u2019s not recommended to perform a search against a big number of mailboxes with this action, for complex searches it is recommended to use Exchange Extension Pack.")], folder_name: Annotated[str, Field(..., description="Specify the mailbox folder to search in. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], subject_filter: Annotated[str, Field(default=None, description="Specify the subject of the email to search for. Filter works with \u201ccontains\u201d logic.")], sender_filter: Annotated[str, Field(default=None, description="Specify the sender of the email to search for. Filter works with \u201cequals\u201d logic.")], time_frame_minutes: Annotated[str, Field(default=None, description="Specify time frame in minutes to search emails for.")], max_emails_to_return: Annotated[str, Field(default=None, description="Specify how many emails action should return. If value is not provided, API default is used.")], only_unread: Annotated[bool, Field(default=None, description="If enabled, action will search only for unread emails.")], select_all_fields_for_return: Annotated[bool, Field(default=None, description="If enabled, action will return all available fields for the found email.")], how_many_mailboxes_to_process_in_a_single_batch: Annotated[str, Field(default=None, description="Specify how many mailboxes action should process in a single batch (single connection to O365). If nothing is provided, default value of 25 will be used.")], limit_the_amount_of_information_returned_in_the_json_result: Annotated[bool, Field(default=None, description="If enabled, the amount of information returned by the action will be limited only to the key email fields.")], disable_the_action_json_result: Annotated[bool, Field(default=None, description="If enabled, action will not return JSON result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Graph Mail: Search Emails',
+        annotations=ToolAnnotations(
+            title='Microsoft Graph Mail: Search Emails',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_graph_mail_search_emails(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_in_mailbox: Annotated[str, Field(..., description="By default, the search will be executed in the default mailbox specified in the integration configuration. If permissions allow, action can search in other mailboxes as well. Parameter accepts multiple values as a comma separated string. Note that it\u2019s not recommended to perform a search against a big number of mailboxes with this action, for complex searches it is recommended to use Exchange Extension Pack.")], folder_name: Annotated[str, Field(..., description="Specify the mailbox folder to search in. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], subject_filter: Annotated[Optional[str], Field(default=None, description="Specify the subject of the email to search for. Filter works with \u201ccontains\u201d logic.")], sender_filter: Annotated[Optional[str], Field(default=None, description="Specify the sender of the email to search for. Filter works with \u201cequals\u201d logic.")], time_frame_minutes: Annotated[Optional[str], Field(default=None, description="Specify time frame in minutes to search emails for.")], max_emails_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many emails action should return. If value is not provided, API default is used.")], only_unread: Annotated[Optional[bool], Field(default=None, description="If enabled, action will search only for unread emails.")], select_all_fields_for_return: Annotated[Optional[bool], Field(default=None, description="If enabled, action will return all available fields for the found email.")], how_many_mailboxes_to_process_in_a_single_batch: Annotated[Optional[str], Field(default=None, description="Specify how many mailboxes action should process in a single batch (single connection to O365). If nothing is provided, default value of 25 will be used.")], limit_the_amount_of_information_returned_in_the_json_result: Annotated[Optional[bool], Field(default=None, description="If enabled, the amount of information returned by the action will be limited only to the key email fields.")], disable_the_action_json_result: Annotated[Optional[bool], Field(default=None, description="If enabled, action will not return JSON result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Execute email search in the configured mailbox based on provided search criteria. If permissions allow, action can search in mailboxes other than the one provided in the integration configuration. Action is async, please adjust action timeout in IDE accordingly. Action is not working on Chronicle entities. 
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -811,10 +965,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -824,15 +975,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftGraphMail")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftGraphMail: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftGraphMail: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Search in Mailbox"] = search_in_mailbox
@@ -877,21 +1032,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftGraphMail_Search Emails")
             except Exception as e:
-                print(f"Error executing action MicrosoftGraphMail_Search Emails for MicrosoftGraphMail: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftGraphMail_Search Emails for MicrosoftGraphMail: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftGraphMail")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftGraphMail")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_graph_mail_save_email_to_the_case(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_in_mailbox: Annotated[str, Field(..., description="By default, action will try to search for email in the default mailbox specified in the integration configuration. If permissions allow, action can search in other mailboxes as well.")], mail_id: Annotated[str, Field(..., description="Specify the mail id or internetMessageId to save email and attachments to the case. If the message has been sent using Send Email action, please select SendEmail.JSONResult|id or Send Email.JsonResult|internetMessageId field as a placeholder. Search Emails action also can return ids for emails.")], folder_name: Annotated[str, Field(default=None, description="Specify the mailbox folder to search in. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], save_only_email_attachments: Annotated[bool, Field(default=None, description="If enabled, action will save only attachments of the specified email.")], attachment_to_save: Annotated[str, Field(default=None, description="If \"Save Only Email Attachments\" checkbox is enabled, action can save only specific attachments that are specified in this parameter. Parameter accepts multiple values as a comma-separated string.")], base64_encode: Annotated[bool, Field(default=None, description="If enabled, encode the email file to base64 encoding.")], save_email_to_the_case_wall: Annotated[bool, Field(default=None, description="If enabled, save the Email directly to the SecOps Case Wall.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Graph Mail: Save Email to the Case',
+        annotations=ToolAnnotations(
+            title='Microsoft Graph Mail: Save Email to the Case',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_graph_mail_save_email_to_the_case(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_in_mailbox: Annotated[str, Field(..., description="By default, action will try to search for email in the default mailbox specified in the integration configuration. If permissions allow, action can search in other mailboxes as well.")], mail_id: Annotated[str, Field(..., description="Specify the mail id or internetMessageId to save email and attachments to the case. If the message has been sent using Send Email action, please select SendEmail.JSONResult|id or Send Email.JsonResult|internetMessageId field as a placeholder. Search Emails action also can return ids for emails.")], folder_name: Annotated[Optional[str], Field(default=None, description="Specify the mailbox folder to search in. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], save_only_email_attachments: Annotated[Optional[bool], Field(default=None, description="If enabled, action will save only attachments of the specified email.")], attachment_to_save: Annotated[Optional[str], Field(default=None, description="If \"Save Only Email Attachments\" checkbox is enabled, action can save only specific attachments that are specified in this parameter. Parameter accepts multiple values as a comma-separated string.")], base64_encode: Annotated[Optional[bool], Field(default=None, description="If enabled, encode the email file to base64 encoding.")], save_email_to_the_case_wall: Annotated[Optional[bool], Field(default=None, description="If enabled, save the Email directly to the SecOps Case Wall.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Save email or email attachments to the Chronicle Case Wall. If permissions allow, action can save emails from mailboxes other than the one provided in the integration configuration. Action is not working on Chronicle entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -905,10 +1074,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -918,15 +1084,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftGraphMail")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftGraphMail: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftGraphMail: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Search In Mailbox"] = search_in_mailbox
@@ -963,21 +1133,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftGraphMail_Save Email to the Case")
             except Exception as e:
-                print(f"Error executing action MicrosoftGraphMail_Save Email to the Case for MicrosoftGraphMail: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftGraphMail_Save Email to the Case for MicrosoftGraphMail: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftGraphMail")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftGraphMail")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_graph_mail_send_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], send_from: Annotated[str, Field(..., description="Specify the optional email address from which if permissions allow, email should be sent. By default, the email will be sent from the default mailbox specified in the integration configuration.")], subject: Annotated[str, Field(..., description="Specify the mail subject part.")], send_to: Annotated[str, Field(..., description="Specify the arbitrary comma separated list of email addresses for the email recipients. For example: user1@company.co, user2@company.co")], mail_content: Annotated[str, Field(..., description="Specify the email body part.")], attachment_location: Annotated[List[str], Field(..., description="Location where the attachments to be added are stored. By default, the action attempts to get the attachment from the Google Cloud storage bucket, another option is to fetch it from the local file system.")], cc: Annotated[str, Field(default=None, description="Specify the arbitrary comma separated list of email addresses to be put in the CC field of email. Format is the same as for the \"Send to\" field.")], bcc: Annotated[str, Field(default=None, description="Arbitrary comma separated list of email addresses to be put in the BCC field of email. Format is the same as for the \"Send to\" field.")], attachments_paths: Annotated[str, Field(default=None, description="Specify the attachments to be added, parameter expects full paths to be provided, for example: /<work directory>/file1.pdf. Parameter accepts multiple values as a comma separated string.")], mail_content_type: Annotated[List[str], Field(default=None, description="Specify the type of email content: either plain text or html.")], reply_to_recipients: Annotated[str, Field(default=None, description="Specify a comma-separated list of recipients that will be used in the \"Reply-To\" header. Note: The Reply-To header is added when the originator of the message wants any replies to the message to go to that particular email address rather than the one in the \"From:\" address.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Graph Mail: Send Email',
+        annotations=ToolAnnotations(
+            title='Microsoft Graph Mail: Send Email',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_graph_mail_send_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], send_from: Annotated[str, Field(..., description="Specify the optional email address from which if permissions allow, email should be sent. By default, the email will be sent from the default mailbox specified in the integration configuration.")], subject: Annotated[str, Field(..., description="Specify the mail subject part.")], send_to: Annotated[str, Field(..., description="Specify the arbitrary comma separated list of email addresses for the email recipients. For example: user1@company.co, user2@company.co")], mail_content: Annotated[str, Field(..., description="Specify the email body part.")], attachment_location: Annotated[List[str], Field(..., description="Location where the attachments to be added are stored. By default, the action attempts to get the attachment from the Google Cloud storage bucket, another option is to fetch it from the local file system.")], cc: Annotated[Optional[str], Field(default=None, description="Specify the arbitrary comma separated list of email addresses to be put in the CC field of email. Format is the same as for the \"Send to\" field.")], bcc: Annotated[Optional[str], Field(default=None, description="Arbitrary comma separated list of email addresses to be put in the BCC field of email. Format is the same as for the \"Send to\" field.")], attachments_paths: Annotated[Optional[str], Field(default=None, description="Specify the attachments to be added, parameter expects full paths to be provided, for example: /<work directory>/file1.pdf. Parameter accepts multiple values as a comma separated string.")], mail_content_type: Annotated[Optional[List[str]], Field(default=None, description="Specify the type of email content: either plain text or html.")], reply_to_recipients: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of recipients that will be used in the \"Reply-To\" header. Note: The Reply-To header is added when the originator of the message wants any replies to the message to go to that particular email address rather than the one in the \"From:\" address.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Send email from a specific mailbox to an arbitrary list of recipients. Action can send either plain text or html emails. If permissions allow, action can send an email from a mailbox different that is specified in the integration configuration. Note: Action is not running on Chronicle entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -991,10 +1175,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1004,15 +1185,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftGraphMail")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftGraphMail: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftGraphMail: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Send From"] = send_from
@@ -1052,21 +1237,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftGraphMail_Send Email")
             except Exception as e:
-                print(f"Error executing action MicrosoftGraphMail_Send Email for MicrosoftGraphMail: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftGraphMail_Send Email for MicrosoftGraphMail: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftGraphMail")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftGraphMail")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_graph_mail_get_mailbox_account_out_of_facility_settings(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Graph Mail: Get Mailbox Account Out of Facility Settings',
+        annotations=ToolAnnotations(
+            title='Microsoft Graph Mail: Get Mailbox Account Out of Facility Settings',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_graph_mail_get_mailbox_account_out_of_facility_settings(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get the mailbox account out of facility (OOF) settings for the provided Google SecOps User entity. Note: This action uses the beta version of Microsoft Graph APIs.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1080,10 +1279,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1093,15 +1289,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftGraphMail")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftGraphMail: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftGraphMail: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -1126,21 +1326,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftGraphMail_Get Mailbox Account Out Of Facility Settings")
             except Exception as e:
-                print(f"Error executing action MicrosoftGraphMail_Get Mailbox Account Out Of Facility Settings for MicrosoftGraphMail: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftGraphMail_Get Mailbox Account Out Of Facility Settings for MicrosoftGraphMail: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftGraphMail")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftGraphMail")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_graph_mail_download_attachments_from_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_in_mailbox: Annotated[str, Field(..., description="By default, the action  attempts to search for an email in the default mailbox specified in the integration configuration. If permissions allow, the action can execute search in other mailboxes. This parameter accepts multiple values as a comma-separated string.")], download_destination: Annotated[List[str], Field(..., description="Destination to save the downloaded attachments to. By default, the action attempts to save the attachment to the Google Cloud storage bucket. Saving an attachment to the local file system is a fallback option.")], download_path: Annotated[str, Field(..., description="Path to download attachments to. When saving attachments to the Google Cloud bucket or a local file system, the action expects download path to be specified in the unix-like format, for example, \u201c/tmp/test\u201d.")], folder_name: Annotated[str, Field(default=None, description="Specify the mailbox folder to search in. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], mail_i_ds: Annotated[str, Field(default=None, description="Specify the mail ids or internetMessageIds to search for. Parameter accepts multiple values as a comma separated string. If mail id or internet message id is provided, it takes priority for the search, subject and sender filters are ignored.")], subject_filter: Annotated[str, Field(default=None, description="Specify the subject of the email to search for. Filter works with \"contains\" logic.")], sender_filter: Annotated[str, Field(default=None, description="Specify the sender of the email to search for. Filter works with \"equals\" logic.")], download_attachments_from_eml: Annotated[bool, Field(default=None, description="If checked, the action downloads attachments from attached EML files.")], download_attachments_to_unique_path: Annotated[bool, Field(default=None, description="If checked, the action downloads attachments to the unique path under the path value provided in the \u201cDownload Path\u201d parameter to avoid overwiting of previously downloaded attachments.")], how_many_mailboxes_to_process_in_a_single_batch: Annotated[str, Field(default=None, description="Number of  mailboxes to process in a single batch (single connection to O365). If no value is provided, the default value of 25 mailboxes is used.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Graph Mail: Download Attachments from Email',
+        annotations=ToolAnnotations(
+            title='Microsoft Graph Mail: Download Attachments from Email',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_graph_mail_download_attachments_from_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_in_mailbox: Annotated[str, Field(..., description="By default, the action  attempts to search for an email in the default mailbox specified in the integration configuration. If permissions allow, the action can execute search in other mailboxes. This parameter accepts multiple values as a comma-separated string.")], download_destination: Annotated[List[str], Field(..., description="Destination to save the downloaded attachments to. By default, the action attempts to save the attachment to the Google Cloud storage bucket. Saving an attachment to the local file system is a fallback option.")], download_path: Annotated[str, Field(..., description="Path to download attachments to. When saving attachments to the Google Cloud bucket or a local file system, the action expects download path to be specified in the unix-like format, for example, \u201c/tmp/test\u201d.")], folder_name: Annotated[Optional[str], Field(default=None, description="Specify the mailbox folder to search in. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], mail_i_ds: Annotated[Optional[str], Field(default=None, description="Specify the mail ids or internetMessageIds to search for. Parameter accepts multiple values as a comma separated string. If mail id or internet message id is provided, it takes priority for the search, subject and sender filters are ignored.")], subject_filter: Annotated[Optional[str], Field(default=None, description="Specify the subject of the email to search for. Filter works with \"contains\" logic.")], sender_filter: Annotated[Optional[str], Field(default=None, description="Specify the sender of the email to search for. Filter works with \"equals\" logic.")], download_attachments_from_eml: Annotated[Optional[bool], Field(default=None, description="If checked, the action downloads attachments from attached EML files.")], download_attachments_to_unique_path: Annotated[Optional[bool], Field(default=None, description="If checked, the action downloads attachments to the unique path under the path value provided in the \u201cDownload Path\u201d parameter to avoid overwiting of previously downloaded attachments.")], how_many_mailboxes_to_process_in_a_single_batch: Annotated[Optional[str], Field(default=None, description="Number of  mailboxes to process in a single batch (single connection to O365). If no value is provided, the default value of 25 mailboxes is used.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Download attachments from an email based on the provided criteria. Note: Action is not running on SecOps entities. Action is running asynchronously. Adjust the script timeout value in the SecOps IDE for action as needed. If the downloaded attachments contain "/" or "\" characters in their names, the characters will be replaced with the '_' character.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1154,10 +1368,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1167,15 +1378,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftGraphMail")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftGraphMail: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftGraphMail: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Search In Mailbox"] = search_in_mailbox
@@ -1217,21 +1432,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftGraphMail_Download Attachments from Email")
             except Exception as e:
-                print(f"Error executing action MicrosoftGraphMail_Download Attachments from Email for MicrosoftGraphMail: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftGraphMail_Download Attachments from Email for MicrosoftGraphMail: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftGraphMail")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftGraphMail")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_graph_mail_delete_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], delete_in_mailbox: Annotated[str, Field(..., description="By default, delete operation will be executed in the default mailbox specified in the integration configuration. If permissions allow, action can search in other mailboxes as well. Parameter accepts multiple values as a comma separated string.")], folder_name: Annotated[str, Field(..., description="Specify the mailbox folder to search in. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], mail_i_ds: Annotated[str, Field(default=None, description="Specify the mail ids or internetMessageIds to search for. Parameter accepts multiple values as a comma separated string. If mail id or internet message id is provided, it takes priority for the search, subject and sender filters are ignored.")], subject_filter: Annotated[str, Field(default=None, description="Specify the subject of the email to search for. Filter works with \u201ccontains\u201d logic.")], sender_filter: Annotated[str, Field(default=None, description="Specify the sender of the email to search for. Filter works with \u201cequals\u201d logic.")], time_frame_minutes: Annotated[str, Field(default=None, description="Specify time frame in minutes to search emails for.")], only_unread: Annotated[bool, Field(default=None, description="If enabled, action searches only for the unread emails.")], how_many_mailboxes_to_process_in_a_single_batch: Annotated[str, Field(default=None, description="Specify how many mailboxes action should process in a single batch (single connection to O365). If nothing is provided, default value of 25 will be used.")], limit_the_amount_of_information_returned_in_the_json_result: Annotated[bool, Field(default=None, description="If enabled, the amount of information returned by the action will be limited only to the key email fields.")], disable_the_action_json_result: Annotated[bool, Field(default=None, description="If enabled, action will not return JSON result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Graph Mail: Delete Email',
+        annotations=ToolAnnotations(
+            title='Microsoft Graph Mail: Delete Email',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_graph_mail_delete_email(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], delete_in_mailbox: Annotated[str, Field(..., description="By default, delete operation will be executed in the default mailbox specified in the integration configuration. If permissions allow, action can search in other mailboxes as well. Parameter accepts multiple values as a comma separated string.")], folder_name: Annotated[str, Field(..., description="Specify the mailbox folder to search in. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], mail_i_ds: Annotated[Optional[str], Field(default=None, description="Specify the mail ids or internetMessageIds to search for. Parameter accepts multiple values as a comma separated string. If mail id or internet message id is provided, it takes priority for the search, subject and sender filters are ignored.")], subject_filter: Annotated[Optional[str], Field(default=None, description="Specify the subject of the email to search for. Filter works with \u201ccontains\u201d logic.")], sender_filter: Annotated[Optional[str], Field(default=None, description="Specify the sender of the email to search for. Filter works with \u201cequals\u201d logic.")], time_frame_minutes: Annotated[Optional[str], Field(default=None, description="Specify time frame in minutes to search emails for.")], only_unread: Annotated[Optional[bool], Field(default=None, description="If enabled, action searches only for the unread emails.")], how_many_mailboxes_to_process_in_a_single_batch: Annotated[Optional[str], Field(default=None, description="Specify how many mailboxes action should process in a single batch (single connection to O365). If nothing is provided, default value of 25 will be used.")], limit_the_amount_of_information_returned_in_the_json_result: Annotated[Optional[bool], Field(default=None, description="If enabled, the amount of information returned by the action will be limited only to the key email fields.")], disable_the_action_json_result: Annotated[Optional[bool], Field(default=None, description="If enabled, action will not return JSON result.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Delete one or multiple emails from the mailbox based on provided search criteria. If permissions allow, action can move emails in mailboxes other than the one provided in the integration configuration. Action is async, please adjust action timeout in IDE accordingly. Action is not working on Chronicle entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1245,10 +1474,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1258,15 +1484,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftGraphMail")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftGraphMail: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftGraphMail: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Delete In Mailbox"] = delete_in_mailbox
@@ -1309,21 +1539,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftGraphMail_Delete Email")
             except Exception as e:
-                print(f"Error executing action MicrosoftGraphMail_Delete Email for MicrosoftGraphMail: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftGraphMail_Delete Email for MicrosoftGraphMail: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftGraphMail")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftGraphMail")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_graph_mail_mark_email_as_junk(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_in_mailbox: Annotated[str, Field(..., description="A mailbox to search for an email in. By default, the action  attempts to search for the email in the default mailbox that you specified in the integration configuration. With correct permissions, the action can execute a search in other mailboxes. Parameter accepts multiple values as a comma separated string.")], folder_name: Annotated[str, Field(..., description="A mailbox folder to search in.")], mail_i_ds: Annotated[str, Field(..., description="Specify the mail ids or internetMessageIds to mark as junk. Parameter accepts multiple values as a comma separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Graph Mail: Mark Email as Junk',
+        annotations=ToolAnnotations(
+            title='Microsoft Graph Mail: Mark Email as Junk',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_graph_mail_mark_email_as_junk(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_in_mailbox: Annotated[str, Field(..., description="A mailbox to search for an email in. By default, the action  attempts to search for the email in the default mailbox that you specified in the integration configuration. With correct permissions, the action can execute a search in other mailboxes. Parameter accepts multiple values as a comma separated string.")], folder_name: Annotated[str, Field(..., description="A mailbox folder to search in.")], mail_i_ds: Annotated[str, Field(..., description="Specify the mail ids or internetMessageIds to mark as junk. Parameter accepts multiple values as a comma separated string.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Mark an email as junk for a specific mailbox. This action adds the email sender to the list of blocked senders and moves the message to the Junk Email folder. Note: This action uses the beta version of Microsoft Graph APIs and is not running on Google SecOps entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1337,10 +1581,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1350,15 +1591,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftGraphMail")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftGraphMail: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftGraphMail: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Search In Mailbox"] = search_in_mailbox
@@ -1386,21 +1631,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftGraphMail_Mark Email as Junk")
             except Exception as e:
-                print(f"Error executing action MicrosoftGraphMail_Mark Email as Junk for MicrosoftGraphMail: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftGraphMail_Mark Email as Junk for MicrosoftGraphMail: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftGraphMail")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftGraphMail")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def microsoft_graph_mail_extract_data_from_attached_eml(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_in_mailbox: Annotated[str, Field(..., description="By default, the action attempts to search for an email in the default mailbox specified in the integration configuration. If permissions allow, the action can execute search in other mailboxes. This parameter accepts multiple values as a comma-separated string.")], mail_i_ds: Annotated[str, Field(..., description="Specify the mail ids or internetMessageIds to search for. This parameter accepts multiple values as a comma-separated string.")], folder_name: Annotated[str, Field(default=None, description="Specify the mailbox folder to search in. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], regex_map_json: Annotated[Union[str, dict], Field(default=None, description="JSON definition containing regular expressions to apply to the attached email file and produce additional key values in the action JSON result. Example of the JSON definition is as follows: {ips: \\b\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3}\\b}")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Microsoft Graph Mail: Extract Data from Attached EML',
+        annotations=ToolAnnotations(
+            title='Microsoft Graph Mail: Extract Data from Attached EML',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def microsoft_graph_mail_extract_data_from_attached_eml(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], search_in_mailbox: Annotated[str, Field(..., description="By default, the action attempts to search for an email in the default mailbox specified in the integration configuration. If permissions allow, the action can execute search in other mailboxes. This parameter accepts multiple values as a comma-separated string.")], mail_i_ds: Annotated[str, Field(..., description="Specify the mail ids or internetMessageIds to search for. This parameter accepts multiple values as a comma-separated string.")], folder_name: Annotated[Optional[str], Field(default=None, description="Specify the mailbox folder to search in. '/' separator can be used to specify a subfolder to search in, example: Inbox/Subfolder")], regex_map_json: Annotated[Optional[Union[str, dict]], Field(default=None, description="JSON definition containing regular expressions to apply to the attached email file and produce additional key values in the action JSON result. Example of the JSON definition is as follows: {ips: \\b\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3}\\b}")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Extract data from the email EML attachments and return it in the actions JSON result. The action supports .eml, .msg, .ics file formats. Note: Action is not running on SecOps entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1414,10 +1673,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1427,15 +1683,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MicrosoftGraphMail")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MicrosoftGraphMail: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MicrosoftGraphMail: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Search In Mailbox"] = search_in_mailbox
@@ -1466,10 +1726,10 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MicrosoftGraphMail_Extract Data from Attached EML")
             except Exception as e:
-                print(f"Error executing action MicrosoftGraphMail_Extract Data from Attached EML for MicrosoftGraphMail: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MicrosoftGraphMail_Extract Data from Attached EML for MicrosoftGraphMail: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MicrosoftGraphMail")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MicrosoftGraphMail")
+            return marketplace_error_result("No active instance found.")

@@ -21,16 +21,14 @@ from gti_mcp.server import server
 from gti_mcp import tools
 from gti_mcp.tools import collections
 
-from mcp.shared.memory import (
-    create_connected_server_and_client_session as client_session,
-)
+from mcp.client import Client
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_server_connection():
     """Test that the server is running and accessible."""
 
-    async with client_session(server._mcp_server) as client:
+    async with Client(server) as client:
         tools_result = await client.list_tools()
         assert isinstance(tools_result, mcp.ListToolsResult)
         assert len(tools_result.tools) > 0
@@ -257,10 +255,10 @@ async def test_get_reports(
     """Test `get_{file,file_behaviour,domain,ip_address,url}_report` tools."""
 
     # Execute tool call.
-    async with client_session(server._mcp_server) as client:
+    async with Client(server) as client:
         result = await client.call_tool(tool_name, arguments=tool_arguments)
         assert isinstance(result, mcp.types.CallToolResult)
-        assert result.isError == False
+        assert result.is_error == False
         assert len(result.content) == 1
         assert isinstance(result.content[0], mcp.types.TextContent)
         assert json.loads(result.content[0].text) == expected
@@ -359,10 +357,10 @@ async def test_get_entities_related(
     """Test `get_{file,file_behaviour,domain,ip_address,url,collection}_report` tools."""
 
     # Execute tool call.
-    async with client_session(server._mcp_server) as client:
+    async with Client(server) as client:
         result = await client.call_tool(tool_name, arguments=tool_arguments)
         assert isinstance(result, mcp.types.CallToolResult)
-        assert result.isError == False
+        assert result.is_error == False
         assert len(result.content) == 1
         assert isinstance(result.content[0], mcp.types.TextContent)
         assert json.loads(result.content[0].text) == expected
@@ -422,10 +420,10 @@ async def test_get_simple_tools(
     """Test simple tools that just retrieve information from GTI."""
 
     # Execute tool call.
-    async with client_session(server._mcp_server) as client:
+    async with Client(server) as client:
         result = await client.call_tool(tool_name, arguments=tool_arguments)
         assert isinstance(result, mcp.types.CallToolResult)
-        assert result.isError == False
+        assert result.is_error == False
         assert len(result.content) == 1
         assert isinstance(result.content[0], mcp.types.TextContent)
         assert json.loads(result.content[0].text) == expected
@@ -678,13 +676,20 @@ async def test_search_threats(
     """
 
     # Execute tool call.
-    async with client_session(server._mcp_server) as client:
+    async with Client(server) as client:
         result = await client.call_tool(tool_name, arguments=tool_arguments)
         assert isinstance(result, mcp.types.CallToolResult)
-        assert result.isError == False
-        assert len(result.content) == 1
-        assert isinstance(result.content[0], mcp.types.TextContent)
-        assert json.loads(result.content[0].text) == expected
+        assert result.is_error == False
+        text_blocks = [
+            c for c in result.content if isinstance(c, mcp.types.TextContent)
+        ]
+        assert len(text_blocks) == 1
+        assert json.loads(text_blocks[0].text) == expected
+        if tool_name == "search_threats":
+            links = [c for c in result.content if c.type == "resource_link"]
+            assert [str(link.uri) for link in links] == ["gti://collections/apt44"]
+        else:
+            assert len(result.content) == 1
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -738,10 +743,10 @@ async def test_get_collection_feature_matches(
 ):
     """Test get_collection_feature_matches tool."""
 
-    async with client_session(server._mcp_server) as client:
+    async with Client(server) as client:
         result = await client.call_tool(tool_name, arguments=tool_arguments)
         assert isinstance(result, mcp.types.CallToolResult)
-        assert result.isError == False
+        assert result.is_error == False
         assert len(result.content) == 1
         assert isinstance(result.content[0], mcp.types.TextContent)
         assert json.loads(result.content[0].text) == expected
@@ -802,14 +807,16 @@ async def test_get_collections_commonalities(
     """Test test_get_collections_commonalities tool."""
 
     # Execute tool call.
-    async with client_session(server._mcp_server) as client:
+    async with Client(server) as client:
         result = await client.call_tool(tool_name, arguments=tool_arguments)
         assert isinstance(result, mcp.types.CallToolResult)
-        assert result.isError == False
+        assert result.is_error == False
+        assert isinstance(result.structured_content, dict)
+        assert result.structured_content["summary"] == expected
         assert len(result.content) == 1
         assert isinstance(result.content[0], mcp.types.TextContent)
-        assert isinstance(result.content[0].text, str)
-        assert result.content[0].text == expected
+        payload = json.loads(result.content[0].text)
+        assert payload["summary"] == expected
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -882,10 +889,10 @@ async def test_create_collection(
     """Test `create_collection` tool."""
 
     # Execute tool call.
-    async with client_session(server._mcp_server) as client:
+    async with Client(server) as client:
         result = await client.call_tool("create_collection", arguments=tool_arguments)
         assert isinstance(result, mcp.types.CallToolResult)
-        assert not result.isError
+        assert not result.is_error
         assert len(result.content) == 1
         assert isinstance(result.content[0], mcp.types.TextContent)
         assert json.loads(result.content[0].text) == expected
@@ -937,10 +944,10 @@ async def test_update_collection_attributes(
 ):
     """Test `update_collection_attributes` tool."""
 
-    async with client_session(server._mcp_server) as client:
+    async with Client(server) as client:
         result = await client.call_tool("update_collection_attributes", arguments=tool_arguments)
         assert isinstance(result, mcp.types.CallToolResult)
-        assert not result.isError
+        assert not result.is_error
         assert len(result.content) == 1
         assert isinstance(result.content[0], mcp.types.TextContent)
         assert json.loads(result.content[0].text) == expected
@@ -978,10 +985,12 @@ async def test_add_iocs_in_collection_success(
     vt_object_response,
 ):
     """Test successful 'add' operations for `update_iocs_in_collection`."""
-    async with client_session(server._mcp_server) as client:
+    async with Client(server) as client:
         result = await client.call_tool("update_iocs_in_collection", arguments=tool_arguments)
-        assert not result.isError
-        assert result.content[0].text == "Sucesssfully updated collection"
+        assert not result.is_error
+        assert isinstance(result.structured_content, dict)
+        assert result.structured_content["status"] == "success"
+        assert result.structured_content["message"] == "Successfully updated collection"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -1006,10 +1015,12 @@ async def test_remove_iocs_from_collection_success(
     vt_object_response,
 ):
     """Test successful 'remove' operations for `update_iocs_in_collection`."""
-    async with client_session(server._mcp_server) as client:
+    async with Client(server) as client:
         result = await client.call_tool("update_iocs_in_collection", arguments=tool_arguments)
-        assert not result.isError
-        assert result.content[0].text == "Sucesssfully updated collection"
+        assert not result.is_error
+        assert isinstance(result.structured_content, dict)
+        assert result.structured_content["status"] == "success"
+        assert result.structured_content["message"] == "Successfully updated collection"
 
 
 # Invalid Local Argument Handling
@@ -1031,10 +1042,10 @@ async def test_remove_iocs_from_collection_success(
 )
 async def test_update_iocs_in_collection_invalid_args(tool_arguments, expected_error):
     """Test `update_iocs_in_collection` for invalid local arguments."""
-    async with client_session(server._mcp_server) as client:
+    async with Client(server) as client:
         result = await client.call_tool("update_iocs_in_collection", arguments=tool_arguments)
-        assert not result.isError
-        assert result.content[0].text == expected_error
+        assert result.is_error is True
+        assert json.loads(result.content[0].text)["error"] == expected_error
 
 @pytest.mark.asyncio(loop_scope="session")
 @pytest.mark.parametrize(
@@ -1073,10 +1084,10 @@ async def test_search_digital_threat_monitoring(
     expected
 ):
     """Test `search_digital_threat_monitoring` tool."""
-    async with client_session(server._mcp_server) as client:
+    async with Client(server) as client:
         result = await client.call_tool("search_digital_threat_monitoring", arguments=tool_arguments)
         assert isinstance(result, mcp.types.CallToolResult)
-        assert not result.isError
+        assert not result.is_error
         assert len(result.content) == 1
         assert isinstance(result.content[0], mcp.types.TextContent)
         assert json.loads(result.content[0].text) == expected
@@ -1150,12 +1161,12 @@ async def test_search_digital_threat_monitoring_errors(
         mock_cm.__aenter__.return_value = mock_client_instance
         mock_vt_client.return_value = mock_cm
 
-        async with client_session(server._mcp_server) as client:
+        async with Client(server) as client:
             result = await client.call_tool(
                 "search_digital_threat_monitoring", arguments={"query": "test"}
             )
             assert isinstance(result, mcp.types.CallToolResult)
-            assert result.isError == False # The tool call itself doesn't fail
+            assert result.is_error is True
             assert len(result.content) == 1
             content = json.loads(result.content[0].text)
             assert "error" in content
@@ -1177,13 +1188,13 @@ async def test_search_digital_threat_monitoring_drops_empty_params():
         mock_cm.__aenter__.return_value = mock_client_instance
         mock_vt_client.return_value = mock_cm
 
-        async with client_session(server._mcp_server) as client:
+        async with Client(server) as client:
             result = await client.call_tool(
                 "search_digital_threat_monitoring",
                 arguments={"query": "test", "since": "", "until": None, "page": ""},
             )
 
-    assert not result.isError, result.content[0].text
+    assert not result.is_error, result.content[0].text
     path = mock_client_instance.post_async.await_args.kwargs["path"]
     assert path == "/dtm/docs/search?size=10&sanitize=true"
 
@@ -1215,11 +1226,11 @@ async def test_get_entities_related_empty_result(
     """Test tools.get_entities_related_to_a_collection when the API returns an empty list."""
 
     # Execute tool call.
-    async with client_session(server._mcp_server) as client:
+    async with Client(server) as client:
         result = await client.call_tool(tool_name, arguments=tool_arguments)
         assert isinstance(result, mcp.types.CallToolResult)
-        assert result.isError == False
-        assert result.structuredContent == {"result": expected}
+        assert result.is_error == False
+        assert result.structured_content == {"result": expected}
 
 @pytest.mark.asyncio
 async def test_get_collection_rules_all_types():
@@ -1317,6 +1328,13 @@ async def test_get_collection_rules_all_types():
 
 @pytest.mark.asyncio
 async def test_get_collection_rules_filter_types():
+    """Unrequested rule types with non-empty aggregations must be skipped.
+
+    Regression for the `rule_type not in rule_type and not rules` bug: the
+    self-compare is always False, and `and not rules` still lets non-empty
+    unrequested types through. Sigma is mocked to succeed so a leak would
+    show up in the result (not be masked by a detail-lookup failure).
+    """
     mock_ctx = AsyncMock()
     mock_client_instance = AsyncMock()
 
@@ -1331,16 +1349,52 @@ async def test_get_collection_rules_filter_types():
                         "crowdsourced_sigma_results": [
                             {"id": "sigma1", "count": 8, "value": {"id": "sigma1", "title": "Sigma Rule 1"}},
                         ],
+                        "crowdsourced_yara_results": [
+                            {"id": "yara1", "count": 12, "value": {"ruleset_id": "yara1"}},
+                        ],
                     }
                 }
             }
         }
     }
 
+    sigma_lookups = []
+    yara_lookups = []
+
     async def mock_get_async(url, **kwargs):
         mock_resp = MagicMock()
         if url.startswith("/collections/test_id?attributes=aggregations"):
             async def json_async(): return mock_aggregations_data
+            mock_resp.json_async = json_async
+        elif url.startswith("/sigma_rules/"):
+            sigma_lookups.append(url)
+            async def json_async():
+                return {
+                    "data": {
+                        "id": "sigma1",
+                        "attributes": {
+                            "source_url": "http://sigma1.com",
+                            "rule": "sigma rule content 1",
+                        },
+                    }
+                }
+            mock_resp.json_async = json_async
+        elif url.startswith("/yara_rulesets/"):
+            yara_lookups.append(url)
+            async def json_async():
+                return {
+                    "data": {
+                        "id": "yara1",
+                        "attributes": {
+                            "name": "Yara Rule 1",
+                            "source": "source1",
+                            "rules": "yara rule content 1",
+                        },
+                    }
+                }
+            mock_resp.json_async = json_async
+        else:
+            async def json_async(): return {"data": []}
             mock_resp.json_async = json_async
         return mock_resp
 
@@ -1350,12 +1404,19 @@ async def test_get_collection_rules_filter_types():
     mock_vt_client.__aenter__.return_value = mock_client_instance
     
     with patch("gti_mcp.tools.collections.vt_client", return_value=mock_vt_client):
-        result = await collections.get_collection_rules(collection_id="test_id", ctx=mock_ctx, rule_types=["crowdsourced_ids"])
+        result = await collections.get_collection_rules(
+            collection_id="test_id",
+            ctx=mock_ctx,
+            rule_types=["crowdsourced_ids"],
+        )
 
     expected_result = [
         {"rule_id": "ids1", "rule_name": "IDS Rule 1", "rule_source": "http://ids1.com", "rule_content": "ids rule content 1", "count": 10, "rule_type": "crowdsourced_ids"},
     ]
     assert result == expected_result
+    assert sigma_lookups == [], "unrequested sigma rules must not be fetched"
+    assert yara_lookups == [], "unrequested yara rules must not be fetched"
+    assert all(r.get("rule_type") == "crowdsourced_ids" for r in result)
 
 @pytest.mark.asyncio
 async def test_get_collection_rules_empty():
@@ -1386,7 +1447,10 @@ async def test_get_collection_rules_api_error():
     
     with patch("gti_mcp.tools.collections.vt_client", return_value=mock_vt_client):
         result = await collections.get_collection_rules(collection_id="test_id", ctx=mock_ctx)
-    assert result == []
+    assert isinstance(result, mcp.types.CallToolResult)
+    assert result.is_error is True
+    assert isinstance(result.structured_content, dict)
+    assert "API Error" in result.structured_content["error"]
 
 @pytest.mark.asyncio
 async def test_get_collection_rules_partial_error():
@@ -1436,12 +1500,12 @@ async def test_none_default_params_accept_null():
     at argument validation instead of falling back to the default.
     """
 
-    async with client_session(server._mcp_server) as client:
+    async with Client(server) as client:
         tools_result = await client.list_tools()
 
     offenders = []
     for tool in tools_result.tools:
-        for name, prop in tool.inputSchema.get("properties", {}).items():
+        for name, prop in tool.input_schema.get("properties", {}).items():
             if "default" not in prop or prop["default"] is not None:
                 continue
             types = [prop.get("type")] + [
@@ -1459,11 +1523,11 @@ async def test_search_threats_accepts_null_collection_type():
 
     with patch("gti_mcp.tools.collections.utils.consume_vt_iterator",
                new=AsyncMock(return_value=[])) as mock_iterator:
-        async with client_session(server._mcp_server) as client:
+        async with Client(server) as client:
             result = await client.call_tool(
                 "search_threats",
                 arguments={"query": "apt", "collection_type": None},
             )
 
-    assert not result.isError, result.content[0].text
+    assert not result.is_error, result.content[0].text
     mock_iterator.assert_awaited_once()

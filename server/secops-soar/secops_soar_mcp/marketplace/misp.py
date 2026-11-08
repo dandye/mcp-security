@@ -12,20 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
+from logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the MISP integration.
 
-    @mcp.tool()
-    async def misp_create_network_connection_misp_object(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event to which you want to add network-connection objects.")], dst_port: Annotated[str, Field(default=None, description="Specify the destination port, which you want to add to the event.")], src_port: Annotated[str, Field(default=None, description="Specify the source port, which you want to add to the event.")], hostname_src: Annotated[str, Field(default=None, description="Specify the source hostname, which you want to add to the event.")], hostname_dst: Annotated[str, Field(default=None, description="Specify the source destination, which you want to add to the event.")], ip_src: Annotated[str, Field(default=None, description="Specify the source IP, which you want to add to the event.")], ip_dst: Annotated[str, Field(default=None, description="Specify the destination IP, which you want to add to the event.")], layer3_protocol: Annotated[str, Field(default=None, description="Specify the related layer 3 protocol, which you want to add to the event.")], layer4_protocol: Annotated[str, Field(default=None, description="Specify the related layer 4 protocol, which you want to add to the event.")], layer7_protocol: Annotated[str, Field(default=None, description="Specify the related layer 7 protocol, which you want to add to the event.")], use_entities: Annotated[bool, Field(default=None, description="If enabled, action will use entities in order to create objects. Supported entities: IP Address. \u201cUse Entities\u201c has priority over other parameters.")], ip_type: Annotated[List[str], Field(default=None, description="Specify what attribute type should be used with IP entities.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Create Network-connection MISP Object',
+        annotations=ToolAnnotations(
+            title='MISP: Create Network-connection MISP Object',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_create_network_connection_misp_object(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event to which you want to add network-connection objects.")], dst_port: Annotated[Optional[str], Field(default=None, description="Specify the destination port, which you want to add to the event.")], src_port: Annotated[Optional[str], Field(default=None, description="Specify the source port, which you want to add to the event.")], hostname_src: Annotated[Optional[str], Field(default=None, description="Specify the source hostname, which you want to add to the event.")], hostname_dst: Annotated[Optional[str], Field(default=None, description="Specify the source destination, which you want to add to the event.")], ip_src: Annotated[Optional[str], Field(default=None, description="Specify the source IP, which you want to add to the event.")], ip_dst: Annotated[Optional[str], Field(default=None, description="Specify the destination IP, which you want to add to the event.")], layer3_protocol: Annotated[Optional[str], Field(default=None, description="Specify the related layer 3 protocol, which you want to add to the event.")], layer4_protocol: Annotated[Optional[str], Field(default=None, description="Specify the related layer 4 protocol, which you want to add to the event.")], layer7_protocol: Annotated[Optional[str], Field(default=None, description="Specify the related layer 7 protocol, which you want to add to the event.")], use_entities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will use entities in order to create objects. Supported entities: IP Address. \u201cUse Entities\u201c has priority over other parameters.")], ip_type: Annotated[Optional[List[str]], Field(default=None, description="Specify what attribute type should be used with IP entities.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Create a network-connection Object in MISP. Requires one of: Dst-port, Src-port, IP-Src, IP-Dst to be provided or “Use Entities“ parameter set to true.
 
@@ -34,6 +48,11 @@ Action Parameters: Event ID: Specify the ID or UUID of the event to which you wa
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -47,10 +66,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -60,15 +76,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Event ID"] = event_id
@@ -116,16 +136,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Create network-connection Misp Object")
             except Exception as e:
-                print(f"Error executing action MISP_Create network-connection Misp Object for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Create network-connection Misp Object for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_list_event_objects(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify a comma-separated list of IDs and UUIDs of the events, for which you want to retrieve details.")], max_objects_to_return: Annotated[str, Field(default=None, description="Specify how many objects to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: List Event Objects',
+        annotations=ToolAnnotations(
+            title='MISP: List Event Objects',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_list_event_objects(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify a comma-separated list of IDs and UUIDs of the events, for which you want to retrieve details.")], max_objects_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many objects to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Retrieve information about available objects in MISP event.
 
@@ -134,6 +163,11 @@ Action Parameters: Event ID: Specify a comma-separated list of IDs and UUIDs of 
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -147,10 +181,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -160,15 +191,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Event ID"] = event_id
@@ -196,16 +231,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_List Event Objects")
             except Exception as e:
-                print(f"Error executing action MISP_List Event Objects for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_List Event Objects for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_unpublish_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event that you want to unpublish.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Unpublish Event',
+        annotations=ToolAnnotations(
+            title='MISP: Unpublish Event',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_unpublish_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event that you want to unpublish.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 The action allows the user to unpublish an event. Unpublishing an event prevents it from being visible to the shared groups.
 
@@ -214,6 +258,11 @@ Action Parameters: Event ID: Specify the ID or UUID of the event that you want t
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -227,10 +276,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -240,15 +286,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Event ID"] = event_id
@@ -274,16 +324,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Unpublish Event")
             except Exception as e:
-                print(f"Error executing action MISP_Unpublish Event for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Unpublish Event for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_create_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_name: Annotated[str, Field(..., description="Specify the name for the new event.")], distribution: Annotated[str, Field(default=None, description="Specify the distribution of the event. Possible values: 0 - Organisation, 1 - Community, 2 - Connected, 3 - All. You can either provide a number or a string.")], threat_level: Annotated[str, Field(default=None, description="Specify the threat level of the event. Possible values: 1 - High, 2 - Medium, 3 - Low, 4 - Undefined. You can either provide a number or a string.")], analysis: Annotated[str, Field(default=None, description="Specify the analysis of the event. Possible values: 0 - Initial, 1 - Ongoing, 2 - Completed. You can either provide a number or a string.")], publish: Annotated[bool, Field(default=None, description="If enabled, action will publish the event to the community.")], comment: Annotated[str, Field(default=None, description="Specify additional comments related to the event.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Create Event',
+        annotations=ToolAnnotations(
+            title='MISP: Create Event',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_create_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_name: Annotated[str, Field(..., description="Specify the name for the new event.")], distribution: Annotated[Optional[str], Field(default=None, description="Specify the distribution of the event. Possible values: 0 - Organisation, 1 - Community, 2 - Connected, 3 - All. You can either provide a number or a string.")], threat_level: Annotated[Optional[str], Field(default=None, description="Specify the threat level of the event. Possible values: 1 - High, 2 - Medium, 3 - Low, 4 - Undefined. You can either provide a number or a string.")], analysis: Annotated[Optional[str], Field(default=None, description="Specify the analysis of the event. Possible values: 0 - Initial, 1 - Ongoing, 2 - Completed. You can either provide a number or a string.")], publish: Annotated[Optional[bool], Field(default=None, description="If enabled, action will publish the event to the community.")], comment: Annotated[Optional[str], Field(default=None, description="Specify additional comments related to the event.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Create a new event in MISP.
 
@@ -292,6 +351,11 @@ Action Parameters: Event Name: The name of the event., Threat Level: The threat 
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -305,10 +369,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -318,15 +379,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Event Name"] = event_name
@@ -362,16 +427,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Create Event")
             except Exception as e:
-                print(f"Error executing action MISP_Create Event for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Create Event for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_remove_tag_from_an_attribute(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], tag_name: Annotated[str, Field(..., description="Specify a comma-separated list of tags that you want to remove from attributes.")], attribute_name: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute identifiers from which you want to remove tags. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], event_id: Annotated[str, Field(default=None, description="Specify the ID or UUID of the event, where to search for attributes. This parameter is required, if \u201cAttribute Search\u201c is set to \u201cProvided Event\u201c or Object UUID is provided.")], category: Annotated[str, Field(default=None, description="Specify a comma-separated list of categories. If specified, action will only remove tags from attributes that have matching category. If nothing is specified, action will ignore categories in attributes. Possible values: External Analysis, Payload Delivery, Artifacts Dropped, Payload Installation.")], type: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute types. If specified, action will only remove tags from attributes that have matching attribute type. If nothing is specified, action will ignore types in attributes. Example values: md5, sha1, ip-src, ip-dst")], object_uuid: Annotated[str, Field(default=None, description="Specify the UUID of the object that contains the desired attribute.")], attribute_uuid: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute UUIDs from which you want to remove new tags. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], attribute_search: Annotated[List[str], Field(default=None, description="Specify, where action should search for attributes. If \u201cProvided Event\u201c is selected, action will only search for attributes or attribute UUIDs in event with ID/UUID provided in \u201cEvent ID\u201c parameter. If \u201cAll Events\u201c, action will search for attributes among all events and remove tags from all attributes that match our criteria.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Remove Tag from an Attribute',
+        annotations=ToolAnnotations(
+            title='MISP: Remove Tag from an Attribute',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_remove_tag_from_an_attribute(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], tag_name: Annotated[str, Field(..., description="Specify a comma-separated list of tags that you want to remove from attributes.")], attribute_name: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute identifiers from which you want to remove tags. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], event_id: Annotated[Optional[str], Field(default=None, description="Specify the ID or UUID of the event, where to search for attributes. This parameter is required, if \u201cAttribute Search\u201c is set to \u201cProvided Event\u201c or Object UUID is provided.")], category: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of categories. If specified, action will only remove tags from attributes that have matching category. If nothing is specified, action will ignore categories in attributes. Possible values: External Analysis, Payload Delivery, Artifacts Dropped, Payload Installation.")], type: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute types. If specified, action will only remove tags from attributes that have matching attribute type. If nothing is specified, action will ignore types in attributes. Example values: md5, sha1, ip-src, ip-dst")], object_uuid: Annotated[Optional[str], Field(default=None, description="Specify the UUID of the object that contains the desired attribute.")], attribute_uuid: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute UUIDs from which you want to remove new tags. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], attribute_search: Annotated[Optional[List[str]], Field(default=None, description="Specify, where action should search for attributes. If \u201cProvided Event\u201c is selected, action will only search for attributes or attribute UUIDs in event with ID/UUID provided in \u201cEvent ID\u201c parameter. If \u201cAll Events\u201c, action will search for attributes among all events and remove tags from all attributes that match our criteria.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Remove tags from attributes in MISP.
 
@@ -380,6 +454,11 @@ Action Parameters: Event ID: Specify the ID or UUID of the event, where to searc
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -393,10 +472,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -406,15 +482,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if attribute_name is not None:
@@ -454,21 +534,35 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Remove Tag from an Attribute")
             except Exception as e:
-                print(f"Error executing action MISP_Remove Tag from an Attribute for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Remove Tag from an Attribute for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Ping',
+        annotations=ToolAnnotations(
+            title='MISP: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test Connectivity
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -482,10 +576,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -495,15 +586,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -528,16 +623,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Ping")
             except Exception as e:
-                print(f"Error executing action MISP_Ping for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Ping for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_set_ids_flag_for_an_attribute(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], attribute_name: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute identifiers for which you want to set an IDS flag. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], event_id: Annotated[str, Field(default=None, description="Specify the ID or UUID of the event, where to seach for attributes. This parameter is required, if \u201cAttribute Search\u201c is set to \u201cProvided Event\u201c.")], category: Annotated[str, Field(default=None, description="Specify a comma-separated list of categories. If specified, action will only set IDS flag for attributes that have matching category. If nothing is specified, action will ignore categories in attributes. Possible values: External Analysis, Payload Delivery, Artifacts Dropped, Payload Installation.")], type: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute types. If specified, action will only set IDS flag for attributes that have matching attribute type. If nothing is specified, action will ignore types in attributes. Example values: md5, sha1, ip-src, ip-dst")], attribute_search: Annotated[List[str], Field(default=None, description="Specify, where action should search for attributes. If \u201cProvided Event\u201c is selected, action will only search for attributes or attribute UUIDs in event with ID/UUID provided in \u201cEvent ID\u201c parameter. If \u201cAll Events\u201c, action will search for attributes among all events and set IDS flag for all attributes that match our criteria.")], attribute_uuid: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute UUIDs for which you want to set an IDS flag. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Set IDS Flag for an Attribute',
+        annotations=ToolAnnotations(
+            title='MISP: Set IDS Flag for an Attribute',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_set_ids_flag_for_an_attribute(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], attribute_name: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute identifiers for which you want to set an IDS flag. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], event_id: Annotated[Optional[str], Field(default=None, description="Specify the ID or UUID of the event, where to seach for attributes. This parameter is required, if \u201cAttribute Search\u201c is set to \u201cProvided Event\u201c.")], category: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of categories. If specified, action will only set IDS flag for attributes that have matching category. If nothing is specified, action will ignore categories in attributes. Possible values: External Analysis, Payload Delivery, Artifacts Dropped, Payload Installation.")], type: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute types. If specified, action will only set IDS flag for attributes that have matching attribute type. If nothing is specified, action will ignore types in attributes. Example values: md5, sha1, ip-src, ip-dst")], attribute_search: Annotated[Optional[List[str]], Field(default=None, description="Specify, where action should search for attributes. If \u201cProvided Event\u201c is selected, action will only search for attributes or attribute UUIDs in event with ID/UUID provided in \u201cEvent ID\u201c parameter. If \u201cAll Events\u201c, action will search for attributes among all events and set IDS flag for all attributes that match our criteria.")], attribute_uuid: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute UUIDs for which you want to set an IDS flag. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Set IDS flag for attributes in MISP
 
@@ -546,6 +650,11 @@ Action Parameters: Attribute Name: Specify a comma-separated list of attribute i
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -559,10 +668,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -572,15 +678,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if attribute_name is not None:
@@ -617,16 +727,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Set IDS Flag for an Attribute")
             except Exception as e:
-                print(f"Error executing action MISP_Set IDS Flag for an Attribute for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Set IDS Flag for an Attribute for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_get_event_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify a comma-separated list of IDs or UUIDs of the events for which you want retrieve details.")], return_attributes_info: Annotated[bool, Field(default=None, description="If enabled, action will create a case wall table for all of the attributes that are a part of the event.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Get Event Details',
+        annotations=ToolAnnotations(
+            title='MISP: Get Event Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_get_event_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify a comma-separated list of IDs or UUIDs of the events for which you want retrieve details.")], return_attributes_info: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create a case wall table for all of the attributes that are a part of the event.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Retrieve details about events in MISP.
 
@@ -635,6 +754,11 @@ Action Parameters: Event ID: Specify a comma-separated list of IDs or UUIDs of t
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -648,10 +772,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -661,15 +782,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Event ID"] = event_id
@@ -697,16 +822,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Get Event Details")
             except Exception as e:
-                print(f"Error executing action MISP_Get Event Details for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Get Event Details for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_add_tag_to_an_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event, for which you want to add tags.")], tag_name: Annotated[str, Field(..., description="Specify a comma-separated list of tags that you want to add to events.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Add Tag to an Event',
+        annotations=ToolAnnotations(
+            title='MISP: Add Tag to an Event',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_add_tag_to_an_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event, for which you want to add tags.")], tag_name: Annotated[str, Field(..., description="Specify a comma-separated list of tags that you want to add to events.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Add tags to event in MISP.
 
@@ -715,6 +849,11 @@ Action Parameters: Event ID: The unique identifier specifying the event to add t
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -728,10 +867,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -741,15 +877,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Event ID"] = event_id
@@ -776,16 +916,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Add Tag to an Event")
             except Exception as e:
-                print(f"Error executing action MISP_Add Tag to an Event for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Add Tag to an Event for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_remove_tag_from_an_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event, from which you want to remove tags.")], tag_name: Annotated[str, Field(..., description="Specify a comma-separated list of tags that you want to remove from events.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Remove Tag from an Event',
+        annotations=ToolAnnotations(
+            title='MISP: Remove Tag from an Event',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_remove_tag_from_an_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event, from which you want to remove tags.")], tag_name: Annotated[str, Field(..., description="Specify a comma-separated list of tags that you want to remove from events.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Remove tags from event in MISP.
 
@@ -794,6 +943,11 @@ Action Parameters: Event ID: Specify the ID or UUID of the event, from which you
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -807,10 +961,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -820,15 +971,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Event ID"] = event_id
@@ -855,16 +1010,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Remove Tag from an Event")
             except Exception as e:
-                print(f"Error executing action MISP_Remove Tag from an Event for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Remove Tag from an Event for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_delete_an_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event that you want to delete.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Delete an Event',
+        annotations=ToolAnnotations(
+            title='MISP: Delete an Event',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_delete_an_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event that you want to delete.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Delete event in MISP
 
@@ -873,6 +1037,11 @@ Action Parameters: Event ID: Specify the ID or UUID of the event that you want t
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -886,10 +1055,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -899,15 +1065,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Event ID"] = event_id
@@ -933,16 +1103,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Delete an Event")
             except Exception as e:
-                print(f"Error executing action MISP_Delete an Event for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Delete an Event for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_create_ip_port_misp_object(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event to which you want to add IP-Port objects.")], dst_port: Annotated[str, Field(default=None, description="Specify the destination port, which you want to add to the event.")], src_port: Annotated[str, Field(default=None, description="Specify the source port, which you want to add to the event.")], domain: Annotated[str, Field(default=None, description="Specify the domain, which you want to add to the event.")], hostname: Annotated[str, Field(default=None, description="Specify the hostname, which you want to add to the event.")], ip_src: Annotated[str, Field(default=None, description="Specify the source IP, which you want to add to the event.")], ip_dst: Annotated[str, Field(default=None, description="Specify the destination IP, which you want to add to the event.")], use_entities: Annotated[bool, Field(default=None, description="If enabled, action will use entities in order to create objects. Supported entities: IP Address. \u201cUse Entities\u201c has priority over other parameters.")], ip_type: Annotated[List[str], Field(default=None, description="Specify what attribute type should be used with IP entities.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Create IP-Port MISP Object',
+        annotations=ToolAnnotations(
+            title='MISP: Create IP-Port MISP Object',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_create_ip_port_misp_object(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event to which you want to add IP-Port objects.")], dst_port: Annotated[Optional[str], Field(default=None, description="Specify the destination port, which you want to add to the event.")], src_port: Annotated[Optional[str], Field(default=None, description="Specify the source port, which you want to add to the event.")], domain: Annotated[Optional[str], Field(default=None, description="Specify the domain, which you want to add to the event.")], hostname: Annotated[Optional[str], Field(default=None, description="Specify the hostname, which you want to add to the event.")], ip_src: Annotated[Optional[str], Field(default=None, description="Specify the source IP, which you want to add to the event.")], ip_dst: Annotated[Optional[str], Field(default=None, description="Specify the destination IP, which you want to add to the event.")], use_entities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will use entities in order to create objects. Supported entities: IP Address. \u201cUse Entities\u201c has priority over other parameters.")], ip_type: Annotated[Optional[List[str]], Field(default=None, description="Specify what attribute type should be used with IP entities.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Create a IP-Port Object in MISP. Requires one of: Dst-port, Src-port, Domain, HOSTNAME, IP-Src, IP-Dst to be provided or “Use Entities“ parameter set to true.
 
@@ -951,6 +1130,11 @@ Action Parameters: Event ID: The unique identifier of the event to add the objec
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -964,10 +1148,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -977,15 +1158,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Event ID"] = event_id
@@ -1027,16 +1212,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Create IP-Port Misp Object")
             except Exception as e:
-                print(f"Error executing action MISP_Create IP-Port Misp Object for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Create IP-Port Misp Object for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_create_virustotal_report_object(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event to which you want to add URL objects.")], permalink: Annotated[str, Field(..., description="Specify the link to the VirusTotal report, which you want to add to the event.")], comment: Annotated[str, Field(default=None, description="Specify the comment, which you want to add to the event.")], detection_ratio: Annotated[str, Field(default=None, description="Specify the detection ration, which you want to add to the event.")], community_score: Annotated[str, Field(default=None, description="Specify the community score, which you want to add to the event.")], first_submission: Annotated[str, Field(default=None, description="Specify first submission of the event. Format: 2020-12-22T13:07:32Z")], last_submission: Annotated[str, Field(default=None, description="Specify last submission of the event. Format: 2020-12-22T13:07:32Z")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Create Virustotal-Report Object',
+        annotations=ToolAnnotations(
+            title='MISP: Create Virustotal-Report Object',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_create_virustotal_report_object(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event to which you want to add URL objects.")], permalink: Annotated[str, Field(..., description="Specify the link to the VirusTotal report, which you want to add to the event.")], comment: Annotated[Optional[str], Field(default=None, description="Specify the comment, which you want to add to the event.")], detection_ratio: Annotated[Optional[str], Field(default=None, description="Specify the detection ration, which you want to add to the event.")], community_score: Annotated[Optional[str], Field(default=None, description="Specify the community score, which you want to add to the event.")], first_submission: Annotated[Optional[str], Field(default=None, description="Specify first submission of the event. Format: 2020-12-22T13:07:32Z")], last_submission: Annotated[Optional[str], Field(default=None, description="Specify last submission of the event. Format: 2020-12-22T13:07:32Z")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Create a Virustotal-Report Object in MISP.
 
@@ -1045,6 +1239,11 @@ Action Parameters: Event ID: Specify the ID or UUID of the event to which you wa
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1058,10 +1257,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1071,15 +1267,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Event ID"] = event_id
@@ -1116,21 +1316,35 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Create Virustotal-Report Object")
             except Exception as e:
-                print(f"Error executing action MISP_Create Virustotal-Report Object for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Create Virustotal-Report Object for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_add_sighting_to_an_attribute(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], sightings_type: Annotated[List[str], Field(..., description="Specify the type of the Sighting.")], attribute_name: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute identifiers to which you want to add a new sighting. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], event_id: Annotated[str, Field(default=None, description="Specify the ID or UUID of the event, where to search for attributes. This parameter is required, if \u201cAttribute Search\u201c is set to \u201cProvided Event\u201c.")], category: Annotated[str, Field(default=None, description="Specify a comma-separated list of categories. If specified, action will only add sightings to attributes that have matching category. If nothing is specified, action will ignore categories in attributes. Possible values: External Analysis, Payload Delivery, Artifacts Dropped, Payload Installation.")], type: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute types. If specified, action will only add sightings to attributes that have matching attribute type. If nothing is specified, action will ignore types in attributes. Example values: md5, sha1, ip-src, ip-dst")], source: Annotated[str, Field(default=None, description="Specify the source for the sighting. Example: SIEM, SOAR, Siemplify.")], date_time: Annotated[str, Field(default=None, description="Specify the date time for the sighting. Format: 2020-02-10 11:00:00.")], object_uuid: Annotated[str, Field(default=None, description="Specify the uuid of the object that contains the desired attribute")], attribute_search: Annotated[List[str], Field(default=None, description="Specify, where action should search for attributes. If \u201cProvided Event\u201c is selected, action will only search for attributes or attribute UUIDs in event with ID/UUID provided in \u201cEvent ID\u201c parameter. If \u201cAll Events\u201c, action will search for attributes among all events and add sighting for all attributes that match our criteria.")], attribute_uuid: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute UUIDs to which you want to add a new sighting. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Add Sighting to an Attribute',
+        annotations=ToolAnnotations(
+            title='MISP: Add Sighting to an Attribute',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_add_sighting_to_an_attribute(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], sightings_type: Annotated[List[str], Field(..., description="Specify the type of the Sighting.")], attribute_name: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute identifiers to which you want to add a new sighting. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], event_id: Annotated[Optional[str], Field(default=None, description="Specify the ID or UUID of the event, where to search for attributes. This parameter is required, if \u201cAttribute Search\u201c is set to \u201cProvided Event\u201c.")], category: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of categories. If specified, action will only add sightings to attributes that have matching category. If nothing is specified, action will ignore categories in attributes. Possible values: External Analysis, Payload Delivery, Artifacts Dropped, Payload Installation.")], type: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute types. If specified, action will only add sightings to attributes that have matching attribute type. If nothing is specified, action will ignore types in attributes. Example values: md5, sha1, ip-src, ip-dst")], source: Annotated[Optional[str], Field(default=None, description="Specify the source for the sighting. Example: SIEM, SOAR, Siemplify.")], date_time: Annotated[Optional[str], Field(default=None, description="Specify the date time for the sighting. Format: 2020-02-10 11:00:00.")], object_uuid: Annotated[Optional[str], Field(default=None, description="Specify the uuid of the object that contains the desired attribute")], attribute_search: Annotated[Optional[List[str]], Field(default=None, description="Specify, where action should search for attributes. If \u201cProvided Event\u201c is selected, action will only search for attributes or attribute UUIDs in event with ID/UUID provided in \u201cEvent ID\u201c parameter. If \u201cAll Events\u201c, action will search for attributes among all events and add sighting for all attributes that match our criteria.")], attribute_uuid: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute UUIDs to which you want to add a new sighting. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add a sighting to attributes in MISP
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1144,10 +1358,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1157,15 +1368,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if attribute_name is not None:
@@ -1209,16 +1424,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Add Sighting to an Attribute")
             except Exception as e:
-                print(f"Error executing action MISP_Add Sighting to an Attribute for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Add Sighting to an Attribute for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], number_of_attributes_to_return: Annotated[str, Field(..., description="Specify how many attributes to return for entities.")], filtering_condition: Annotated[List[str], Field(..., description="Specify the filtering condition for the action. If \u201cLast\u201c is selected, action will use the oldest attribute for enrichment, if \u201cFirst\u201c is selected, action will use the newest attribute for enrichment.")], create_insights: Annotated[bool, Field(default=None, description="If enabled, action will generate an insight for every entity that was fully processed.")], threat_level_threshold: Annotated[List[str], Field(default=None, description="Specify what should be the threshold for the threat level of the event, where the entity was found. If related event exceeds or matches threshold, entity will be marked as suspicious.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Enrich Entities',
+        annotations=ToolAnnotations(
+            title='MISP: Enrich Entities',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], number_of_attributes_to_return: Annotated[str, Field(..., description="Specify how many attributes to return for entities.")], filtering_condition: Annotated[List[str], Field(..., description="Specify the filtering condition for the action. If \u201cLast\u201c is selected, action will use the oldest attribute for enrichment, if \u201cFirst\u201c is selected, action will use the newest attribute for enrichment.")], create_insights: Annotated[Optional[bool], Field(default=None, description="If enabled, action will generate an insight for every entity that was fully processed.")], threat_level_threshold: Annotated[Optional[List[str]], Field(default=None, description="Specify what should be the threshold for the threat level of the event, where the entity was found. If related event exceeds or matches threshold, entity will be marked as suspicious.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Enrich entities based on the attributes in MISP.
 
@@ -1227,6 +1451,11 @@ Action Parameters: Number of attributes to return: Specify how many attributes t
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1240,10 +1469,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1253,15 +1479,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Number of attributes to return"] = number_of_attributes_to_return
@@ -1292,16 +1522,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Enrich Entities")
             except Exception as e:
-                print(f"Error executing action MISP_Enrich Entities for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Enrich Entities for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_create_url_misp_object(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event to which you want to add URL objects.")], url: Annotated[str, Field(default=None, description="Specify the URL, which you want to add to the event.")], port: Annotated[str, Field(default=None, description="Specify the port, which you want to add to the event.")], first_seen: Annotated[str, Field(default=None, description="Specify, when the URL was first seen. Format: 2020-12-22T13:07:32Z")], last_seen: Annotated[str, Field(default=None, description="Specify, when the URL was last seen. Format: 2020-12-22T13:07:32Z")], domain: Annotated[str, Field(default=None, description="Specify the domain, which you want to add to the event.")], text: Annotated[str, Field(default=None, description="Specify the additional text, which you want to add to the event.")], ip: Annotated[str, Field(default=None, description="Specify the IP, which you want to add to the event.")], host: Annotated[str, Field(default=None, description="Specify the Host, which you want to add to the event.")], use_entities: Annotated[bool, Field(default=None, description="If enabled, action will use entities in order to create objects. Supported entities: URL. \u201cUse Entities\u201c has priority over other parameters.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Create URL MISP Object',
+        annotations=ToolAnnotations(
+            title='MISP: Create URL MISP Object',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_create_url_misp_object(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event to which you want to add URL objects.")], url: Annotated[Optional[str], Field(default=None, description="Specify the URL, which you want to add to the event.")], port: Annotated[Optional[str], Field(default=None, description="Specify the port, which you want to add to the event.")], first_seen: Annotated[Optional[str], Field(default=None, description="Specify, when the URL was first seen. Format: 2020-12-22T13:07:32Z")], last_seen: Annotated[Optional[str], Field(default=None, description="Specify, when the URL was last seen. Format: 2020-12-22T13:07:32Z")], domain: Annotated[Optional[str], Field(default=None, description="Specify the domain, which you want to add to the event.")], text: Annotated[Optional[str], Field(default=None, description="Specify the additional text, which you want to add to the event.")], ip: Annotated[Optional[str], Field(default=None, description="Specify the IP, which you want to add to the event.")], host: Annotated[Optional[str], Field(default=None, description="Specify the Host, which you want to add to the event.")], use_entities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will use entities in order to create objects. Supported entities: URL. \u201cUse Entities\u201c has priority over other parameters.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Create a URL Object in MISP. Requires “URL” to be provided or “Use Entities“ parameter set to true.
 
@@ -1310,6 +1549,11 @@ Action Parameters: Event ID: Specify the ID or UUID of the event to which you wa
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1323,10 +1567,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1336,15 +1577,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Event ID"] = event_id
@@ -1388,16 +1633,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Create Url Misp Object")
             except Exception as e:
-                print(f"Error executing action MISP_Create Url Misp Object for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Create Url Misp Object for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_download_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(default=None, description="Specify the ID or UUID of the event from which you want to download files")], download_folder_path: Annotated[str, Field(default=None, description="Specify the absolute path to the folder, which should store files. If nothing is specified, action will create an attachment instead. Note: JSON result is only available, when you provide proper value for this parameter.")], overwrite: Annotated[bool, Field(default=None, description="If enabled, action will overwrite existing files.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Download File',
+        annotations=ToolAnnotations(
+            title='MISP: Download File',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_download_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[Optional[str], Field(default=None, description="Specify the ID or UUID of the event from which you want to download files")], download_folder_path: Annotated[Optional[str], Field(default=None, description="Specify the absolute path to the folder, which should store files. If nothing is specified, action will create an attachment instead. Note: JSON result is only available, when you provide proper value for this parameter.")], overwrite: Annotated[Optional[bool], Field(default=None, description="If enabled, action will overwrite existing files.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Download files related to event in MISP.
 
@@ -1406,6 +1660,11 @@ Action Parameters: Event ID: Specify the ID or UUID of the event from which you 
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1419,10 +1678,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1432,15 +1688,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if event_id is not None:
@@ -1471,16 +1731,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Download File")
             except Exception as e:
-                print(f"Error executing action MISP_Download File for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Download File for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_unset_ids_flag_for_an_attribute(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], attribute_name: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute identifiers for which you want to unset an IDS flag. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], event_id: Annotated[str, Field(default=None, description="Specify the ID or UUID of the event, where to seach for attributes. This parameter is required, if \u201cAttribute Search\u201c is set to \u201cProvided Event\u201c.")], category: Annotated[str, Field(default=None, description="Specify a comma-separated list of categories. If specified, action will only unset IDS flag for attributes that have matching category. If nothing is specified, action will ignore categories in attributes. Possible values: External Analysis, Payload Delivery, Artifacts Dropped, Payload Installation.")], type: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute types. If specified, action will only unset IDS flag for attributes that have matching attribute type. If nothing is specified, action will ignore types in attributes. Example values: md5, sha1, ip-src, ip-dst")], attribute_search: Annotated[List[str], Field(default=None, description="Specify, where action should search for attributes. If \u201cProvided Event\u201c is selected, action will only search for attributes or attribute UUIDs in event with ID/UUID provided in \u201cEvent ID\u201c parameter. If \u201cAll Events\u201c, action will search for attributes among all events and unset IDS flag for all attributes that match our criteria.")], attribute_uuid: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute UUIDs for which you want to unset an IDS flag. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Unset IDS Flag for an Attribute',
+        annotations=ToolAnnotations(
+            title='MISP: Unset IDS Flag for an Attribute',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_unset_ids_flag_for_an_attribute(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], attribute_name: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute identifiers for which you want to unset an IDS flag. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], event_id: Annotated[Optional[str], Field(default=None, description="Specify the ID or UUID of the event, where to seach for attributes. This parameter is required, if \u201cAttribute Search\u201c is set to \u201cProvided Event\u201c.")], category: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of categories. If specified, action will only unset IDS flag for attributes that have matching category. If nothing is specified, action will ignore categories in attributes. Possible values: External Analysis, Payload Delivery, Artifacts Dropped, Payload Installation.")], type: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute types. If specified, action will only unset IDS flag for attributes that have matching attribute type. If nothing is specified, action will ignore types in attributes. Example values: md5, sha1, ip-src, ip-dst")], attribute_search: Annotated[Optional[List[str]], Field(default=None, description="Specify, where action should search for attributes. If \u201cProvided Event\u201c is selected, action will only search for attributes or attribute UUIDs in event with ID/UUID provided in \u201cEvent ID\u201c parameter. If \u201cAll Events\u201c, action will search for attributes among all events and unset IDS flag for all attributes that match our criteria.")], attribute_uuid: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute UUIDs for which you want to unset an IDS flag. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Unset IDS flag for attributes in MISP
 
@@ -1489,6 +1758,11 @@ Action Parameters: Attribute Name: Specify a comma-separated list of attribute i
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1502,10 +1776,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1515,15 +1786,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if attribute_name is not None:
@@ -1560,16 +1835,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Unset IDS Flag for an Attribute")
             except Exception as e:
-                print(f"Error executing action MISP_Unset IDS Flag for an Attribute for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Unset IDS Flag for an Attribute for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_upload_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event to which you want to upload this file.")], file_path: Annotated[str, Field(..., description="Specify a comma-separated list of absolute filepaths of the files that you want to upload to MISP.")], for_intrusion_detection_system: Annotated[bool, Field(..., description="If enabled, uploaded file will be used for intrusion detection systems.")], category: Annotated[str, Field(default=None, description="Specify the category for the uploaded file. Possible values: External Analysis, Payload Delivery, Artifacts Dropped, Payload Installation.")], distribution: Annotated[str, Field(default=None, description="Specify the distribution for the uploaded file. Possible values: 0 - Organisation, 1 - Community, 2 - Connected, 3 - All. You can either provide a number or a string.")], comment: Annotated[str, Field(default=None, description="Specify additional comments related to the uploaded file.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Upload File',
+        annotations=ToolAnnotations(
+            title='MISP: Upload File',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_upload_file(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event to which you want to upload this file.")], file_path: Annotated[str, Field(..., description="Specify a comma-separated list of absolute filepaths of the files that you want to upload to MISP.")], for_intrusion_detection_system: Annotated[bool, Field(..., description="If enabled, uploaded file will be used for intrusion detection systems.")], category: Annotated[Optional[str], Field(default=None, description="Specify the category for the uploaded file. Possible values: External Analysis, Payload Delivery, Artifacts Dropped, Payload Installation.")], distribution: Annotated[Optional[str], Field(default=None, description="Specify the distribution for the uploaded file. Possible values: 0 - Organisation, 1 - Community, 2 - Connected, 3 - All. You can either provide a number or a string.")], comment: Annotated[Optional[str], Field(default=None, description="Specify additional comments related to the uploaded file.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Upload a file to a MISP event.
 
@@ -1578,6 +1862,11 @@ Action Parameters: Event ID: Specify the ID or UUID of the event to which you wa
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1591,10 +1880,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1604,15 +1890,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Event ID"] = event_id
@@ -1646,16 +1936,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Upload File")
             except Exception as e:
-                print(f"Error executing action MISP_Upload File for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Upload File for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_add_attribute(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="TheSpecify the ID or UUID of the event, for which you want to add attributes.")], for_intrusion_detection_system: Annotated[bool, Field(..., description="If enabled, attribute will be labeled as eligible to create an IDS signature out of it.")], category: Annotated[str, Field(default=None, description="Specify the category for attributes. Possible values: Targeting data, Payload delivery, Artifacts dropped, Payload installation, Persistence mechanism, Network activity, Attribution, External analysis, Social network.")], distribution: Annotated[str, Field(default=None, description="Specify the distribution of the attribute. Possible values: 0 - Organisation, 1 - Community, 2 - Connected, 3 - All, 5 - Inherit. You can either provide a number or a string.")], comment: Annotated[str, Field(default=None, description="Specify comment related to attribute.")], fallback_ip_type: Annotated[List[str], Field(default=None, description="Specify what should be the fallback attribute type for the IP address entity.")], fallback_email_type: Annotated[List[str], Field(default=None, description="Specify what should be the fallback attribute type for the email address entity.")], extract_domain: Annotated[bool, Field(default=None, description="If enabled, action will extract domain out of URL entity.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Add Attribute',
+        annotations=ToolAnnotations(
+            title='MISP: Add Attribute',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_add_attribute(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="TheSpecify the ID or UUID of the event, for which you want to add attributes.")], for_intrusion_detection_system: Annotated[bool, Field(..., description="If enabled, attribute will be labeled as eligible to create an IDS signature out of it.")], category: Annotated[Optional[str], Field(default=None, description="Specify the category for attributes. Possible values: Targeting data, Payload delivery, Artifacts dropped, Payload installation, Persistence mechanism, Network activity, Attribution, External analysis, Social network.")], distribution: Annotated[Optional[str], Field(default=None, description="Specify the distribution of the attribute. Possible values: 0 - Organisation, 1 - Community, 2 - Connected, 3 - All, 5 - Inherit. You can either provide a number or a string.")], comment: Annotated[Optional[str], Field(default=None, description="Specify comment related to attribute.")], fallback_ip_type: Annotated[Optional[List[str]], Field(default=None, description="Specify what should be the fallback attribute type for the IP address entity.")], fallback_email_type: Annotated[Optional[List[str]], Field(default=None, description="Specify what should be the fallback attribute type for the email address entity.")], extract_domain: Annotated[Optional[bool], Field(default=None, description="If enabled, action will extract domain out of URL entity.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Add attributes based on entities to the event in MISP. Supported hashes: MD5, SHA1, SHA224, SHA256, SHA384, SHA512, SSDeep.
 
@@ -1664,6 +1963,11 @@ Action Parameters: Event ID: The ID of the event., Category: The category of the
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1677,10 +1981,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1690,15 +1991,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Event ID"] = event_id
@@ -1737,16 +2042,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Add Attribute")
             except Exception as e:
-                print(f"Error executing action MISP_Add Attribute for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Add Attribute for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_add_tag_to_an_attribute(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], tag_name: Annotated[str, Field(..., description="Specify a comma-separated list of tags that you want to add to attributes.")], attribute_name: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute identifiers to which you want to add tags. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], event_id: Annotated[str, Field(default=None, description="Specify the ID or UUID of the event, where to search for attributes. This parameter is required, if \u201cAttribute Search\u201c is set to \u201cProvided Event\u201c or Object UUID is provided.")], category: Annotated[str, Field(default=None, description="Specify a comma-separated list of categories. If specified, action will only add tags to attributes that have matching category. If nothing is specified, action will ignore categories in attributes. Possible values: External Analysis, Payload Delivery, Artifacts Dropped, Payload Installation.")], type: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute types. If specified, action will only add tags to attributes that have matching attribute type. If nothing is specified, action will ignore types in attributes. Example values: md5, sha1, ip-src, ip-dst")], object_uuid: Annotated[str, Field(default=None, description="Specify the uuid of the object that contains the desired attribute.")], attribute_uuid: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute UUIDs to which you want to add new tags. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], attribute_search: Annotated[List[str], Field(default=None, description="Specify, where action should search for attributes. If \u201cProvided Event\u201c is selected, action will only search for attributes or attribute UUIDs in event with ID/UUID provided in \u201cEvent ID\u201c parameter. If \u201cAll Events\u201c, action will search for attributes among all events and add sighting for all attributes that match our criteria.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Add Tag to an Attribute',
+        annotations=ToolAnnotations(
+            title='MISP: Add Tag to an Attribute',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_add_tag_to_an_attribute(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], tag_name: Annotated[str, Field(..., description="Specify a comma-separated list of tags that you want to add to attributes.")], attribute_name: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute identifiers to which you want to add tags. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], event_id: Annotated[Optional[str], Field(default=None, description="Specify the ID or UUID of the event, where to search for attributes. This parameter is required, if \u201cAttribute Search\u201c is set to \u201cProvided Event\u201c or Object UUID is provided.")], category: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of categories. If specified, action will only add tags to attributes that have matching category. If nothing is specified, action will ignore categories in attributes. Possible values: External Analysis, Payload Delivery, Artifacts Dropped, Payload Installation.")], type: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute types. If specified, action will only add tags to attributes that have matching attribute type. If nothing is specified, action will ignore types in attributes. Example values: md5, sha1, ip-src, ip-dst")], object_uuid: Annotated[Optional[str], Field(default=None, description="Specify the uuid of the object that contains the desired attribute.")], attribute_uuid: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute UUIDs to which you want to add new tags. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], attribute_search: Annotated[Optional[List[str]], Field(default=None, description="Specify, where action should search for attributes. If \u201cProvided Event\u201c is selected, action will only search for attributes or attribute UUIDs in event with ID/UUID provided in \u201cEvent ID\u201c parameter. If \u201cAll Events\u201c, action will search for attributes among all events and add sighting for all attributes that match our criteria.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Add tags to attributes in MISP.
 
@@ -1755,6 +2069,11 @@ Action Parameters: Event ID: The identifier of the event that the attribute is a
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1768,10 +2087,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1781,15 +2097,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if attribute_name is not None:
@@ -1829,16 +2149,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Add Tag to an Attribute")
             except Exception as e:
-                print(f"Error executing action MISP_Add Tag to an Attribute for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Add Tag to an Attribute for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_create_file_misp_object(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event for which you want to add file objects.")], filename: Annotated[str, Field(default=None, description="Specify the name of the file, which you want to add to the event.")], md5: Annotated[str, Field(default=None, description="Specify the md5 of the file, which you want to add to the event.")], sha1: Annotated[str, Field(default=None, description="Specify the sha1 of the file, which you want to add to the event.")], sha256: Annotated[str, Field(default=None, description="Specify the sha256 of the file, which you want to add to the event.")], ssdeep: Annotated[str, Field(default=None, description="Specify the ssdeep of the file, which you want to add to the event. Format: size:hash:hash")], use_entities: Annotated[bool, Field(default=None, description="If enabled, action will use entities in order to create objects. Supported entities: File name and hash. \u201cUse Entities\u201c has priority over other parameters.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Create File MISP Object',
+        annotations=ToolAnnotations(
+            title='MISP: Create File MISP Object',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_create_file_misp_object(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event for which you want to add file objects.")], filename: Annotated[Optional[str], Field(default=None, description="Specify the name of the file, which you want to add to the event.")], md5: Annotated[Optional[str], Field(default=None, description="Specify the md5 of the file, which you want to add to the event.")], sha1: Annotated[Optional[str], Field(default=None, description="Specify the sha1 of the file, which you want to add to the event.")], sha256: Annotated[Optional[str], Field(default=None, description="Specify the sha256 of the file, which you want to add to the event.")], ssdeep: Annotated[Optional[str], Field(default=None, description="Specify the ssdeep of the file, which you want to add to the event. Format: size:hash:hash")], use_entities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will use entities in order to create objects. Supported entities: File name and hash. \u201cUse Entities\u201c has priority over other parameters.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Create a File Object in MISP. Requires one of: FILENAME, MD5, SHA1, SHA256, SSDEEP to be provided or “Use Entities“ parameter set to true.
 
@@ -1847,6 +2176,11 @@ Action Parameters: Event ID: The unique identifier of the event to add the objec
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1860,10 +2194,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1873,15 +2204,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Event ID"] = event_id
@@ -1919,16 +2254,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Create File Misp Object")
             except Exception as e:
-                print(f"Error executing action MISP_Create File Misp Object for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Create File Misp Object for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_get_related_events(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], events_limit: Annotated[str, Field(default=None, description="Specify max amount of events to fetch. If not specified, all events will be fetched.")], mark_as_suspicious: Annotated[bool, Field(default=None, description="If enabled, action will mark entity as suspicious, if there is at least one related event to it.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Get Related Events',
+        annotations=ToolAnnotations(
+            title='MISP: Get Related Events',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_get_related_events(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], events_limit: Annotated[Optional[str], Field(default=None, description="Specify max amount of events to fetch. If not specified, all events will be fetched.")], mark_as_suspicious: Annotated[Optional[bool], Field(default=None, description="If enabled, action will mark entity as suspicious, if there is at least one related event to it.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Retrieve information about events that are related to entities in MISP.
 
@@ -1937,6 +2281,11 @@ Action Parameters: Mark As Suspicious: If enabled, action will mark entity as su
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -1950,10 +2299,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -1963,15 +2309,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if events_limit is not None:
@@ -2000,16 +2350,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Get Related Events")
             except Exception as e:
-                print(f"Error executing action MISP_Get Related Events for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Get Related Events for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_publish_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event that you want to publish.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Publish Event',
+        annotations=ToolAnnotations(
+            title='MISP: Publish Event',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_publish_event(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], event_id: Annotated[str, Field(..., description="Specify the ID or UUID of the event that you want to publish.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 The action allows the user to publish an event. Publishing an event shares it to the sharing group selected, making it visible to all members.
 
@@ -2018,6 +2377,11 @@ Action Parameters: Event ID: Specify the ID or UUID of the event that you want t
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -2031,10 +2395,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -2044,15 +2405,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Event ID"] = event_id
@@ -2078,16 +2443,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Publish Event")
             except Exception as e:
-                print(f"Error executing action MISP_Publish Event for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Publish Event for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_list_sightings_of_an_attribute(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], attribute_name: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute identifiers for which you want to list sightings. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], event_id: Annotated[str, Field(default=None, description="Specify the ID or UUID of the event, where to seach for attributes. This parameter is required, if \u201cAttribute Search\u201c is set to \u201cProvided Event\u201c.")], category: Annotated[str, Field(default=None, description="Specify a comma-separated list of categories. If specified, action will only list sightings for attributes that have matching category. If nothing is specified, action will ignore categories in attributes. Possible values: External Analysis, Payload Delivery, Artifacts Dropped, Payload Installation.")], type: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute types. If specified, action will only list sightings for attributes that have matching attribute type. If nothing is specified, action will ignore types in attributes. Example values: md5, sha1, ip-src, ip-dst")], attribute_search: Annotated[List[str], Field(default=None, description="Specify, where action should search for attributes. If \u201cProvided Event\u201c is selected, action will only search for attributes or attribute UUIDs in event with ID/UUID provided in \u201cEvent ID\u201c parameter. If \u201cAll Events\u201c, action will search for attributes among all events and list sightings for all attributes that match our criteria.")], attribute_uuid: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute UUIDs for which you want to list sightings. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: List Sightings of an Attribute',
+        annotations=ToolAnnotations(
+            title='MISP: List Sightings of an Attribute',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_list_sightings_of_an_attribute(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], attribute_name: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute identifiers for which you want to list sightings. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], event_id: Annotated[Optional[str], Field(default=None, description="Specify the ID or UUID of the event, where to seach for attributes. This parameter is required, if \u201cAttribute Search\u201c is set to \u201cProvided Event\u201c.")], category: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of categories. If specified, action will only list sightings for attributes that have matching category. If nothing is specified, action will ignore categories in attributes. Possible values: External Analysis, Payload Delivery, Artifacts Dropped, Payload Installation.")], type: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute types. If specified, action will only list sightings for attributes that have matching attribute type. If nothing is specified, action will ignore types in attributes. Example values: md5, sha1, ip-src, ip-dst")], attribute_search: Annotated[Optional[List[str]], Field(default=None, description="Specify, where action should search for attributes. If \u201cProvided Event\u201c is selected, action will only search for attributes or attribute UUIDs in event with ID/UUID provided in \u201cEvent ID\u201c parameter. If \u201cAll Events\u201c, action will search for attributes among all events and list sightings for all attributes that match our criteria.")], attribute_uuid: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute UUIDs for which you want to list sightings. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 List available sightings for attributes in MISP
 
@@ -2096,6 +2470,11 @@ Action Parameters: Attribute Name: Specify a comma-separated list of attribute i
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -2109,10 +2488,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -2122,15 +2498,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if attribute_name is not None:
@@ -2167,16 +2547,25 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_List Sightings of an Attribute")
             except Exception as e:
-                print(f"Error executing action MISP_List Sightings of an Attribute for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_List Sightings of an Attribute for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def misp_delete_an_attribute(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], attribute_name: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute identifiers that you want to delete. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], event_id: Annotated[str, Field(default=None, description="Specify the ID or UUID of the event, where to search for attributes. This parameter is required, if \u201cAttribute Search\u201c is set to \u201cProvided Event\u201c or Object UUID is provided.")], category: Annotated[str, Field(default=None, description="Specify a comma-separated list of categories. If specified, action will only delete attributes that have matching category. If nothing is specified, action will ignore categories in attributes. Possible values: External Analysis, Payload Delivery, Artifacts Dropped, Payload Installation.")], type: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute types. If specified, action will only delete attributes that have matching attribute type. If nothing is specified, action will ignore types in attributes. Example values: md5, sha1, ip-src, ip-dst")], object_uuid: Annotated[str, Field(default=None, description="Specify the uuid of the object that contains the desired attribute")], attribute_uuid: Annotated[str, Field(default=None, description="Specify a comma-separated list of attribute UUIDs that you want to delete. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], attribute_search: Annotated[List[str], Field(default=None, description="Specify, where action should search for attributes. If \u201cProvided Event\u201c is selected, action will only search for attributes or attribute UUIDs in event with ID/UUID provided in \u201cEvent ID\u201c parameter. If \u201cAll Events\u201c, action will search for attributes among all events and delete all attributes that match our criteria.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='MISP: Delete an Attribute',
+        annotations=ToolAnnotations(
+            title='MISP: Delete an Attribute',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def misp_delete_an_attribute(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], attribute_name: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute identifiers that you want to delete. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], event_id: Annotated[Optional[str], Field(default=None, description="Specify the ID or UUID of the event, where to search for attributes. This parameter is required, if \u201cAttribute Search\u201c is set to \u201cProvided Event\u201c or Object UUID is provided.")], category: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of categories. If specified, action will only delete attributes that have matching category. If nothing is specified, action will ignore categories in attributes. Possible values: External Analysis, Payload Delivery, Artifacts Dropped, Payload Installation.")], type: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute types. If specified, action will only delete attributes that have matching attribute type. If nothing is specified, action will ignore types in attributes. Example values: md5, sha1, ip-src, ip-dst")], object_uuid: Annotated[Optional[str], Field(default=None, description="Specify the uuid of the object that contains the desired attribute")], attribute_uuid: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of attribute UUIDs that you want to delete. Note: If both \u201cAttribute Name\u201c and \u201cAttribute UUID\u201c are specified, action will work with \u201cAttribute UUID\u201c values.")], attribute_search: Annotated[Optional[List[str]], Field(default=None, description="Specify, where action should search for attributes. If \u201cProvided Event\u201c is selected, action will only search for attributes or attribute UUIDs in event with ID/UUID provided in \u201cEvent ID\u201c parameter. If \u201cAll Events\u201c, action will search for attributes among all events and delete all attributes that match our criteria.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """
 Delete attributes in MISP. Supported hashes: MD5, SHA1, SHA224, SHA256, SHA384, SHA512, SSDeep.
 
@@ -2185,6 +2574,11 @@ Action Parameters: Event ID: Specify the ID or UUID of the event, where to searc
 Returns:
 dict: A dictionary containing the result of the action execution.
 """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -2198,10 +2592,7 @@ dict: A dictionary containing the result of the action execution.
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -2211,15 +2602,19 @@ dict: A dictionary containing the result of the action execution.
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="MISP")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for MISP: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for MISP: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if attribute_name is not None:
@@ -2258,10 +2653,10 @@ dict: A dictionary containing the result of the action execution.
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "MISP_Delete an Attribute")
             except Exception as e:
-                print(f"Error executing action MISP_Delete an Attribute for MISP: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action MISP_Delete an Attribute for MISP: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for MISP")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for MISP")
+            return marketplace_error_result("No active instance found.")

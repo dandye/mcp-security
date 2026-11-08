@@ -11,9 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import typing
 
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
+from mcp.types import ToolAnnotations as _ToolAnnotations
 
 from .. import utils
 from ..server import server, vt_client
@@ -24,8 +26,17 @@ HUNTING_RULESET_RELATIONSHIPS = [
 ]
 
 
-@server.tool()
-async def search_iocs(query: str, ctx: Context, limit: int = 10, order_by: str = "last_submission_date-") -> typing.List[typing.Dict[str, typing.Any]]:
+@server.tool(
+    title="Search Indicators of Compromise",
+    annotations=_ToolAnnotations(
+        title="Search Indicators of Compromise",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
+async def search_iocs(query: str, ctx: Context, limit: int = 10, order_by: str = "last_submission_date-") -> list[dict[str, typing.Any]]:
   """Search Indicators of Compromise (IOC) in the Google Threat Intelligence platform.
 
   You can search by for different IOC types using the `entity` modifier. Below, the different IOC types and the supported orders:
@@ -58,19 +69,32 @@ async def search_iocs(query: str, ctx: Context, limit: int = 10, order_by: str =
   Returns:
     List of Indicators of Compromise (IoCs).
   """
-  async with vt_client(ctx) as client:
-    res = await utils.consume_vt_iterator(
-        client,
-        "/intelligence/search",
-        params={
-            "query": query,
-            "order": order_by},
-        limit=limit)
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.consume_vt_iterator(
+          client,
+          "/intelligence/search",
+          params={
+              "query": query,
+              "order": order_by},
+          limit=limit)
+  except Exception as e:
+    logging.exception("Error searching IOCs: %s", e)
+    return utils.tool_error_result(f"Failed to search IOCs: {e}")  # type: ignore[return-value]
   return utils.sanitize_response([o.to_dict() for o in res])
 
 
-@server.tool()
-async def get_hunting_ruleset(ruleset_id: str, ctx: Context) -> typing.Dict[str, typing.Any]:
+@server.tool(
+    title="Get Threat Hunting Ruleset",
+    annotations=_ToolAnnotations(
+        title="Get Threat Hunting Ruleset",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
+async def get_hunting_ruleset(ruleset_id: str, ctx: Context) -> dict[str, typing.Any]:
   """Get a Hunting Ruleset object from Google Threat Intelligence.
 
   A Hunting Ruleset object describes a user's hunting ruleset. It may contain multiple
@@ -93,17 +117,32 @@ async def get_hunting_ruleset(ruleset_id: str, ctx: Context) -> typing.Dict[str,
   Returns:
     Hunting Ruleset object.
   """
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object(
-        client,
-        "intelligence/hunting_rulesets",
-        "hunting_ruleset",
-        ruleset_id,
-    )
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object(
+          client,
+          "intelligence/hunting_rulesets",
+          "hunting_ruleset",
+          ruleset_id,
+      )
+  except Exception as e:
+    logging.exception("Error fetching hunting ruleset %s: %s", ruleset_id, e)
+    return utils.tool_error_result(f"Failed to fetch hunting ruleset: {e}")  # type: ignore[return-value]
+  if utils.is_error_dict(res):
+    return utils.tool_error_result_from_dict(res)  # type: ignore[return-value]
   return utils.sanitize_response(res)
 
 
-@server.tool()
+@server.tool(
+    title="Get Entities Related to Hunting Ruleset",
+    annotations=_ToolAnnotations(
+        title="Get Entities Related to Hunting Ruleset",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def get_entities_related_to_a_hunting_ruleset(
     ruleset_id: str, relationship_name: str, ctx: Context, limit: int = 10
 ) -> list[dict[str, typing.Any]]:
@@ -122,18 +161,22 @@ async def get_entities_related_to_a_hunting_ruleset(
     Returns:
       List of objects related to the Hunting ruleset.
   """
-  if not relationship_name in HUNTING_RULESET_RELATIONSHIPS:
-      return {
-          "error": f"Relationship {relationship_name} does not exist. "
-          f"Available relationships are: {','.join(HUNTING_RULESET_RELATIONSHIPS)}"
-      }
+  if relationship_name not in HUNTING_RULESET_RELATIONSHIPS:
+    return utils.tool_error_result(  # type: ignore[return-value]
+        f"Relationship {relationship_name} does not exist. "
+        f"Available relationships are: {','.join(HUNTING_RULESET_RELATIONSHIPS)}"
+    )
 
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object_relationships(
-        client,
-        "intelligence/hunting_rulesets",
-        ruleset_id,
-        [relationship_name],
-        limit=limit)
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object_relationships(
+          client,
+          "intelligence/hunting_rulesets",
+          ruleset_id,
+          [relationship_name],
+          limit=limit)
+  except Exception as e:
+    logging.exception("Error fetching relationships for hunting ruleset %s: %s", ruleset_id, e)
+    return utils.tool_error_result(f"Failed to fetch hunting ruleset relationships: {e}")  # type: ignore[return-value]
   return utils.sanitize_response(res.get(relationship_name, []))
 

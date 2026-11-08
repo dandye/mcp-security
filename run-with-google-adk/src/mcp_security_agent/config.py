@@ -15,8 +15,8 @@
 
 import functools
 from pathlib import Path
-from typing import Optional
-from pydantic import Field, field_validator, model_validator
+from typing import Dict, Optional
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _pkg_dir = Path(__file__).resolve().parents[2]
@@ -25,6 +25,11 @@ _env_files = (
     str(_pkg_dir / ".env"),
     ".env",
 )
+
+DEFAULT_GEMINI_MODEL = "gemini-3.1-pro-preview"
+FAST_GEMINI_MODEL = "gemini-3-flash-preview"
+SUPPORTED_ELICITATION_POLICIES = ("prompt", "accept", "decline", "cancel")
+SUPPORTED_REMOTE_AUTH_MODES = ("oauth", "id_token", "none")
 
 
 def _is_configured(val: Optional[str]) -> bool:
@@ -52,9 +57,9 @@ def discover_user_identity() -> str:
     Returns:
         The detected username or service account email, falling back to 'secops_user'.
     """
-    import os
-    import json
     import getpass
+    import json
+    import os
     import shutil
     import subprocess
 
@@ -94,6 +99,7 @@ def discover_user_identity() -> str:
     # 4. google.auth.default() credentials inspection
     try:
         import google.auth
+
         creds, _ = google.auth.default()
         sa_email = getattr(creds, "service_account_email", None)
         if sa_email and isinstance(sa_email, str) and sa_email.strip() and sa_email != "default":
@@ -133,10 +139,9 @@ def discover_user_identity() -> str:
     return "secops_user"
 
 
-
-
 class AgentSettings(BaseSettings):
     """Configuration settings loaded from environment variables or .env file."""
+
     model_config = SettingsConfigDict(
         env_file=_env_files,
         env_file_encoding="utf-8",
@@ -146,79 +151,69 @@ class AgentSettings(BaseSettings):
 
     # Google Cloud & LLM Settings
     google_cloud_project: Optional[str] = Field(default=None, alias="GOOGLE_CLOUD_PROJECT")
-    google_cloud_location: str = Field(default="us-central1", alias="GOOGLE_CLOUD_LOCATION")
+    google_cloud_location: str = Field(default="global", alias="GOOGLE_CLOUD_LOCATION")
     use_vertex_ai: bool = Field(default=False, alias="GOOGLE_GENAI_USE_VERTEXAI")
     google_api_key: Optional[str] = Field(default=None, alias="GOOGLE_API_KEY")
-    google_model: str = Field(default="gemini-2.5-flash", alias="GOOGLE_MODEL")
+    google_model: str = Field(default=DEFAULT_GEMINI_MODEL, alias="GOOGLE_MODEL")
 
-    # MCP Server Enablement Flags (Optional; auto-detected from credentials if None)
+    # MCP Server Enablement Flags (Optional; auto-detected from credentials or remote URLs if None)
     load_secops_mcp: Optional[bool] = Field(default=None, alias="LOAD_SECOPS_MCP")
-    load_scc_mcp: bool = Field(default=False, alias="LOAD_SCC_MCP")
+    load_scc_mcp: Optional[bool] = Field(default=None, alias="LOAD_SCC_MCP")
     load_gti_mcp: Optional[bool] = Field(default=None, alias="LOAD_GTI_MCP")
     load_secops_soar_mcp: Optional[bool] = Field(default=None, alias="LOAD_SECOPS_SOAR_MCP")
 
-    # Remote MCP URLs (for SSE/HTTP remote endpoints)
+    # Remote Streamable HTTP MCP URLs
     secops_mcp_url: Optional[str] = Field(default=None, alias="SECOPS_MCP_URL")
+    chronicle_remote_mcp_url: Optional[str] = Field(default=None, alias="CHRONICLE_REMOTE_MCP_URL")
     scc_mcp_url: Optional[str] = Field(default=None, alias="SCC_MCP_URL")
     gti_mcp_url: Optional[str] = Field(default=None, alias="GTI_MCP_URL")
-    secops_soar_mcp_url: Optional[str] = Field(default=None, alias="SECOPS_SOAR_MCP_URL")
+    secops_soar_mcp_url: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("SOAR_MCP_URL", "SECOPS_SOAR_MCP_URL", "secops_soar_mcp_url"),
+    )
+
+    # Remote Auth & Transport Settings
+    mcp_remote_auth_mode: str = Field(default="oauth", alias="MCP_REMOTE_AUTH_MODE")
+    mcp_remote_use_gcp_auth: Optional[bool] = Field(default=None, alias="MCP_REMOTE_USE_GCP_AUTH")
+    mcp_bearer_token: Optional[str] = Field(default=None, alias="MCP_BEARER_TOKEN")
+    http_timeout_seconds: float = Field(default=60.0, alias="MCP_HTTP_TIMEOUT")
+    sse_read_timeout_seconds: float = Field(default=300.0, alias="MCP_SSE_READ_TIMEOUT")
+
+    # Modern ADK v2.13 McpToolset Settings
+    mcp_tool_name_prefix_enabled: bool = Field(default=False, alias="MCP_TOOL_NAME_PREFIX_ENABLED")
+    mcp_tool_prefix_map: Dict[str, str] = Field(
+        default_factory=lambda: {
+            "secops": "secops",
+            "gti": "gti",
+            "soar": "soar",
+            "scc": "scc",
+        }
+    )
+    mcp_use_resources: bool = Field(default=True, alias="MCP_USE_RESOURCES")
+    mcp_tool_list_cache_ttl_seconds: Optional[float] = Field(
+        default=300.0, alias="MCP_TOOL_LIST_CACHE_TTL_SECONDS"
+    )
+    filter_bloat_feed_tools: bool = Field(default=True, alias="MCP_FILTER_BLOAT_FEED_TOOLS")
+    confirm_destructive_tools: bool = Field(default=False, alias="ADK_CONFIRM_DESTRUCTIVE_TOOLS")
+    elicitation_policy: str = Field(default="prompt", alias="ADK_ELICITATION_POLICY")
+    max_tool_output_schema_bytes: int = Field(
+        default=4096, alias="ADK_MAX_TOOL_OUTPUT_SCHEMA_BYTES"
+    )
 
     # Credentials & Impersonation
     secops_sa_path: Optional[str] = Field(default=None, alias="SECOPS_SA_PATH")
     google_application_credentials: Optional[str] = Field(
         default_factory=lambda: _discover_local_adc(), alias="GOOGLE_APPLICATION_CREDENTIALS"
     )
-    secops_impersonate_service_account: Optional[str] = Field(default=None, alias="SECOPS_IMPERSONATE_SERVICE_ACCOUNT")
+    secops_impersonate_service_account: Optional[str] = Field(
+        default=None, alias="SECOPS_IMPERSONATE_SERVICE_ACCOUNT"
+    )
 
-    def __init__(self, **values):
-        super().__init__(**values)
-        self.bootstrap_environment()
-
-    @model_validator(mode="after")
-    def resolve_tool_enablement(self) -> "AgentSettings":
-        """Auto-detects MCP tool enablement based on presence of API keys and credentials."""
-        if self.load_gti_mcp is None:
-            self.load_gti_mcp = _is_configured(self.vt_apikey)
-
-        if self.load_secops_soar_mcp is None:
-            self.load_secops_soar_mcp = _is_configured(self.soar_url) and _is_configured(self.soar_app_key)
-
-        if self.load_secops_mcp is None:
-            self.load_secops_mcp = _is_configured(self.chronicle_project_id) and _is_configured(self.chronicle_customer_id)
-
-        return self
-
-    def bootstrap_environment(self) -> None:
-        """Configures environment variables for Google Cloud authentication and Cloudtop compatibility."""
-        import os
-        if self.google_application_credentials and not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.google_application_credentials
-            if not os.environ.get("CLOUDSDK_CONFIG"):
-                os.environ["CLOUDSDK_CONFIG"] = str(Path(self.google_application_credentials).parent)
-
-        if "GOOGLE_API_USE_CLIENT_CERTIFICATE" not in os.environ:
-            os.environ["GOOGLE_API_USE_CLIENT_CERTIFICATE"] = "false"
-        if "GOOGLE_API_USE_MTLS_ENDPOINT" not in os.environ:
-            os.environ["GOOGLE_API_USE_MTLS_ENDPOINT"] = "never"
-        if "CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE" not in os.environ:
-            os.environ["CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE"] = "false"
-
-        if self.google_api_key and not os.environ.get("GOOGLE_API_KEY"):
-            os.environ["GOOGLE_API_KEY"] = self.google_api_key
-
-        target_project = self.google_cloud_project or os.environ.get("GCP_PROJECT_ID")
-        if target_project and not os.environ.get("GOOGLE_CLOUD_PROJECT"):
-            os.environ["GOOGLE_CLOUD_PROJECT"] = target_project
-
-        if self.use_vertex_ai or (target_project and not self.google_api_key and not os.environ.get("GOOGLE_API_KEY")):
-            os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "TRUE"
-
-    
-    # Chronicle SIEM Params
+    # Google SecOps SIEM Params
     chronicle_project_id: Optional[str] = Field(default=None, alias="CHRONICLE_PROJECT_ID")
     chronicle_customer_id: Optional[str] = Field(default=None, alias="CHRONICLE_CUSTOMER_ID")
     chronicle_region: str = Field(default="us", alias="CHRONICLE_REGION")
-    
+
     # GTI & SOAR Params
     vt_apikey: Optional[str] = Field(default=None, alias="VT_APIKEY")
     soar_url: Optional[str] = Field(default=None, alias="SOAR_URL")
@@ -229,9 +224,151 @@ class AgentSettings(BaseSettings):
     stdio_timeout_seconds: float = Field(default=60.0, alias="STDIO_PARAM_TIMEOUT")
     default_prompt: Optional[str] = Field(default=None, alias="DEFAULT_PROMPT")
 
+    def __init__(self, **values):
+        super().__init__(**values)
+        self.bootstrap_environment()
+
+    @property
+    def soar_mcp_url(self) -> Optional[str]:
+        """Alias property returning the configured SOAR Streamable HTTP URL."""
+        return self.secops_soar_mcp_url
+
+    @property
+    def effective_secops_mcp_url(self) -> Optional[str]:
+        """Returns SECOPS_MCP_URL if set, otherwise CHRONICLE_REMOTE_MCP_URL."""
+        if _is_configured(self.secops_mcp_url):
+            return self.secops_mcp_url.strip()  # type: ignore[union-attr]
+        if _is_configured(self.chronicle_remote_mcp_url):
+            return self.chronicle_remote_mcp_url.strip()  # type: ignore[union-attr]
+        return None
+
+    @property
+    def resolved_project_id(self) -> Optional[str]:
+        """Returns the effective Google Cloud project ID across settings and environment."""
+        import os
+
+        candidate = (
+            self.google_cloud_project
+            or os.environ.get("GOOGLE_CLOUD_PROJECT")
+            or os.environ.get("GCP_PROJECT_ID")
+            or self.chronicle_project_id
+        )
+        return candidate.strip() if candidate and candidate.strip() else None
+
+    def get_server_transports(self) -> Dict[str, str]:
+        """Returns per-server transport status ('streamable-http', 'stdio', or 'disabled')."""
+        return {
+            "secops": (
+                ("streamable-http" if self.effective_secops_mcp_url else "stdio")
+                if self.load_secops_mcp
+                else "disabled"
+            ),
+            "scc": (
+                ("streamable-http" if _is_configured(self.scc_mcp_url) else "stdio")
+                if self.load_scc_mcp
+                else "disabled"
+            ),
+            "gti": (
+                ("streamable-http" if _is_configured(self.gti_mcp_url) else "stdio")
+                if self.load_gti_mcp
+                else "disabled"
+            ),
+            "soar": (
+                ("streamable-http" if _is_configured(self.secops_soar_mcp_url) else "stdio")
+                if self.load_secops_soar_mcp
+                else "disabled"
+            ),
+        }
+
+    @model_validator(mode="after")
+    def resolve_tool_enablement(self) -> "AgentSettings":
+        """Auto-detects MCP tool enablement from remote URLs, API keys, and tenant credentials."""
+        if self.load_gti_mcp is None:
+            self.load_gti_mcp = _is_configured(self.gti_mcp_url) or _is_configured(self.vt_apikey)
+
+        if self.load_secops_soar_mcp is None:
+            self.load_secops_soar_mcp = _is_configured(self.secops_soar_mcp_url) or (
+                _is_configured(self.soar_url) and _is_configured(self.soar_app_key)
+            )
+
+        if self.load_secops_mcp is None:
+            self.load_secops_mcp = (
+                _is_configured(self.secops_mcp_url)
+                or _is_configured(self.chronicle_remote_mcp_url)
+                or (
+                    _is_configured(self.chronicle_project_id)
+                    and _is_configured(self.chronicle_customer_id)
+                )
+            )
+
+        if self.load_scc_mcp is None:
+            self.load_scc_mcp = _is_configured(self.scc_mcp_url)
+
+        if (
+            self.mcp_tool_list_cache_ttl_seconds is not None
+            and self.mcp_tool_list_cache_ttl_seconds <= 0
+        ):
+            self.mcp_tool_list_cache_ttl_seconds = None
+
+        policy = (self.elicitation_policy or "prompt").strip().lower()
+        self.elicitation_policy = (
+            policy if policy in SUPPORTED_ELICITATION_POLICIES else "prompt"
+        )
+
+        auth_mode = (self.mcp_remote_auth_mode or "oauth").strip().lower()
+        self.mcp_remote_auth_mode = (
+            auth_mode if auth_mode in SUPPORTED_REMOTE_AUTH_MODES else "oauth"
+        )
+
+        return self
+
+    def bootstrap_environment(self) -> None:
+        """Configures environment variables for Google Cloud authentication and Cloudtop compatibility."""
+        import os
+
+        if self.google_application_credentials and not os.environ.get(
+            "GOOGLE_APPLICATION_CREDENTIALS"
+        ):
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.google_application_credentials
+            if not os.environ.get("CLOUDSDK_CONFIG"):
+                os.environ["CLOUDSDK_CONFIG"] = str(
+                    Path(self.google_application_credentials).parent
+                )
+
+        if "GOOGLE_API_USE_CLIENT_CERTIFICATE" not in os.environ:
+            os.environ["GOOGLE_API_USE_CLIENT_CERTIFICATE"] = "false"
+        if "GOOGLE_API_USE_MTLS_ENDPOINT" not in os.environ:
+            os.environ["GOOGLE_API_USE_MTLS_ENDPOINT"] = "never"
+        if "CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE" not in os.environ:
+            os.environ["CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE"] = "false"
+
+        os.environ.setdefault(
+            "ADK_MAX_TOOL_OUTPUT_SCHEMA_BYTES", str(self.max_tool_output_schema_bytes)
+        )
+
+        if self.google_api_key and not os.environ.get("GOOGLE_API_KEY"):
+            os.environ["GOOGLE_API_KEY"] = self.google_api_key
+
+        target_project = self.google_cloud_project or os.environ.get("GCP_PROJECT_ID")
+        if target_project and not os.environ.get("GOOGLE_CLOUD_PROJECT"):
+            os.environ["GOOGLE_CLOUD_PROJECT"] = target_project
+
+        if self.use_vertex_ai or (
+            target_project
+            and not self.google_api_key
+            and not os.environ.get("GOOGLE_API_KEY")
+        ):
+            os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "TRUE"
+            if self.google_cloud_location and not os.environ.get("GOOGLE_CLOUD_LOCATION"):
+                os.environ["GOOGLE_CLOUD_LOCATION"] = self.google_cloud_location
+
     @field_validator(
-        "load_secops_mcp", "load_gti_mcp", "load_secops_soar_mcp",
-        mode="before"
+        "load_secops_mcp",
+        "load_scc_mcp",
+        "load_gti_mcp",
+        "load_secops_soar_mcp",
+        "mcp_remote_use_gcp_auth",
+        mode="before",
     )
     @classmethod
     def parse_optional_bool_env(cls, value: object) -> Optional[bool]:
@@ -245,8 +382,13 @@ class AgentSettings(BaseSettings):
         return bool(value)
 
     @field_validator(
-        "load_scc_mcp", "use_vertex_ai", "minimal_logging",
-        mode="before"
+        "use_vertex_ai",
+        "minimal_logging",
+        "mcp_tool_name_prefix_enabled",
+        "mcp_use_resources",
+        "filter_bloat_feed_tools",
+        "confirm_destructive_tools",
+        mode="before",
     )
     @classmethod
     def parse_bool_env(cls, value: object) -> bool:

@@ -18,14 +18,28 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
+from mcp.server.mcpserver import Context as _Context
+from mcp.types import ToolAnnotations as _ToolAnnotations
 from secops_mcp.server import get_chronicle_client, server
-from secops_mcp.utils import parse_time_range
+from secops_mcp.utils import (
+    parse_time_range,
+    tool_error_result as _tool_error_result,
+)
 
 # Configure logging
 logger = logging.getLogger("secops-mcp")
 
 
-@server.tool()
+@server.tool(
+    title="Export UDM Search Results as CSV",
+    annotations=_ToolAnnotations(
+        title="Export UDM Search Results as CSV",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def export_udm_search_csv(
     query: str,
     fields: List[str],
@@ -33,10 +47,11 @@ async def export_udm_search_csv(
     start_time: Optional[str] = None,
     end_time: Optional[str] = None,
     case_insensitive: bool = True,
-    project_id: str = None,
-    customer_id: str = None,
-    region: str = None,
-) -> str:
+    project_id: Optional[str] = None,
+    customer_id: Optional[str] = None,
+    region: Optional[str] = None,
+    ctx: Optional[_Context] = None,
+) -> dict[str, Any]:
     """Export UDM search results to CSV format for analysis and reporting.
 
     Executes a UDM query and returns results in CSV format with specified fields.
@@ -131,15 +146,34 @@ async def export_udm_search_csv(
         try:
             start_dt, end_dt = parse_time_range(start_time, end_time, hours_back)
         except ValueError as e:
-            logger.error(f'Error parsing date format: {str(e)}', exc_info=True)
-            return f"Error parsing date format: {str(e)}. Use ISO 8601 format (e.g., 2023-01-01T12:00:00Z)"
+            logger.error("Error parsing date format: %s", e, exc_info=True)
+            return _tool_error_result(
+                f"Error parsing date format: {e}. Use ISO 8601 format (e.g., 2023-01-01T12:00:00Z)",
+                row_count=0,
+            )
 
         logger.info(
-            f"Exporting UDM search results to CSV - Query: {query}, "
-            f"Fields: {fields}, Effective Time Range: {start_dt} to {end_dt}"
+            "Exporting UDM search results to CSV - Query: %s, Fields: %s, Effective Time Range: %s to %s",
+            query,
+            fields,
+            start_dt,
+            end_dt,
         )
+        if ctx is not None:
+            await ctx.report_progress(
+                progress=0,
+                total=3,
+                message="Preparing Chronicle UDM CSV export query",
+            )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
+
+        if ctx is not None:
+            await ctx.report_progress(
+                progress=1,
+                total=3,
+                message="Exporting UDM events as CSV from Chronicle SIEM",
+            )
 
         # Call the fetch_udm_search_csv method on the chronicle client
         csv_results = chronicle.fetch_udm_search_csv(
@@ -150,16 +184,28 @@ async def export_udm_search_csv(
             case_insensitive=case_insensitive,
         )
 
+        if ctx is not None:
+            await ctx.report_progress(
+                progress=3,
+                total=3,
+                message="UDM CSV export complete",
+            )
+
         # SDK/Wrapper is returning JSON string directly instead of CSV
         if isinstance(csv_results, str):
             try:
-                csv_results = json.loads(csv_results)   
+                csv_results = json.loads(csv_results)
             except json.JSONDecodeError:
-                return csv_results
+                rows = [line for line in csv_results.splitlines() if line]
+                return {
+                    "csv": csv_results,
+                    "row_count": len(rows),
+                    "summary": csv_results,
+                }
 
         if isinstance(csv_results, list):
-            csv_results = csv_results[0]
-            
+            csv_results = csv_results[0] if csv_results else {}
+
         if (
             csv_results.get("queryValidationErrors")
             or csv_results.get("runtimeErrors")
@@ -173,10 +219,14 @@ async def export_udm_search_csv(
             )
 
             logger.error(
-                f"Error exporting UDM search to CSV: {export_errors}",
+                "Error exporting UDM search to CSV: %s",
+                export_errors,
                 exc_info=True,
             )
-            return f"Error exporting UDM search results: {export_errors}"
+            return _tool_error_result(
+                f"Error exporting UDM search results: {export_errors}",
+                row_count=0,
+            )
 
         row_count = 0
         if (
@@ -185,28 +235,47 @@ async def export_udm_search_csv(
             and csv_results["csv"].get("row")
         ):
             row_count = len(csv_results["csv"]["row"])
-            logger.info(f"Successfully exported {row_count} rows to CSV format")
-            # Returning CSV as a string
-            return "\n".join(csv_results["csv"]["row"])
+            logger.info("Successfully exported %s rows to CSV format", row_count)
+            csv_text = "\n".join(csv_results["csv"]["row"])
+            return {
+                "csv": csv_text,
+                "row_count": row_count,
+                "summary": csv_text,
+            }
 
-        # Return raw response as default
-        return "No results found"
+        return {
+            "csv": "",
+            "row_count": 0,
+            "summary": "No results found",
+        }
 
     except Exception as e:
         logger.error(
-            f"Error exporting UDM search to CSV: {str(e)}", exc_info=True
+            "Error exporting UDM search to CSV: %s", e, exc_info=True
         )
-        return f"Error exporting UDM search results: {str(e)}"
+        return _tool_error_result(
+            f"Error exporting UDM search results: {e}",
+            row_count=0,
+        )
 
 
-@server.tool()
+@server.tool(
+    title="Find UDM Field Values",
+    annotations=_ToolAnnotations(
+        title="Find UDM Field Values",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+)
 async def find_udm_field_values(
     query: str,
     page_size: Optional[int] = None,
-    project_id: str = None,
-    customer_id: str = None,
-    region: str = None,
-) -> Dict[str, Any]:
+    project_id: Optional[str] = None,
+    customer_id: Optional[str] = None,
+    region: Optional[str] = None,
+) -> dict[str, Any]:
     """Find and autocomplete UDM field values in Chronicle SIEM.
 
     Searches for UDM field values that match a partial query string, providing
@@ -283,7 +352,7 @@ async def find_udm_field_values(
     - Regular use helps maintain awareness of data patterns in your environment.
     """
     try:
-        logger.info(f"Finding UDM field values matching: {query}")
+        logger.info("Finding UDM field values matching: %s", query)
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -301,12 +370,12 @@ async def find_udm_field_values(
                 count = len(results["fieldValues"])
             else:
                 count = "unknown number of"
-            logger.info(f"Found {count} matching field values")
-        else:
-            logger.info("Field value search completed")
+            logger.info("Found %s matching field values", count)
+            return results
 
-        return results
+        logger.info("Field value search completed")
+        return {"values": results if isinstance(results, list) else []}
 
     except Exception as e:
-        logger.error(f"Error finding UDM field values: {str(e)}", exc_info=True)
-        return {"error": str(e), "values": []}
+        logger.error("Error finding UDM field values: %s", e, exc_info=True)
+        return _tool_error_result(str(e), values=[])

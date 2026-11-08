@@ -15,17 +15,32 @@
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
+from mcp.types import ToolAnnotations as _ToolAnnotations
+from secops_mcp.phase5 import (
+    SECOPS_ENTITY_TIMELINE_URI as _SECOPS_ENTITY_TIMELINE_URI,
+    ui_tool_meta as _ui_tool_meta,
+)
 from secops_mcp.server import get_chronicle_client, server
-from secops_mcp.utils import parse_time_range
+from secops_mcp.utils import parse_time_range, tool_error_result as _tool_error_result
 
 
 # Configure logging
 logger = logging.getLogger('secops-mcp')
 
 
-@server.tool()
+@server.tool(
+    title='Search Chronicle Security Events',
+    annotations=_ToolAnnotations(
+        title='Search Chronicle Security Events',
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    ),
+    meta=_ui_tool_meta(_SECOPS_ENTITY_TIMELINE_URI),
+)
 async def search_security_events(
     text: str,
     project_id: Optional[str] = None,
@@ -35,7 +50,7 @@ async def search_security_events(
     end_time: Optional[str] = None,
     max_events: int = 100,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Search for security events in Chronicle SIEM using natural language.
 
     Allows searching Chronicle event logs using natural language queries, which are
@@ -121,21 +136,29 @@ async def search_security_events(
         try:
             start_dt, end_dt = parse_time_range(start_time, end_time, hours_back)
         except ValueError as e:
-            logger.error(f'Error parsing date format: {str(e)}', exc_info=True)
-            return {
-                'udm_query': None,
-                'events': {'error': f"Error parsing date format: {str(e)}. Use ISO 8601 format (e.g., 2023-01-01T12:00:00Z)", 'events': [], 'total_events': 0},
-            }
+            logger.error('Error parsing date format: %s', e, exc_info=True)
+            err_msg = (
+                f'Error parsing date format: {e}. '
+                'Use ISO 8601 format (e.g., 2023-01-01T12:00:00Z)'
+            )
+            return _tool_error_result(
+                err_msg,
+                udm_query=None,
+                events={'error': err_msg, 'events': [], 'total_events': 0},
+            )
 
         logger.info(
-            f'Searching security events - Query: {text}, Effective Time Range: {start_dt} to {end_dt}'
+            'Searching security events - Query: %s, Effective Time Range: %s to %s',
+            text,
+            start_dt,
+            end_dt,
         )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
         # Use the new natural language search method
         udm_query = chronicle.translate_nl_to_udm(text)
-        logger.info(f'YL2 UDM Query: {udm_query}')
+        logger.info('YL2 UDM Query: %s', udm_query)
 
         events = chronicle.search_udm(
             query=udm_query,
@@ -155,17 +178,18 @@ async def search_security_events(
             events = {'events': event_list, 'total_events': total_events}
 
         logger.info(
-            f'Search results: {total_events} total events,'
-            f' {len(event_list)} returned'
+            'Search results: %s total events, %s returned',
+            total_events,
+            len(event_list),
         )
 
         # Return a new dictionary with UDM query first, then events data
         return {'udm_query': udm_query, 'events': events}
 
     except Exception as e:
-        logger.error(f'Error searching security events: {str(e)}', exc_info=True)
-        # Return an error object that can be processed by the model
-        return {
-            'udm_query': None,
-            'events': {'error': str(e), 'events': [], 'total_events': 0},
-        }
+        logger.error('Error searching security events: %s', e, exc_info=True)
+        return _tool_error_result(
+            str(e),
+            udm_query=None,
+            events={'error': str(e), 'events': [], 'total_events': 0},
+        )

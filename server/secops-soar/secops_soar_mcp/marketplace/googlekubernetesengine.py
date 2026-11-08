@@ -12,25 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
+from logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the GoogleGKE integration.
 
-    @mcp.tool()
-    async def google_gke_list_node_pools(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], cluster_location: Annotated[str, Field(..., description="Specify Google Compute Engine location in which to search for clusters in. Example: europe-central2-a")], cluster_name: Annotated[str, Field(..., description="Specify Google Kubernetes Engine cluster name.")], project_id: Annotated[str, Field(default=None, description="Specify the name of the project in which to search for clusters in. If nothing is provided, the project will be extracted from integration configuration.")], filter_logic: Annotated[List[str], Field(default=None, description="Specify what filter logic should be applied. Filtering logic is working based on the node pool name field.")], filter_value: Annotated[str, Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action should will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain the substring. If nothing is provided in this parameter, the filter will not be applied. Filtering logic is working based on the node pool name field.")], max_records_to_return: Annotated[str, Field(default=None, description="Specify how many records to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GKE: List Node Pools',
+        annotations=ToolAnnotations(
+            title='Google GKE: List Node Pools',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_gke_list_node_pools(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], cluster_location: Annotated[str, Field(..., description="Specify Google Compute Engine location in which to search for clusters in. Example: europe-central2-a")], cluster_name: Annotated[str, Field(..., description="Specify Google Kubernetes Engine cluster name.")], project_id: Annotated[Optional[str], Field(default=None, description="Specify the name of the project in which to search for clusters in. If nothing is provided, the project will be extracted from integration configuration.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied. Filtering logic is working based on the node pool name field.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action should will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain the substring. If nothing is provided in this parameter, the filter will not be applied. Filtering logic is working based on the node pool name field.")], max_records_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many records to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List node pools for the Google Kubernetes Engine cluster based on the specified search criteria. Note that action is not working on Siemplify entities. Additionally, filtering logic is working based on the node pool name field.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -44,10 +63,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -57,15 +73,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGKE")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGKE: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGKE: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if project_id is not None:
@@ -100,21 +120,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGKE_List Node Pools")
             except Exception as e:
-                print(f"Error executing action GoogleGKE_List Node Pools for GoogleGKE: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGKE_List Node Pools for GoogleGKE: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGKE")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGKE")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def google_gke_set_cluster_addons(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], cluster_location: Annotated[str, Field(..., description="Specify Google Compute Engine location in which to search for clusters in. Example: europe-central2-a")], cluster_name: Annotated[str, Field(..., description="Specify Google Kubernetes Engine cluster name.")], project_id: Annotated[str, Field(default=None, description="Specify the name of the project in which to search for clusters in. If nothing is provided, the project will be extracted from integration configuration.")], http_load_balancing: Annotated[List[str], Field(default=None, description="Specify the value for the HTTP Load Balancing addon configuration.")], horizontal_pod_autoscaling: Annotated[List[str], Field(default=None, description="Specify the value for the Horizontal Pod Autoscaling addon configuration.")], network_policy_config: Annotated[List[str], Field(default=None, description="Specify the value for the Network Policy Config addon configuration.")], cloud_run_config: Annotated[List[str], Field(default=None, description="Specify the value for the Cloud Run Config addon configuration.")], dns_cache_config: Annotated[List[str], Field(default=None, description="Specify the value for the DNS Cache Config addon configuration.")], config_connector_config: Annotated[List[str], Field(default=None, description="Specify the value for the Config Connector Config addon.")], gce_persistent_disk_csi_driver_config: Annotated[List[str], Field(default=None, description="Specify the value for the GCE Persistent Disk Csi Driver Config addon.")], wait_for_cluster_configuration_change_operation_to_finish: Annotated[bool, Field(default=None, description="If enabled, action will wait for the results of the cluster configuration change operation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GKE: Set Cluster Addons',
+        annotations=ToolAnnotations(
+            title='Google GKE: Set Cluster Addons',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_gke_set_cluster_addons(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], cluster_location: Annotated[str, Field(..., description="Specify Google Compute Engine location in which to search for clusters in. Example: europe-central2-a")], cluster_name: Annotated[str, Field(..., description="Specify Google Kubernetes Engine cluster name.")], project_id: Annotated[Optional[str], Field(default=None, description="Specify the name of the project in which to search for clusters in. If nothing is provided, the project will be extracted from integration configuration.")], http_load_balancing: Annotated[Optional[List[str]], Field(default=None, description="Specify the value for the HTTP Load Balancing addon configuration.")], horizontal_pod_autoscaling: Annotated[Optional[List[str]], Field(default=None, description="Specify the value for the Horizontal Pod Autoscaling addon configuration.")], network_policy_config: Annotated[Optional[List[str]], Field(default=None, description="Specify the value for the Network Policy Config addon configuration.")], cloud_run_config: Annotated[Optional[List[str]], Field(default=None, description="Specify the value for the Cloud Run Config addon configuration.")], dns_cache_config: Annotated[Optional[List[str]], Field(default=None, description="Specify the value for the DNS Cache Config addon configuration.")], config_connector_config: Annotated[Optional[List[str]], Field(default=None, description="Specify the value for the Config Connector Config addon.")], gce_persistent_disk_csi_driver_config: Annotated[Optional[List[str]], Field(default=None, description="Specify the value for the GCE Persistent Disk Csi Driver Config addon.")], wait_for_cluster_configuration_change_operation_to_finish: Annotated[Optional[bool], Field(default=None, description="If enabled, action will wait for the results of the cluster configuration change operation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create an operation to set addons for the Google Kubernetes Engine cluster. Action is async. Note that action is not working on Siemplify entities. Additionally, if the target cluster is already going under configuration change, new configuration changes will not be accepted until current configuration changes finish.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -128,10 +162,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -141,15 +172,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGKE")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGKE: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGKE: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if project_id is not None:
@@ -194,21 +229,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGKE_Set Cluster Addons")
             except Exception as e:
-                print(f"Error executing action GoogleGKE_Set Cluster Addons for GoogleGKE: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGKE_Set Cluster Addons for GoogleGKE: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGKE")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGKE")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def google_gke_list_operations(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], location: Annotated[str, Field(..., description="Specify Google Compute Engine location for which to fetch the operations for. Example: europe-central2-a")], project_id: Annotated[str, Field(default=None, description="Specify the name of the project for which to fetch the operations for. If nothing is provided, the project will be extracted from integration configuration.")], filter_logic: Annotated[List[str], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[str, Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action should will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain the substring. If nothing is provided in this parameter, the filter will not be applied. Filtering logic is working based on the operation name field.")], max_records_to_return: Annotated[str, Field(default=None, description="Specify how many records to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GKE: List Operations',
+        annotations=ToolAnnotations(
+            title='Google GKE: List Operations',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_gke_list_operations(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], location: Annotated[str, Field(..., description="Specify Google Compute Engine location for which to fetch the operations for. Example: europe-central2-a")], project_id: Annotated[Optional[str], Field(default=None, description="Specify the name of the project for which to fetch the operations for. If nothing is provided, the project will be extracted from integration configuration.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action should will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain the substring. If nothing is provided in this parameter, the filter will not be applied. Filtering logic is working based on the operation name field.")], max_records_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many records to return. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List Google Kubernetes Engine operations for a location based on the specified search criteria. Note that action is not working on Siemplify entities. Additionally, filtering logic is working based on the operation name field.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -222,10 +271,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -235,15 +281,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGKE")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGKE: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGKE: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if project_id is not None:
@@ -277,21 +327,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGKE_List Operations")
             except Exception as e:
-                print(f"Error executing action GoogleGKE_List Operations for GoogleGKE: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGKE_List Operations for GoogleGKE: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGKE")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGKE")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def google_gke_set_node_pool_management(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], cluster_location: Annotated[str, Field(..., description="Specify Google Compute Engine location in which to search for clusters in. Example: europe-central2-a")], cluster_name: Annotated[str, Field(..., description="Specify Google Kubernetes Engine cluster name.")], node_pool_name: Annotated[str, Field(..., description="Specify node pool name for the Google Kubernetes Engine cluster.")], project_id: Annotated[str, Field(default=None, description="Specify the name of the project in which to search for clusters in. If nothing is provided, the project will be extracted from integration configuration.")], auto_upgrade: Annotated[List[str], Field(default=None, description="Specify the status of auto upgrade management feature.")], auto_repair: Annotated[List[str], Field(default=None, description="Specify the status of auto repair management feature.")], wait_for_cluster_configuration_change_operation_to_finish: Annotated[bool, Field(default=None, description="If enabled, action will wait for the results of the cluster configuration change operation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GKE: Set Node Pool Management',
+        annotations=ToolAnnotations(
+            title='Google GKE: Set Node Pool Management',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_gke_set_node_pool_management(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], cluster_location: Annotated[str, Field(..., description="Specify Google Compute Engine location in which to search for clusters in. Example: europe-central2-a")], cluster_name: Annotated[str, Field(..., description="Specify Google Kubernetes Engine cluster name.")], node_pool_name: Annotated[str, Field(..., description="Specify node pool name for the Google Kubernetes Engine cluster.")], project_id: Annotated[Optional[str], Field(default=None, description="Specify the name of the project in which to search for clusters in. If nothing is provided, the project will be extracted from integration configuration.")], auto_upgrade: Annotated[Optional[List[str]], Field(default=None, description="Specify the status of auto upgrade management feature.")], auto_repair: Annotated[Optional[List[str]], Field(default=None, description="Specify the status of auto repair management feature.")], wait_for_cluster_configuration_change_operation_to_finish: Annotated[Optional[bool], Field(default=None, description="If enabled, action will wait for the results of the cluster configuration change operation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create an operation to set node pool management configuration for the Google Kubernetes Engine cluster. Action is async. Note that action is not working on Siemplify entities. Additionally, if the target cluster is already going under configuration change, new configuration changes will not be accepted until current configuration changes finish.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -305,10 +369,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -318,15 +379,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGKE")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGKE: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGKE: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if project_id is not None:
@@ -362,21 +427,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGKE_Set Node Pool Management")
             except Exception as e:
-                print(f"Error executing action GoogleGKE_Set Node Pool Management for GoogleGKE: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGKE_Set Node Pool Management for GoogleGKE: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGKE")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGKE")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def google_gke_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GKE: Ping',
+        annotations=ToolAnnotations(
+            title='Google GKE: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_gke_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Google Kubernetes Engine service with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -390,10 +469,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -403,15 +479,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGKE")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGKE: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGKE: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -436,21 +516,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGKE_Ping")
             except Exception as e:
-                print(f"Error executing action GoogleGKE_Ping for GoogleGKE: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGKE_Ping for GoogleGKE: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGKE")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGKE")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def google_gke_set_cluster_labels(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], cluster_location: Annotated[str, Field(..., description="Specify Google Compute Engine location in which to search for clusters in. Example: europe-central2-a")], cluster_name: Annotated[str, Field(..., description="Specify Google Kubernetes Engine cluster name.")], cluster_labels: Annotated[str, Field(..., description="Specify a JSON object that contains labels to add to the cluster. Please consider default value for the format reference. Action appends new labels to any existing cluster labels.")], project_id: Annotated[str, Field(default=None, description="Specify the name of the project in which to search for clusters in. If nothing is provided, the project will be extracted from integration configuration.")], wait_for_cluster_configuration_change_operation_to_finish: Annotated[bool, Field(default=None, description="If enabled, action will wait for the results of the cluster configuration change operation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GKE: Set Cluster Labels',
+        annotations=ToolAnnotations(
+            title='Google GKE: Set Cluster Labels',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_gke_set_cluster_labels(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], cluster_location: Annotated[str, Field(..., description="Specify Google Compute Engine location in which to search for clusters in. Example: europe-central2-a")], cluster_name: Annotated[str, Field(..., description="Specify Google Kubernetes Engine cluster name.")], cluster_labels: Annotated[str, Field(..., description="Specify a JSON object that contains labels to add to the cluster. Please consider default value for the format reference. Action appends new labels to any existing cluster labels.")], project_id: Annotated[Optional[str], Field(default=None, description="Specify the name of the project in which to search for clusters in. If nothing is provided, the project will be extracted from integration configuration.")], wait_for_cluster_configuration_change_operation_to_finish: Annotated[Optional[bool], Field(default=None, description="If enabled, action will wait for the results of the cluster configuration change operation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create an operation to set labels for the Google Kubernetes Engine cluster. Action is async. Action appends new labels to any existing cluster labels. Note that action is not working on Siemplify entities. Additionally, if the target cluster is already going under configuration change, new configuration changes will not be accepted until current configuration changes finish.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -464,10 +558,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -477,15 +568,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGKE")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGKE: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGKE: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if project_id is not None:
@@ -517,21 +612,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGKE_Set Cluster Labels")
             except Exception as e:
-                print(f"Error executing action GoogleGKE_Set Cluster Labels for GoogleGKE: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGKE_Set Cluster Labels for GoogleGKE: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGKE")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGKE")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def google_gke_get_operation_status(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], location: Annotated[str, Field(..., description="Specify Google Compute Engine location for which to fetch operation status for. Example: europe-central2-a")], operation_name: Annotated[str, Field(..., description="Specify Google Compute Engine operation to fetch.")], project_id: Annotated[str, Field(default=None, description="Specify the name of the project for which to fetch operation status for. If nothing is provided, the project will be extracted from integration configuration.")], wait_for_cluster_configuration_change_operation_to_finish: Annotated[bool, Field(default=None, description="If enabled, action will wait for the results of the cluster configuration change operation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GKE: Get Operation Status',
+        annotations=ToolAnnotations(
+            title='Google GKE: Get Operation Status',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_gke_get_operation_status(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], location: Annotated[str, Field(..., description="Specify Google Compute Engine location for which to fetch operation status for. Example: europe-central2-a")], operation_name: Annotated[str, Field(..., description="Specify Google Compute Engine operation to fetch.")], project_id: Annotated[Optional[str], Field(default=None, description="Specify the name of the project for which to fetch operation status for. If nothing is provided, the project will be extracted from integration configuration.")], wait_for_cluster_configuration_change_operation_to_finish: Annotated[Optional[bool], Field(default=None, description="If enabled, action will wait for the results of the cluster configuration change operation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Get the Google Kubernetes Engine operation status. Action is async. Note that action is not working on Siemplify entities.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -545,10 +654,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -558,15 +664,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGKE")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGKE: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGKE: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if project_id is not None:
@@ -597,21 +707,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGKE_Get Operation Status")
             except Exception as e:
-                print(f"Error executing action GoogleGKE_Get Operation Status for GoogleGKE: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGKE_Get Operation Status for GoogleGKE: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGKE")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGKE")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def google_gke_list_clusters(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], cluster_location: Annotated[str, Field(..., description="Specify Google Compute Engine location in which to search for clusters in. Example: europe-central2-a")], project_id: Annotated[str, Field(default=None, description="Specify the name of the project in which to search for clusters in. If nothing is provided, the project will be extracted from integration configuration.")], filter_logic: Annotated[List[str], Field(default=None, description="Specify what filter logic should be applied. Filtering logic is working based on the cluster name field.")], filter_value: Annotated[str, Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action should will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain the substring. If nothing is provided in this parameter, the filter will not be applied. Filtering logic is working based on the cluster name field.")], max_records_to_return: Annotated[str, Field(default=None, description="Specify how many records to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GKE: List Clusters',
+        annotations=ToolAnnotations(
+            title='Google GKE: List Clusters',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_gke_list_clusters(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], cluster_location: Annotated[str, Field(..., description="Specify Google Compute Engine location in which to search for clusters in. Example: europe-central2-a")], project_id: Annotated[Optional[str], Field(default=None, description="Specify the name of the project in which to search for clusters in. If nothing is provided, the project will be extracted from integration configuration.")], filter_logic: Annotated[Optional[List[str]], Field(default=None, description="Specify what filter logic should be applied. Filtering logic is working based on the cluster name field.")], filter_value: Annotated[Optional[str], Field(default=None, description="Specify what value should be used in the filter. If \"Equal\" is selected, action should will try to find the exact match among results and if \"Contains\" is selected, action will try to find results that contain the substring. If nothing is provided in this parameter, the filter will not be applied. Filtering logic is working based on the cluster name field.")], max_records_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many records to return.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """List Google Kubernetes Engine clusters based on the specified search criteria. Note that action is not working on Siemplify entities. Additionally, filtering logic is working based on the cluster name field.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -625,10 +749,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -638,15 +759,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGKE")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGKE: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGKE: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if project_id is not None:
@@ -680,21 +805,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGKE_List Clusters")
             except Exception as e:
-                print(f"Error executing action GoogleGKE_List Clusters for GoogleGKE: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGKE_List Clusters for GoogleGKE: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGKE")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGKE")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def google_gke_set_node_autoscaling(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], cluster_location: Annotated[str, Field(..., description="Specify Google Compute Engine location in which to search for clusters in. Example: europe-central2-a")], cluster_name: Annotated[str, Field(..., description="Specify Google Kubernetes Engine cluster name.")], node_pool_name: Annotated[str, Field(..., description="Specify node pool name for the Google Kubernetes Engine cluster.")], project_id: Annotated[str, Field(default=None, description="Specify the name of the project in which to search for clusters in. If nothing is provided, the project will be extracted from integration configuration.")], autoscaling_mode: Annotated[List[str], Field(default=None, description="Specify autoscaling mode status for the node pool.")], minimum_node_count: Annotated[str, Field(default=None, description="Specify minimum node count for the node pool configuration.")], maximum_node_count: Annotated[str, Field(default=None, description="Specify maximum node count for the node pool configuration.")], wait_for_cluster_configuration_change_operation_to_finish: Annotated[bool, Field(default=None, description="If enabled, action will wait for the results of the cluster configuration change operation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GKE: Set Node Autoscaling',
+        annotations=ToolAnnotations(
+            title='Google GKE: Set Node Autoscaling',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_gke_set_node_autoscaling(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], cluster_location: Annotated[str, Field(..., description="Specify Google Compute Engine location in which to search for clusters in. Example: europe-central2-a")], cluster_name: Annotated[str, Field(..., description="Specify Google Kubernetes Engine cluster name.")], node_pool_name: Annotated[str, Field(..., description="Specify node pool name for the Google Kubernetes Engine cluster.")], project_id: Annotated[Optional[str], Field(default=None, description="Specify the name of the project in which to search for clusters in. If nothing is provided, the project will be extracted from integration configuration.")], autoscaling_mode: Annotated[Optional[List[str]], Field(default=None, description="Specify autoscaling mode status for the node pool.")], minimum_node_count: Annotated[Optional[str], Field(default=None, description="Specify minimum node count for the node pool configuration.")], maximum_node_count: Annotated[Optional[str], Field(default=None, description="Specify maximum node count for the node pool configuration.")], wait_for_cluster_configuration_change_operation_to_finish: Annotated[Optional[bool], Field(default=None, description="If enabled, action will wait for the results of the cluster configuration change operation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create an operation to set node pool autoscaling configuration for the Google Kubernetes Engine cluster. Action is async. Note that action is not working on Siemplify entities. Additionally, if the target cluster is already going under configuration change, new configuration changes will not be accepted until current configuration changes finish.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -708,10 +847,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -721,15 +857,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGKE")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGKE: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGKE: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if project_id is not None:
@@ -767,21 +907,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGKE_Set Node Autoscaling")
             except Exception as e:
-                print(f"Error executing action GoogleGKE_Set Node Autoscaling for GoogleGKE: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGKE_Set Node Autoscaling for GoogleGKE: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGKE")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGKE")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def google_gke_set_node_count(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], cluster_location: Annotated[str, Field(..., description="Specify Google Compute Engine location in which to search for clusters in. Example: europe-central2-a")], cluster_name: Annotated[str, Field(..., description="Specify Google Kubernetes Engine cluster name.")], node_pool_name: Annotated[str, Field(..., description="Specify node pool name for the Google Kubernetes Engine cluster.")], node_count: Annotated[str, Field(..., description="Specify node count for the Google Kubernetes Engine cluster node pool.")], project_id: Annotated[str, Field(default=None, description="Specify the name of the project in which to search for clusters in. If nothing is provided, the project will be extracted from integration configuration.")], wait_for_cluster_configuration_change_operation_to_finish: Annotated[bool, Field(default=None, description="If enabled, action will wait for the results of the cluster configuration change operation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Google GKE: Set Node Count',
+        annotations=ToolAnnotations(
+            title='Google GKE: Set Node Count',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def google_gke_set_node_count(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], cluster_location: Annotated[str, Field(..., description="Specify Google Compute Engine location in which to search for clusters in. Example: europe-central2-a")], cluster_name: Annotated[str, Field(..., description="Specify Google Kubernetes Engine cluster name.")], node_pool_name: Annotated[str, Field(..., description="Specify node pool name for the Google Kubernetes Engine cluster.")], node_count: Annotated[str, Field(..., description="Specify node count for the Google Kubernetes Engine cluster node pool.")], project_id: Annotated[Optional[str], Field(default=None, description="Specify the name of the project in which to search for clusters in. If nothing is provided, the project will be extracted from integration configuration.")], wait_for_cluster_configuration_change_operation_to_finish: Annotated[Optional[bool], Field(default=None, description="If enabled, action will wait for the results of the cluster configuration change operation.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create an operation to set node count for the Google Kubernetes Engine cluster node pool. Action is async. Note that action is not working on Siemplify entities. Additionally, if the target cluster is already going under configuration change, new configuration changes will not be accepted until current configuration changes finish.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -795,10 +949,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -808,15 +959,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="GoogleGKE")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for GoogleGKE: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for GoogleGKE: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if project_id is not None:
@@ -849,10 +1004,10 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "GoogleGKE_Set Node Count")
             except Exception as e:
-                print(f"Error executing action GoogleGKE_Set Node Count for GoogleGKE: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action GoogleGKE_Set Node Count for GoogleGKE: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for GoogleGKE")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for GoogleGKE")
+            return marketplace_error_result("No active instance found.")

@@ -1,0 +1,194 @@
+name: CI MCP Tests
+
+on:
+  push:
+    branches:
+      - main
+      - 'mcp-v2__*'
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-mcp-tests-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  mcp-tests:
+    name: MCP v2 Unit, Contract, and Build Tests (Python 3.11)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install pinned test and SDK dependencies
+        run: |
+          pip install \
+            mcp[cli]==2.3.0 \
+            google-adk[mcp]==2.13.0 \
+            opentelemetry-sdk==1.44.0 \
+            pytest==9.2.0 \
+            pytest-asyncio==1.4.1 \
+            pytest-mock==3.17.0 \
+            pytest-httpserver==1.2.0 \
+            jsonschema==4.26.0 \
+            build==1.6.1 \
+            twine==7.0.0
+
+      - name: Install local MCP server and ADK packages
+        run: |
+          pip install \
+            -e ./server/secops \
+            -e ./server/gti \
+            -e ./server/secops-soar \
+            -e ./server/scc \
+            -e ./run-with-google-adk
+
+      - name: Run server/secops unit tests
+        working-directory: server/secops
+        run: pytest tests/*_unit.py -v
+
+      - name: Run server/gti unit tests
+        working-directory: server/gti
+        run: pytest tests/ -v
+
+      - name: Run server/secops-soar unit tests
+        working-directory: server/secops-soar
+        run: pytest tests/unit -v
+
+      - name: Run server/scc unit tests
+        working-directory: server/scc
+        run: pytest tests/ -v
+
+      - name: Run run-with-google-adk unit tests
+        working-directory: run-with-google-adk
+        run: pytest tests/ -v
+
+      - name: Run cross-server MCP 2026-07-28 protocol contract suite
+        run: pytest tests/test_mcp_v2_protocol_contract.py -v
+
+      - name: Run Phase 2 Streamable HTTP, SEP-2549 caching, and OpenTelemetry suite
+        run: pytest tests/test_mcp_v2_http_caching_otel.py -v
+
+      - name: Run Phase 3 ToolAnnotations, structuredContent, and is_error suite
+        run: pytest tests/test_mcp_v2_annotations_structured_errors.py -v
+
+      - name: Run Phase 4 Resources, ResourceSecurity, ResourceLink, and Prompts suite
+        run: pytest tests/test_mcp_v2_resources_and_prompts.py -v
+
+      - name: Run Phase 5 MRTR Elicitation, Progress, OAuth 2.1 RS, and MCP Apps suite
+        run: pytest tests/test_mcp_v2_elicitation_oauth_apps.py -v
+
+      - name: Run Phase 6 Official MCP Registry server.json and packaging sync suite
+        run: pytest tests/test_mcp_v2_registry_and_packaging.py -v
+
+      - name: Verify CLI --help entrypoints across all 4 servers
+        run: |
+          secops_mcp --help
+          gti_mcp --help
+          secops_soar_mcp --help
+          scc_mcp --help
+
+      - name: Verify sdist and wheel builds across all packages
+        run: |
+          for pkg in server/secops server/gti server/secops-soar server/scc run-with-google-adk; do
+            python -m build "$pkg" --outdir "/tmp/dist-$(basename "$pkg")"
+            python -m twine check "/tmp/dist-$(basename "$pkg")"/*
+          done
+
+      - name: Per-package isolated standalone wheel smoke check
+        run: |
+          for entry in \
+            "secops:secops_mcp.server:server:secops_mcp.phase5:secops_mcp" \
+            "gti:gti_mcp.server:server:gti_mcp.phase5:gti_mcp" \
+            "secops-soar:secops_soar_mcp.server:mcp:secops_soar_mcp.phase5:secops_soar_mcp" \
+            "scc:scc_mcp:mcp:scc_mcp:scc_mcp" \
+            "run-with-google-adk:mcp_security_agent:::mcp-security-agent"; do
+            IFS=":" read -r name mod_name srv_attr phase5_mod cli_bin <<< "$entry"
+            venv_dir="/tmp/isolated-venv-${name}"
+            python -m venv "$venv_dir"
+            "$venv_dir/bin/python" -m pip install --no-cache-dir "/tmp/dist-${name}"/*.whl
+            "$venv_dir/bin/$cli_bin" --help >/dev/null
+            "$venv_dir/bin/python" - "$name" "$mod_name" "$srv_attr" "$phase5_mod" << 'PYEOF'
+          import asyncio
+          import base64
+          import importlib
+          import json
+          import sys
+          import time
+
+          pkg_name, mod_name, srv_attr, phase5_name = sys.argv[1:5]
+          mod = importlib.import_module(mod_name)
+          if not srv_attr:
+              assert hasattr(mod, "__version__")
+              sys.exit(0)
+
+          if pkg_name in {"gti", "secops-soar"}:
+              try:
+                  import google.oauth2  # noqa: F401
+                  raise AssertionError(f"{pkg_name} unexpectedly had google.oauth2 installed")
+              except ModuleNotFoundError:
+                  pass
+
+          from cryptography.hazmat.primitives import hashes
+          from cryptography.hazmat.primitives.asymmetric import padding, rsa
+          from httpx2 import AsyncClient, MockTransport, Response
+          from mcp.server.mcpserver import MCPServer
+
+          srv = getattr(mod, srv_attr)
+          assert isinstance(srv, MCPServer)
+
+          phase5 = importlib.import_module(phase5_name)
+          priv = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+          nums = priv.public_key().public_numbers()
+
+          def _b64u(raw: bytes) -> str:
+              return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+          jwk = {
+              "kty": "RSA",
+              "use": "sig",
+              "alg": "RS256",
+              "kid": "iso-kid-1",
+              "n": _b64u(nums.n.to_bytes((nums.n.bit_length() + 7) // 8, "big")),
+              "e": _b64u(nums.e.to_bytes((nums.e.bit_length() + 7) // 8, "big")),
+          }
+          hdr = _b64u(json.dumps({"alg": "RS256", "typ": "JWT", "kid": "iso-kid-1"}).encode())
+          now = int(time.time())
+          res_url = "https://mcp.secops.example/mcp"
+          pld = _b64u(json.dumps({
+              "iss": "accounts.google.com",
+              "sub": f"isolated-{pkg_name}",
+              "aud": res_url,
+              "scope": "mcp:read",
+              "exp": now + 600,
+          }).encode())
+          sig = _b64u(priv.sign(f"{hdr}.{pld}".encode("ascii"), padding.PKCS1v15(), hashes.SHA256()))
+          jwt_tok = f"{hdr}.{pld}.{sig}"
+
+          def _handler(req):
+              assert str(req.url) == "https://www.googleapis.com/oauth2/v3/certs"
+              return Response(200, json={"keys": [jwk]})
+
+          async def _check() -> None:
+              async with AsyncClient(transport=MockTransport(_handler)) as http:
+                  verifier = phase5.GoogleOIDCTokenVerifier(
+                      issuer_url="https://accounts.google.com",
+                      resource_server_url=res_url,
+                      jwks_http_client=http,
+                  )
+                  verified = await verifier.verify_token(jwt_tok)
+                  assert verified is not None, f"{pkg_name}: standalone OIDC token verification returned None"
+                  assert verified.subject == f"isolated-{pkg_name}"
+
+          asyncio.run(_check())
+          PYEOF
+          done

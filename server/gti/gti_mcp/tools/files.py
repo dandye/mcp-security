@@ -11,15 +11,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
+import hashlib as _hashlib
+import json
 import logging
+import os as _os
 import typing
 import urllib.parse
-import json
-import asyncio
 
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
+from mcp.server.mcpserver.exceptions import ToolError as _ToolError
+from mcp.types import ToolAnnotations as _ToolAnnotations
 
 from .. import utils
+from ..phase5 import (
+    GTI_IOC_VERDICT_URI as _GTI_IOC_VERDICT_URI,
+    confirm_destructive_action as _confirm_destructive_action,
+    ui_tool_meta as _ui_tool_meta,
+)
 from ..server import server, vt_client
 
 
@@ -85,8 +94,18 @@ FILE_KEY_RELATIONSHIPS = [
 ]
 
 
-@server.tool()
-async def get_file_report(hash: str, ctx: Context) -> typing.Dict[str, typing.Any]:
+@server.tool(
+    title="Get File Threat Report",
+    annotations=_ToolAnnotations(
+        title="Get File Threat Report",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+    meta=_ui_tool_meta(_GTI_IOC_VERDICT_URI),
+)
+async def get_file_report(hash: str, ctx: Context) -> dict[str, typing.Any]:
   """Get a comprehensive file analysis report using its hash (MD5/SHA-1/SHA-256).
 
   Returns a concise summary of key threat details including
@@ -95,21 +114,36 @@ async def get_file_report(hash: str, ctx: Context) -> typing.Dict[str, typing.An
     hash (required): The MD5, SHA-1, or SHA-256 hash of the file to analyze.
   Example: '8ab2cf...', 'e4d909c290d0...', etc.
   """
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object(
-        client,
-        "files",
-        "file",
-        hash,
-        relationships=FILE_KEY_RELATIONSHIPS,
-        params={"exclude_attributes": "last_analysis_results"}
-    )
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object(
+          client,
+          "files",
+          "file",
+          hash,
+          relationships=FILE_KEY_RELATIONSHIPS,
+          params={"exclude_attributes": "last_analysis_results"}
+      )
+  except Exception as e:
+    logging.exception("Error fetching file report for %s: %s", hash, e)
+    return utils.tool_error_result(f"Failed to fetch file report: {e}")  # type: ignore[return-value]
+  if utils.is_error_dict(res):
+    return utils.tool_error_result_from_dict(res)  # type: ignore[return-value]
   return utils.sanitize_response(res)
 
 
-@server.tool()
+@server.tool(
+    title="Get Entities Related to File",
+    annotations=_ToolAnnotations(
+        title="Get Entities Related to File",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def get_entities_related_to_a_file(
-    hash: str, relationship_name: str, descriptors_only: bool, ctx: Context, limit: int = 10, 
+    hash: str, relationship_name: str, descriptors_only: bool, ctx: Context, limit: int = 10,
 ) -> list[dict[str, typing.Any]]:
     """Retrieve entities related to the the given file hash.
 
@@ -173,27 +207,40 @@ async def get_entities_related_to_a_file(
     Returns:
       List of objects related to the given file.
     """
-    if not relationship_name in FILE_RELATIONSHIPS:
-        return {
-            "error": f"Relationship {relationship_name} does not exist. "
+    if relationship_name not in FILE_RELATIONSHIPS:
+        return utils.tool_error_result(  # type: ignore[return-value]
+            f"Relationship {relationship_name} does not exist. "
             f"Available relationships are: {','.join(FILE_RELATIONSHIPS)}"
-        }
+        )
 
-    async with vt_client(ctx) as client:
-      res = await utils.fetch_object_relationships(
-          client, 
-          "files",
-          hash, 
-          relationships=[relationship_name],
-          descriptors_only=descriptors_only,
-          limit=limit)
+    try:
+      async with vt_client(ctx) as client:
+        res = await utils.fetch_object_relationships(
+            client,
+            "files",
+            hash,
+            relationships=[relationship_name],
+            descriptors_only=descriptors_only,
+            limit=limit)
+    except Exception as e:
+      logging.exception("Error fetching relationships for file %s: %s", hash, e)
+      return utils.tool_error_result(f"Failed to fetch file relationships: {e}")  # type: ignore[return-value]
     return utils.sanitize_response(res.get(relationship_name, []))
 
 
-@server.tool()
+@server.tool(
+    title="Get File Sandbox Behavior Report",
+    annotations=_ToolAnnotations(
+        title="Get File Sandbox Behavior Report",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def get_file_behavior_report(
     file_behaviour_id: str, ctx: Context
-) -> typing.Dict[str, typing.Any]:
+) -> dict[str, typing.Any]:
   """Retrieve the file behaviour report of the given file behaviour identifier.
 
   You can get all the file behaviour of a given a file by calling `get_entities_related_to_a_file` as the file hash and the `behaviours` as relationship name.
@@ -205,28 +252,47 @@ async def get_file_behavior_report(
   Returns:
     The file behaviour report.
   """
-  async with vt_client(ctx) as client:
-    res = await utils.fetch_object(
-        client,
-        "file_behaviours",
-        "file_behaviour",
+  try:
+    async with vt_client(ctx) as client:
+      res = await utils.fetch_object(
+          client,
+          "file_behaviours",
+          "file_behaviour",
+          file_behaviour_id,
+          relationships=[
+              "contacted_domains",
+              "contacted_ips",
+              "contacted_urls",
+              "dropped_files",
+              "embedded_domains",
+              "embedded_ips",
+              "embedded_urls",
+              "associations",
+          ],
+      )
+  except Exception as e:
+    logging.exception(
+        "Error fetching file behavior report for %s: %s",
         file_behaviour_id,
-        relationships=[
-            "contacted_domains",
-            "contacted_ips",
-            "contacted_urls",
-            "dropped_files",
-            "embedded_domains",
-            "embedded_ips",
-            "embedded_urls",
-            "associations",
-        ],
+        e,
     )
+    return utils.tool_error_result(f"Failed to fetch file behavior report: {e}")  # type: ignore[return-value]
+  if utils.is_error_dict(res):
+    return utils.tool_error_result_from_dict(res)  # type: ignore[return-value]
   return utils.sanitize_response(res)
 
 
-@server.tool()
-async def get_file_behavior_summary(hash: str, ctx: Context) -> typing.Dict[str, typing.Any]:
+@server.tool(
+    title="Get File Sandbox Behavior Summary",
+    annotations=_ToolAnnotations(
+        title="Get File Sandbox Behavior Summary",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
+async def get_file_behavior_summary(hash: str, ctx: Context) -> dict[str, typing.Any]:
   """Retrieve a summary of all the file behavior reports from all the sandboxes.
 
   Args:
@@ -234,41 +300,145 @@ async def get_file_behavior_summary(hash: str, ctx: Context) -> typing.Dict[str,
   Returns:
     The file behavior summary.
   """
-  async with vt_client(ctx) as client:
-    res = await client.get_async(f"/files/{hash}/behaviour_summary")
-    res = await res.json_async()
+  try:
+    async with vt_client(ctx) as client:
+      resp = await client.get_async(f"/files/{hash}/behaviour_summary")
+      res = await resp.json_async()
+  except Exception as e:
+    logging.exception("Error fetching file behavior summary for %s: %s", hash, e)
+    return utils.tool_error_result(f"Failed to fetch file behavior summary: {e}")  # type: ignore[return-value]
 
-  if "data" not in res:
-      if "error" in res:
-          logging.warning(f"VirusTotal API Error: {res['error']}")
-          return {"error": f"VirusTotal API Error: {res['error']}"}
-      logging.warning(f"Unexpected response format from VirusTotal API: {res}")
-      return {"error": f"Unexpected response format from VirusTotal API: {res}"}
+  if not isinstance(res, dict) or "data" not in res:
+      if isinstance(res, dict) and "error" in res:
+          logging.warning("VirusTotal API Error: %s", res["error"])
+          return utils.tool_error_result(f"VirusTotal API Error: {res['error']}")  # type: ignore[return-value]
+      logging.warning("Unexpected response format from VirusTotal API: %s", res)
+      return utils.tool_error_result(f"Unexpected response format from VirusTotal API: {res}")  # type: ignore[return-value]
 
   return utils.sanitize_response(res["data"])
 
 
-@server.tool()
-async def analyse_file(file_path: str, ctx: Context):
+def _sha256_file(file_path: str) -> tuple[str, int]:
+  """Compute SHA-256 hex digest and byte size of a local file."""
+  digest = _hashlib.sha256()
+  byte_size = 0
+  with open(file_path, "rb") as hash_file:
+    while True:
+      chunk = hash_file.read(65536)
+      if not chunk:
+        break
+      if isinstance(chunk, str):
+        chunk = chunk.encode("utf-8")
+      digest.update(chunk)
+      byte_size += len(chunk)
+  return digest.hexdigest(), byte_size
+
+
+@server.tool(
+    title="Upload and Analyze File",
+    annotations=_ToolAnnotations(
+        title="Upload and Analyze File",
+        read_only_hint=False,
+        destructive_hint=True,
+        idempotent_hint=False,
+        open_world_hint=True,
+    ),
+)
+async def analyse_file(
+    file_path: str, ctx: typing.Optional[Context] = None
+) -> dict[str, typing.Any]:
   """Upload and analyse the file in VirusTotal.
 
   The file will be uploaded to VirusTotal and shared with the community.
 
   Args:
     file_path (required): Path to the file for analysis. Use absolute path.
+    ctx: Optional MCP request context for progress reporting and elicitation.
   Returns:
     The analysis report.
   """
-  async with vt_client(ctx) as client:
-    with open(file_path, "rb") as f:    
-      analysis = await client.scan_file_async(file=f)
-      logging.info(f"File {file_path} uploaded.")
+  basename = _os.path.basename(file_path) or file_path
+  try:
+    if ctx is not None:
+      await ctx.report_progress(
+          progress=0,
+          total=4,
+          message=f"Hashing local file {basename}...",
+      )
+    sha256_hex, byte_size = await asyncio.to_thread(_sha256_file, file_path)
 
-    res = await client.wait_for_analysis_completion(analysis)
-    logging.info(f"Analysis has completed with ID %s", res.id)
-    return utils.sanitize_response(res.to_dict())
+    outcome = await _confirm_destructive_action(
+        ctx,
+        action_name="analyse_file",
+        message=(
+            f"Confirm external upload of local file '{basename}' "
+            f"({byte_size} bytes, SHA-256: {sha256_hex}) to VirusTotal / "
+            "Google Threat Intelligence."
+        ),
+    )
+    if outcome.input_required is not None:
+      return outcome.input_required  # type: ignore[return-value]
+    if not outcome.proceed:
+      return {
+          **(outcome.cancelled_response or {}),
+          "file_name": basename,
+          "sha256": sha256_hex,
+          "size_bytes": byte_size,
+          "uploaded": False,
+      }
 
-@server.tool()
+    if ctx is not None:
+      await ctx.report_progress(
+          progress=1,
+          total=4,
+          message=f"Uploading file {basename} to VirusTotal...",
+      )
+    async with vt_client(ctx) as client:  # type: ignore[arg-type]
+      with open(file_path, "rb") as f:
+        analysis = await client.scan_file_async(file=f)
+        logging.info("File %s uploaded.", file_path)
+
+      if ctx is not None:
+        await ctx.report_progress(
+            progress=2,
+            total=4,
+            message="Polling file analysis completion...",
+        )
+      res = await client.wait_for_analysis_completion(analysis)
+      logging.info("Analysis has completed with ID %s", res.id)
+
+      if ctx is not None:
+        await ctx.report_progress(
+            progress=3,
+            total=4,
+            message="Fetching threat analysis report...",
+        )
+      sanitized = utils.sanitize_response(res.to_dict())
+
+    if ctx is not None:
+      await ctx.report_progress(
+          progress=4,
+          total=4,
+          message="File analysis complete.",
+      )
+    return sanitized
+  except _ToolError:
+    raise
+  except Exception as e:
+    logging.error("Error analysing file %s: %s", file_path, e)
+    return utils.tool_error_result(f"Failed to analyse file: {e}")  # type: ignore[return-value]
+
+
+@server.tool(
+    title="Search Digital Threat Monitoring",
+    annotations=_ToolAnnotations(
+        title="Search Digital Threat Monitoring",
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def search_digital_threat_monitoring(
     query: str,
     ctx: Context,
@@ -278,7 +448,7 @@ async def search_digital_threat_monitoring(
     page: typing.Optional[str] = None,
     truncate: typing.Optional[str] = None,
     sanitize: bool = True,
-) -> dict:
+) -> dict[str, typing.Any]:
   """Search for historical data in Digital Threat Monitoring (DTM) using Lucene syntax.
 
   Digital theat monitoring is a collection of documents from surface, deep, and dark web sources.
@@ -391,19 +561,19 @@ async def search_digital_threat_monitoring(
   Returns:
     A dictionary containing the list of documents found and search metadata.
   """
-  async with vt_client(ctx) as client:
-    params = {
-        "size": size,
-        "since": since,
-        "until": until,
-        "page": page,
-        "truncate": truncate,
-        "sanitize": str(sanitize).lower(),
-    }
-    params = {k: v for k, v in params.items() if v is not None and v != ""}
-    path = f"/dtm/docs/search?{urllib.parse.urlencode(params)}"
+  try:
+    async with vt_client(ctx) as client:
+      params = {
+          "size": size,
+          "since": since,
+          "until": until,
+          "page": page,
+          "truncate": truncate,
+          "sanitize": str(sanitize).lower(),
+      }
+      params = {k: v for k, v in params.items() if v is not None and v != ""}
+      path = f"/dtm/docs/search?{urllib.parse.urlencode(params)}"
 
-    try:
       res = await client.post_async(
           path=path, json_data={"query": query}
       )
@@ -411,36 +581,45 @@ async def search_digital_threat_monitoring(
       if "text/html" in res.headers.get("Content-Type", ""):
         response_text = await res.text_async()
         if "request timed out" in response_text.lower():
-          return {"error": "The request timed out. Please try reducing the scope of your query by using `since` and `until` parameters to add time delimiters"}
-        logging.error(response_text)
-        return {"error": f"API returned an HTML error page instead of JSON: {response_text}"}
-      
+          return utils.tool_error_result(  # type: ignore[return-value]
+              "The request timed out. Please try reducing the scope of your query by using `since` and `until` parameters to add time delimiters"
+          )
+        logging.error("DTM API returned HTML error response: %s", response_text)
+        return utils.tool_error_result(  # type: ignore[return-value]
+            f"API returned an HTML error page instead of JSON: {response_text}"
+        )
+
       res_json = await res.json_async()
-    except (asyncio.TimeoutError, TimeoutError): # Catch both
-      return {"error": "The request timed out. Please try reducing the scope of your query by using `since` and `until` parameters to add time delimiters"}
-    except json.JSONDecodeError as json_error:
-      logging.error(f"Failed to parse JSON response: {json_error}")
-      return {"error": f"Failed to parse server response: {json_error}."}
-    except Exception as e:
-      logging.error(f"An unexpected error occurred: {e} (type: {type(e)})")
-      return {"error": f"An unexpected error occurred: {e}"}
+  except (asyncio.TimeoutError, TimeoutError):  # Catch both
+    return utils.tool_error_result(  # type: ignore[return-value]
+        "The request timed out. Please try reducing the scope of your query by using `since` and `until` parameters to add time delimiters"
+    )
+  except json.JSONDecodeError as json_error:
+    logging.error("Failed to parse JSON response: %s", json_error)
+    return utils.tool_error_result(f"Failed to parse server response: {json_error}.")  # type: ignore[return-value]
+  except Exception as e:
+    logging.error("An unexpected error occurred: %s (type: %s)", e, type(e))
+    return utils.tool_error_result(f"An unexpected error occurred: {e}")  # type: ignore[return-value]
 
-    # Remove unnecessary information
-    if "docs" in res_json:
-      for i in range(len(res_json["docs"])):
-        res_json["docs"][i].pop("__meta", None)
-        res_json["docs"][i].pop("entities", None)
-       
-    link_header = res.headers.get("link")
-    if link_header and 'rel="next"' in link_header:
-        try:
-            url_part = link_header.split(';')[0].strip().strip('<>')
-            query_string = urllib.parse.urlparse(url_part).query
-            next_page = urllib.parse.parse_qs(query_string).get('page', [None])[0]
-            if next_page:
-                res_json["page"] = next_page
-        except (IndexError, AttributeError):
-            # Could not parse link header, proceed without it
-            pass
+  if isinstance(res_json, dict) and "error" in res_json and "docs" not in res_json:
+    return utils.tool_error_result_from_dict(res_json)  # type: ignore[return-value]
 
-    return utils.sanitize_response(res_json)
+  # Remove unnecessary information
+  if "docs" in res_json:
+    for i in range(len(res_json["docs"])):
+      res_json["docs"][i].pop("__meta", None)
+      res_json["docs"][i].pop("entities", None)
+
+  link_header = res.headers.get("link")
+  if link_header and 'rel="next"' in link_header:
+    try:
+      url_part = link_header.split(";")[0].strip().strip("<>")
+      query_string = urllib.parse.urlparse(url_part).query
+      next_page = urllib.parse.parse_qs(query_string).get("page", [None])[0]
+      if next_page:
+        res_json["page"] = next_page
+    except (IndexError, AttributeError):
+      # Could not parse link header, proceed without it
+      pass
+
+  return utils.sanitize_response(res_json)

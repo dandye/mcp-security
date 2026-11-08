@@ -12,25 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
+from logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the ServiceDeskPlusV3 integration.
 
-    @mcp.tool()
-    async def service_desk_plus_v3_create_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], subject: Annotated[str, Field(..., description="The subject of the request.")], requester: Annotated[str, Field(..., description="The requester of the request. If not specified, set to the user of the API key.")], description: Annotated[str, Field(default=None, description="The description of the request.")], assets: Annotated[str, Field(default=None, description="Names of Assets to be associated with the request")], status: Annotated[str, Field(default=None, description="The status of the request.")], technician: Annotated[str, Field(default=None, description="The name of the technician assigned to the request.")], priority: Annotated[str, Field(default=None, description="The priority of the request.")], urgency: Annotated[str, Field(default=None, description="The urgency of the request.")], category: Annotated[str, Field(default=None, description="The category of the request.")], request_template: Annotated[str, Field(default=None, description="The template of the request.")], request_type: Annotated[str, Field(default=None, description="The type of the request. i.e: Incident, Service Request, etc.")], due_by_time_ms: Annotated[str, Field(default=None, description="The due date of the request in milliseconds.")], mode: Annotated[str, Field(default=None, description="The mode in which this request is created.Example : E-mail")], level: Annotated[str, Field(default=None, description="The level of the request.")], site: Annotated[str, Field(default=None, description="Denotes the site to which this request belongs")], group: Annotated[str, Field(default=None, description="Group to which this request belongs")], impact: Annotated[str, Field(default=None, description="The impact of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus V3: Create Request',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus V3: Create Request',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_v3_create_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], subject: Annotated[str, Field(..., description="The subject of the request.")], requester: Annotated[str, Field(..., description="The requester of the request. If not specified, set to the user of the API key.")], description: Annotated[Optional[str], Field(default=None, description="The description of the request.")], assets: Annotated[Optional[str], Field(default=None, description="Names of Assets to be associated with the request")], status: Annotated[Optional[str], Field(default=None, description="The status of the request.")], technician: Annotated[Optional[str], Field(default=None, description="The name of the technician assigned to the request.")], priority: Annotated[Optional[str], Field(default=None, description="The priority of the request.")], urgency: Annotated[Optional[str], Field(default=None, description="The urgency of the request.")], category: Annotated[Optional[str], Field(default=None, description="The category of the request.")], request_template: Annotated[Optional[str], Field(default=None, description="The template of the request.")], request_type: Annotated[Optional[str], Field(default=None, description="The type of the request. i.e: Incident, Service Request, etc.")], due_by_time_ms: Annotated[Optional[str], Field(default=None, description="The due date of the request in milliseconds.")], mode: Annotated[Optional[str], Field(default=None, description="The mode in which this request is created.Example : E-mail")], level: Annotated[Optional[str], Field(default=None, description="The level of the request.")], site: Annotated[Optional[str], Field(default=None, description="Denotes the site to which this request belongs")], group: Annotated[Optional[str], Field(default=None, description="Group to which this request belongs")], impact: Annotated[Optional[str], Field(default=None, description="The impact of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create a new request
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -44,10 +63,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -57,15 +73,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceDeskPlusV3")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ServiceDeskPlusV3: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ServiceDeskPlusV3: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Subject"] = subject
@@ -122,21 +142,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceDeskPlusV3_Create Request")
             except Exception as e:
-                print(f"Error executing action ServiceDeskPlusV3_Create Request for ServiceDeskPlusV3: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ServiceDeskPlusV3_Create Request for ServiceDeskPlusV3: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ServiceDeskPlusV3")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ServiceDeskPlusV3")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def service_desk_plus_v3_create_alert_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], subject: Annotated[str, Field(..., description="The subject of the request.")], requester: Annotated[str, Field(..., description="The requester of the request. If not specified, set to the user of the API key.")], assets: Annotated[str, Field(default=None, description="Names of Assets to be associated with the request")], status: Annotated[str, Field(default=None, description="The status of the request.")], technician: Annotated[str, Field(default=None, description="The name of the technician assigned to the request.")], priority: Annotated[str, Field(default=None, description="The priority of the request.")], urgency: Annotated[str, Field(default=None, description="The urgency of the request.")], category: Annotated[str, Field(default=None, description="The category of the request.")], request_template: Annotated[str, Field(default=None, description="The template of the request.")], request_type: Annotated[str, Field(default=None, description="The type of the request. i.e: Incident, Service Request, etc.")], due_by_time_ms: Annotated[str, Field(default=None, description="The due date of the request in milliseconds.")], mode: Annotated[str, Field(default=None, description="The mode in which this request is created.Example : E-mail")], level: Annotated[str, Field(default=None, description="The level of the request.")], site: Annotated[str, Field(default=None, description="Denotes the site to which this request belongs")], group: Annotated[str, Field(default=None, description="Group to which this request belongs")], impact: Annotated[str, Field(default=None, description="The impact of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus V3: Create Alert Request',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus V3: Create Alert Request',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_v3_create_alert_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], subject: Annotated[str, Field(..., description="The subject of the request.")], requester: Annotated[str, Field(..., description="The requester of the request. If not specified, set to the user of the API key.")], assets: Annotated[Optional[str], Field(default=None, description="Names of Assets to be associated with the request")], status: Annotated[Optional[str], Field(default=None, description="The status of the request.")], technician: Annotated[Optional[str], Field(default=None, description="The name of the technician assigned to the request.")], priority: Annotated[Optional[str], Field(default=None, description="The priority of the request.")], urgency: Annotated[Optional[str], Field(default=None, description="The urgency of the request.")], category: Annotated[Optional[str], Field(default=None, description="The category of the request.")], request_template: Annotated[Optional[str], Field(default=None, description="The template of the request.")], request_type: Annotated[Optional[str], Field(default=None, description="The type of the request. i.e: Incident, Service Request, etc.")], due_by_time_ms: Annotated[Optional[str], Field(default=None, description="The due date of the request in milliseconds.")], mode: Annotated[Optional[str], Field(default=None, description="The mode in which this request is created.Example : E-mail")], level: Annotated[Optional[str], Field(default=None, description="The level of the request.")], site: Annotated[Optional[str], Field(default=None, description="Denotes the site to which this request belongs")], group: Annotated[Optional[str], Field(default=None, description="Group to which this request belongs")], impact: Annotated[Optional[str], Field(default=None, description="The impact of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create a request related to a Siemplify alert
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -150,10 +184,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -163,15 +194,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceDeskPlusV3")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ServiceDeskPlusV3: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ServiceDeskPlusV3: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Subject"] = subject
@@ -226,21 +261,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceDeskPlusV3_Create Alert Request")
             except Exception as e:
-                print(f"Error executing action ServiceDeskPlusV3_Create Alert Request for ServiceDeskPlusV3: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ServiceDeskPlusV3_Create Alert Request for ServiceDeskPlusV3: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ServiceDeskPlusV3")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ServiceDeskPlusV3")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def service_desk_plus_v3_create_request_dropdown_lists(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], subject: Annotated[str, Field(..., description="The subject of the request.")], requester: Annotated[str, Field(..., description="The requester of the request. If not specified, set to the user of the API key.")], description: Annotated[str, Field(default=None, description="The description of the request.")], assets: Annotated[str, Field(default=None, description="Names of Assets to be associated with the request")], status: Annotated[List[str], Field(default=None, description="The status of the request.")], technician: Annotated[str, Field(default=None, description="The name of the technician assigned to the request.")], priority: Annotated[List[str], Field(default=None, description="The priority of the request.")], urgency: Annotated[List[str], Field(default=None, description="The urgency of the request.")], category: Annotated[List[str], Field(default=None, description="The category of the request.")], request_template: Annotated[str, Field(default=None, description="The template of the request.")], request_type: Annotated[List[str], Field(default=None, description="The type of the request. i.e: Incident, Service Request, etc.")], due_by_time_ms: Annotated[str, Field(default=None, description="The due date of the request in milliseconds.")], mode: Annotated[List[str], Field(default=None, description="The mode in which this request is created.Example : E-mail")], level: Annotated[List[str], Field(default=None, description="The level of the request.")], site: Annotated[str, Field(default=None, description="Denotes the site to which this request belongs")], group: Annotated[str, Field(default=None, description="Group to which this request belongs")], impact: Annotated[List[str], Field(default=None, description="The impact of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus V3: Create Request - Dropdown Lists',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus V3: Create Request - Dropdown Lists',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_v3_create_request_dropdown_lists(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], subject: Annotated[str, Field(..., description="The subject of the request.")], requester: Annotated[str, Field(..., description="The requester of the request. If not specified, set to the user of the API key.")], description: Annotated[Optional[str], Field(default=None, description="The description of the request.")], assets: Annotated[Optional[str], Field(default=None, description="Names of Assets to be associated with the request")], status: Annotated[Optional[List[str]], Field(default=None, description="The status of the request.")], technician: Annotated[Optional[str], Field(default=None, description="The name of the technician assigned to the request.")], priority: Annotated[Optional[List[str]], Field(default=None, description="The priority of the request.")], urgency: Annotated[Optional[List[str]], Field(default=None, description="The urgency of the request.")], category: Annotated[Optional[List[str]], Field(default=None, description="The category of the request.")], request_template: Annotated[Optional[str], Field(default=None, description="The template of the request.")], request_type: Annotated[Optional[List[str]], Field(default=None, description="The type of the request. i.e: Incident, Service Request, etc.")], due_by_time_ms: Annotated[Optional[str], Field(default=None, description="The due date of the request in milliseconds.")], mode: Annotated[Optional[List[str]], Field(default=None, description="The mode in which this request is created.Example : E-mail")], level: Annotated[Optional[List[str]], Field(default=None, description="The level of the request.")], site: Annotated[Optional[str], Field(default=None, description="Denotes the site to which this request belongs")], group: Annotated[Optional[str], Field(default=None, description="Group to which this request belongs")], impact: Annotated[Optional[List[str]], Field(default=None, description="The impact of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create a new request
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -254,10 +303,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -267,15 +313,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceDeskPlusV3")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ServiceDeskPlusV3: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ServiceDeskPlusV3: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Subject"] = subject
@@ -332,21 +382,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceDeskPlusV3_Create Request - Dropdown Lists")
             except Exception as e:
-                print(f"Error executing action ServiceDeskPlusV3_Create Request - Dropdown Lists for ServiceDeskPlusV3: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ServiceDeskPlusV3_Create Request - Dropdown Lists for ServiceDeskPlusV3: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ServiceDeskPlusV3")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ServiceDeskPlusV3")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def service_desk_plus_v3_add_note_and_wait_for_reply(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The requests' ID.")], note: Annotated[str, Field(..., description="The note's content.")], show_to_requester: Annotated[bool, Field(default=None, description="Specify whether the note should be shown to the requester or not.")], notify_technician: Annotated[bool, Field(default=None, description="Specify whether the note should be shown to the requester or not")], mark_first_response: Annotated[bool, Field(default=None, description="Specify whether this note should be marked as first response")], add_to_linked_requests: Annotated[bool, Field(default=None, description="Specify whether this note should be added to the linked requests")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus V3: Add Note and Wait for Reply',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus V3: Add Note and Wait for Reply',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_v3_add_note_and_wait_for_reply(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The requests' ID.")], note: Annotated[str, Field(..., description="The note's content.")], show_to_requester: Annotated[Optional[bool], Field(default=None, description="Specify whether the note should be shown to the requester or not.")], notify_technician: Annotated[Optional[bool], Field(default=None, description="Specify whether the note should be shown to the requester or not")], mark_first_response: Annotated[Optional[bool], Field(default=None, description="Specify whether this note should be marked as first response")], add_to_linked_requests: Annotated[Optional[bool], Field(default=None, description="Specify whether this note should be added to the linked requests")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add a note to a request. Note: Please update the actual time you would like the action to run in the IDE timeout section for this action.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -360,10 +424,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -373,15 +434,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceDeskPlusV3")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ServiceDeskPlusV3: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ServiceDeskPlusV3: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Request ID"] = request_id
@@ -416,21 +481,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceDeskPlusV3_Add Note And Wait For Reply")
             except Exception as e:
-                print(f"Error executing action ServiceDeskPlusV3_Add Note And Wait For Reply for ServiceDeskPlusV3: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ServiceDeskPlusV3_Add Note And Wait For Reply for ServiceDeskPlusV3: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ServiceDeskPlusV3")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ServiceDeskPlusV3")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def service_desk_plus_v3_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus V3: Ping',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus V3: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_v3_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to ServiceDesk Plus instance.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -444,10 +523,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -457,15 +533,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceDeskPlusV3")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ServiceDeskPlusV3: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ServiceDeskPlusV3: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -490,21 +570,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceDeskPlusV3_Ping")
             except Exception as e:
-                print(f"Error executing action ServiceDeskPlusV3_Ping for ServiceDeskPlusV3: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ServiceDeskPlusV3_Ping for ServiceDeskPlusV3: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ServiceDeskPlusV3")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ServiceDeskPlusV3")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def service_desk_plus_v3_update_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The ID of the request to update.")], subject: Annotated[str, Field(default=None, description="The subject of the request.")], requester: Annotated[str, Field(default=None, description="The requester of the request. If not specified, set to the user of the API key.")], description: Annotated[str, Field(default=None, description="The description of the request.")], assets: Annotated[str, Field(default=None, description="Names of Assets to be associated with the request")], status: Annotated[str, Field(default=None, description="The status of the request.")], technician: Annotated[str, Field(default=None, description="The name of the technician assigned to the request.")], priority: Annotated[str, Field(default=None, description="The priority of the request.")], urgency: Annotated[str, Field(default=None, description="The urgency of the request.")], category: Annotated[str, Field(default=None, description="The category of the request.")], request_template: Annotated[str, Field(default=None, description="The template of the request.")], request_type: Annotated[str, Field(default=None, description="The type of the request. i.e: Incident, Service Request, etc.")], due_by_time_ms: Annotated[str, Field(default=None, description="The due date of the request in milliseconds.")], mode: Annotated[str, Field(default=None, description="The mode in which this request is created.Example : E-mail")], level: Annotated[str, Field(default=None, description="The level of the request.")], site: Annotated[str, Field(default=None, description="Denotes the site to which this request belongs")], group: Annotated[str, Field(default=None, description="Group to which this request belongs")], impact: Annotated[str, Field(default=None, description="The impact of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus V3: Update Request',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus V3: Update Request',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_v3_update_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The ID of the request to update.")], subject: Annotated[Optional[str], Field(default=None, description="The subject of the request.")], requester: Annotated[Optional[str], Field(default=None, description="The requester of the request. If not specified, set to the user of the API key.")], description: Annotated[Optional[str], Field(default=None, description="The description of the request.")], assets: Annotated[Optional[str], Field(default=None, description="Names of Assets to be associated with the request")], status: Annotated[Optional[str], Field(default=None, description="The status of the request.")], technician: Annotated[Optional[str], Field(default=None, description="The name of the technician assigned to the request.")], priority: Annotated[Optional[str], Field(default=None, description="The priority of the request.")], urgency: Annotated[Optional[str], Field(default=None, description="The urgency of the request.")], category: Annotated[Optional[str], Field(default=None, description="The category of the request.")], request_template: Annotated[Optional[str], Field(default=None, description="The template of the request.")], request_type: Annotated[Optional[str], Field(default=None, description="The type of the request. i.e: Incident, Service Request, etc.")], due_by_time_ms: Annotated[Optional[str], Field(default=None, description="The due date of the request in milliseconds.")], mode: Annotated[Optional[str], Field(default=None, description="The mode in which this request is created.Example : E-mail")], level: Annotated[Optional[str], Field(default=None, description="The level of the request.")], site: Annotated[Optional[str], Field(default=None, description="Denotes the site to which this request belongs")], group: Annotated[Optional[str], Field(default=None, description="Group to which this request belongs")], impact: Annotated[Optional[str], Field(default=None, description="The impact of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update a ServiceDesk Plus request via it’s ID
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -518,10 +612,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -531,15 +622,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceDeskPlusV3")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ServiceDeskPlusV3: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ServiceDeskPlusV3: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Request ID"] = request_id
@@ -599,21 +694,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceDeskPlusV3_Update Request")
             except Exception as e:
-                print(f"Error executing action ServiceDeskPlusV3_Update Request for ServiceDeskPlusV3: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ServiceDeskPlusV3_Update Request for ServiceDeskPlusV3: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ServiceDeskPlusV3")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ServiceDeskPlusV3")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def service_desk_plus_v3_get_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The ID of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus V3: Get Request',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus V3: Get Request',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_v3_get_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The ID of the request.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Retrieve information about a request In Service Desk Plus.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -627,10 +736,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -640,15 +746,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceDeskPlusV3")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ServiceDeskPlusV3: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ServiceDeskPlusV3: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Request ID"] = request_id
@@ -674,21 +784,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceDeskPlusV3_Get Request")
             except Exception as e:
-                print(f"Error executing action ServiceDeskPlusV3_Get Request for ServiceDeskPlusV3: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ServiceDeskPlusV3_Get Request for ServiceDeskPlusV3: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ServiceDeskPlusV3")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ServiceDeskPlusV3")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def service_desk_plus_v3_close_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The requests' ID.")], comment: Annotated[str, Field(..., description="Closing comment.")], resolution_acknowledged: Annotated[bool, Field(default=None, description="Whether the resolution of the request is acknowledged or not.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus V3: Close Request',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus V3: Close Request',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_v3_close_request(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The requests' ID.")], comment: Annotated[str, Field(..., description="Closing comment.")], resolution_acknowledged: Annotated[Optional[bool], Field(default=None, description="Whether the resolution of the request is acknowledged or not.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Close a request
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -702,10 +826,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -715,15 +836,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceDeskPlusV3")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ServiceDeskPlusV3: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ServiceDeskPlusV3: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Request ID"] = request_id
@@ -752,21 +877,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceDeskPlusV3_Close Request")
             except Exception as e:
-                print(f"Error executing action ServiceDeskPlusV3_Close Request for ServiceDeskPlusV3: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ServiceDeskPlusV3_Close Request for ServiceDeskPlusV3: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ServiceDeskPlusV3")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ServiceDeskPlusV3")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def service_desk_plus_v3_wait_for_field_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The ID of the request.")], values: Annotated[str, Field(..., description="Desired values for the given field.")], field_name: Annotated[str, Field(..., description="The name of the field to be updated.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus V3: Wait for Field Update',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus V3: Wait for Field Update',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_v3_wait_for_field_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The ID of the request.")], values: Annotated[str, Field(..., description="Desired values for the given field.")], field_name: Annotated[str, Field(..., description="The name of the field to be updated.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Wait for a field of a request ot update to a desired value. Note: Please update the actual time you would like the action to run in the IDE timeout section for this action.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -780,10 +919,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -793,15 +929,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceDeskPlusV3")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ServiceDeskPlusV3: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ServiceDeskPlusV3: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Request ID"] = request_id
@@ -829,21 +969,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceDeskPlusV3_Wait For Field Update")
             except Exception as e:
-                print(f"Error executing action ServiceDeskPlusV3_Wait For Field Update for ServiceDeskPlusV3: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ServiceDeskPlusV3_Wait For Field Update for ServiceDeskPlusV3: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ServiceDeskPlusV3")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ServiceDeskPlusV3")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def service_desk_plus_v3_add_note(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The requests' ID.")], note: Annotated[str, Field(..., description="The note's content.")], show_to_requester: Annotated[bool, Field(default=None, description="Specify whether the note should be shown to the requester or not.")], notify_technician: Annotated[bool, Field(default=None, description="Specify whether the note should be shown to the requester or not")], mark_first_response: Annotated[bool, Field(default=None, description="Specify whether this note should be marked as first response")], add_to_linked_requests: Annotated[bool, Field(default=None, description="Specify whether this note should be added to the linked requests")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus V3: Add Note',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus V3: Add Note',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_v3_add_note(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The requests' ID.")], note: Annotated[str, Field(..., description="The note's content.")], show_to_requester: Annotated[Optional[bool], Field(default=None, description="Specify whether the note should be shown to the requester or not.")], notify_technician: Annotated[Optional[bool], Field(default=None, description="Specify whether the note should be shown to the requester or not")], mark_first_response: Annotated[Optional[bool], Field(default=None, description="Specify whether this note should be marked as first response")], add_to_linked_requests: Annotated[Optional[bool], Field(default=None, description="Specify whether this note should be added to the linked requests")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add a note to a request
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -857,10 +1011,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -870,15 +1021,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceDeskPlusV3")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ServiceDeskPlusV3: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ServiceDeskPlusV3: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Request ID"] = request_id
@@ -913,21 +1068,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceDeskPlusV3_Add Note")
             except Exception as e:
-                print(f"Error executing action ServiceDeskPlusV3_Add Note for ServiceDeskPlusV3: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ServiceDeskPlusV3_Add Note for ServiceDeskPlusV3: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ServiceDeskPlusV3")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ServiceDeskPlusV3")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def service_desk_plus_v3_wait_for_status_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The ID of the request.")], values: Annotated[str, Field(..., description="Desired values for the given field.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Service Desk Plus V3: Wait for Status Update',
+        annotations=ToolAnnotations(
+            title='Service Desk Plus V3: Wait for Status Update',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def service_desk_plus_v3_wait_for_status_update(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], request_id: Annotated[str, Field(..., description="The ID of the request.")], values: Annotated[str, Field(..., description="Desired values for the given field.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Wait for the status of a request ot update to a desired status. Note: Please update the actual time you would like the action to run in the IDE timeout section for this action.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -941,10 +1110,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -954,15 +1120,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="ServiceDeskPlusV3")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for ServiceDeskPlusV3: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for ServiceDeskPlusV3: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Request ID"] = request_id
@@ -989,10 +1159,10 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "ServiceDeskPlusV3_Wait For Status Update")
             except Exception as e:
-                print(f"Error executing action ServiceDeskPlusV3_Wait For Status Update for ServiceDeskPlusV3: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action ServiceDeskPlusV3_Wait For Status Update for ServiceDeskPlusV3: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for ServiceDeskPlusV3")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for ServiceDeskPlusV3")
+            return marketplace_error_result("No active instance found.")

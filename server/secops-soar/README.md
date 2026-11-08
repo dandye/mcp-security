@@ -1,8 +1,18 @@
-# Chronicle SecOps SOAR MCP Server
+# Google Security Operations SOAR MCP Server
 
-This is an MCP (Model Context Protocol) server for interacting with Google's
-Chronicle Security Operations SOAR suite.
+This is a Model Context Protocol (MCP `2026-07-28`, `mcp>=2.3.0`) server (`secops-soar-mcp` `0.3.0`) for interacting with Google Security Operations SOAR.
 [MCP Info](https://modelcontextprotocol.io/introduction)
+
+## MCP 2026-07-28 Capabilities
+
+- **Transports**: Local `stdio` (default) and stateless single-exchange `streamable-http` (`--transport streamable-http --host 127.0.0.1 --port 8080`) with `server/discover`, `/healthz`, and `/readyz`.
+- **Discovery Caching (`SEP-2549`) and OpenTelemetry**: `CacheHint` TTLs and scope via `MCP_TOOLS_CACHE_TTL_MS` and `MCP_TOOLS_CACHE_SCOPE`, plus `OpenTelemetryMiddleware` span instrumentation (`OTEL_EXPORTER_OTLP_ENDPOINT`).
+- **Annotations and Typed Envelopes**: 100% `title` + `ToolAnnotations` coverage across core case management tools and all 313 marketplace integration modules, typed `structuredContent`, and `is_error=True` operational failure signaling.
+- **Resources and `ResourceLink` Compaction**: Exposes `soar://info/capabilities`, `soar://cases/{case_id}`, and `soar://cases/{case_id}/wall` under `DEFAULT_RESOURCE_SECURITY`, plus `ResourceLink` summaries on `list_cases`.
+- **SOC Prompts**: `@server.prompt()` workflows `investigate_soar_case(case_id)` and `draft_case_closure_summary(case_id)`.
+- **Stateless MRTR Elicitation**: `AESGCMRequestStateCodec` confirmation (`MCP_ELICIT_DESTRUCTIVE`, `MCP_UNATTENDED_DESTRUCTIVE_POLICY`, `MCP_REQUEST_STATE_SECRET`) on `close_case`.
+- **OAuth 2.1 Resource Server**: Optional RFC 9728 Protected Resource Metadata and JWT/JWKS validation (`MCP_OAUTH_ISSUER_URL`, `MCP_RESOURCE_SERVER_URL`, `MCP_OAUTH_JWKS_URL`, `MCP_OAUTH_JWKS_JSON`, `MCP_REQUIRED_SCOPES`).
+- **Official MCP Registry**: Manifest published at `server/secops-soar/server.json` (`io.github.google/secops-soar-mcp`).
 
 ## Features
 
@@ -101,14 +111,34 @@ To have the MCP server provide tools for specific marketplace integrations, use 
 }
 ```
 
+### Running Over Stateless `streamable-http`
+
+```bash
+SOAR_TENANT_URL="https://your-tenant.siemplify-soar.com"
+SOAR_API_KEY="a1b2c3d4-e5f6-4321-abcd-ef1234567890"
+MCP_HOST="127.0.0.1"
+MCP_PORT="8080"
+
+SOAR_URL="$SOAR_TENANT_URL" \
+SOAR_APP_KEY="$SOAR_API_KEY" \
+MCP_ELICIT_DESTRUCTIVE="true" \
+secops_soar_mcp \
+  --integrations "ServiceNow,CSV,Siemplify" \
+  --transport streamable-http \
+  --host "$MCP_HOST" \
+  --port "$MCP_PORT"
+```
+
 ### Environment Variable Setup
 
 Set up these environment variables in your system:
 
 **For macOS/Linux:**
 ```bash
-export SOAR_URL="your-soar-url"
-export SOAR_APP_KEY="your-soar-app-key"
+SOAR_TENANT_URL="https://your-tenant.siemplify-soar.com"
+SOAR_API_KEY="a1b2c3d4-e5f6-4321-abcd-ef1234567890"
+export SOAR_URL="$SOAR_TENANT_URL"
+export SOAR_APP_KEY="$SOAR_API_KEY"
 export SOAR_INTEGRATIONS="ServiceNow,CSV,Siemplify"
 ```
 

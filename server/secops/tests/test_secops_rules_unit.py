@@ -35,23 +35,8 @@ except ImportError:
     sys.modules["secops.chronicle"] = MagicMock()
     sys.modules["secops.exceptions"] = MagicMock()
 
-# Mock mcp if not installed
-try:
-    import mcp
-except ImportError:
-    mock_mcp = MagicMock()
-    sys.modules["mcp"] = mock_mcp
-    sys.modules["mcp.server"] = MagicMock()
-    sys.modules["mcp.server.fastmcp"] = MagicMock()
-
-    def tool_decorator(*args, **kwargs):
-        def wrapper(func):
-            return func
-        return wrapper
-
-    mock_fastmcp_instance = MagicMock()
-    mock_fastmcp_instance.tool.side_effect = tool_decorator
-    sys.modules["mcp.server.fastmcp"].FastMCP.return_value = mock_fastmcp_instance
+import mcp  # noqa: F401
+from mcp.types import CallToolResult
 
 from secops_mcp.tools.security_rules import create_rule, update_rule
 
@@ -107,7 +92,7 @@ def mock_get_client(mock_chronicle_client):
 
 @pytest.mark.asyncio
 async def test_update_rule_success(mock_get_client):
-    """update_rule returns a success message containing the rule ID and name."""
+    """update_rule returns structured output containing the rule ID, name, and summary."""
     result = await update_rule(
         rule_id=SAMPLE_RULE_ID,
         rule_text=SAMPLE_RULE_TEXT,
@@ -116,10 +101,13 @@ async def test_update_rule_success(mock_get_client):
         region="us",
     )
 
-    assert isinstance(result, str)
-    assert SAMPLE_RULE_ID in result
-    assert "suspicious_powershell_download" in result
-    assert "successfully" in result.lower()
+    assert isinstance(result, dict)
+    assert result["status"] == "success"
+    assert result["rule_id"] == SAMPLE_RULE_ID
+    assert result["rule_name"] == "suspicious_powershell_download"
+    assert SAMPLE_RULE_ID in result["summary"]
+    assert "suspicious_powershell_download" in result["summary"]
+    assert "successfully" in result["summary"].lower()
 
 
 @pytest.mark.asyncio
@@ -168,8 +156,10 @@ async def test_update_rule_includes_version_info(mock_get_client):
         region="us",
     )
 
-    # The versioned ID (@v_...) should appear in the output.
-    assert f"{SAMPLE_RULE_ID}@v_" in result
+    # The versioned ID (@v_...) should appear in both version and summary.
+    assert isinstance(result, dict)
+    assert f"{SAMPLE_RULE_ID}@v_" in result["version"]
+    assert f"{SAMPLE_RULE_ID}@v_" in result["summary"]
 
 
 @pytest.mark.asyncio
@@ -187,10 +177,11 @@ async def test_update_rule_no_version_in_response(mock_get_client):
         region="us",
     )
 
-    assert isinstance(result, str)
-    assert "successfully" in result.lower()
-    # No version line emitted — the output should not contain "@v_".
-    assert "@v_" not in result
+    assert isinstance(result, dict)
+    assert result["version"] == ""
+    assert "successfully" in result["summary"].lower()
+    # No version line emitted -- the output should not contain "@v_".
+    assert "@v_" not in result["summary"]
 
 
 @pytest.mark.asyncio
@@ -206,12 +197,14 @@ async def test_update_rule_extracts_rule_name(mock_get_client):
         region="us",
     )
 
-    assert "detect_lateral_movement" in result
+    assert isinstance(result, dict)
+    assert result["rule_name"] == "detect_lateral_movement"
+    assert "detect_lateral_movement" in result["summary"]
 
 
 @pytest.mark.asyncio
 async def test_update_rule_api_error(mock_get_client):
-    """update_rule returns an error message when the Chronicle API raises an exception."""
+    """update_rule returns CallToolResult(is_error=True) when the Chronicle API raises."""
     mock_get_client.update_rule.side_effect = Exception("API request failed: 404 Not Found")
 
     result = await update_rule(
@@ -222,9 +215,11 @@ async def test_update_rule_api_error(mock_get_client):
         region="us",
     )
 
-    assert isinstance(result, str)
-    assert "Error" in result
-    assert "API request failed" in result
+    assert isinstance(result, CallToolResult)
+    assert result.is_error is True
+    assert isinstance(result.structured_content, dict)
+    assert "Error" in result.structured_content["error"]
+    assert "API request failed" in result.structured_content["error"]
 
 
 @pytest.mark.asyncio
@@ -240,9 +235,10 @@ async def test_update_rule_empty_name_response(mock_get_client):
         region="us",
     )
 
-    assert isinstance(result, str)
-    assert SAMPLE_RULE_ID in result
-    assert "Rule updated successfully." not in result
+    assert isinstance(result, dict)
+    assert result["rule_id"] == SAMPLE_RULE_ID
+    assert SAMPLE_RULE_ID in result["summary"]
+    assert "Rule updated successfully." not in result["summary"]
 
 
 @pytest.mark.asyncio
@@ -262,8 +258,14 @@ async def test_update_rule_revision_id_field(mock_get_client):
         region="us",
     )
 
-    assert f"New version: {SAMPLE_RULE_ID}@v_1700000000_123456789" in result
-    assert "Rule Name: suspicious_powershell_download" in result
+    assert isinstance(result, dict)
+    assert result["version"] == f"{SAMPLE_RULE_ID}@v_1700000000_123456789"
+    assert result["rule_name"] == "suspicious_powershell_download"
+    assert (
+        f"New version: {SAMPLE_RULE_ID}@v_1700000000_123456789"
+        in result["summary"]
+    )
+    assert "Rule Name: suspicious_powershell_download" in result["summary"]
 
 
 @pytest.mark.asyncio
@@ -287,7 +289,9 @@ async def test_update_rule_regex_preserves_rule_substring_and_comments(mock_get_
         region="us",
     )
 
-    assert "Rule Name: rule_execution_detected" in result
+    assert isinstance(result, dict)
+    assert result["rule_name"] == "rule_execution_detected"
+    assert "Rule Name: rule_execution_detected" in result["summary"]
 
 
 @pytest.mark.asyncio
@@ -348,7 +352,7 @@ async def test_update_rule_uses_lazy_logging(mock_get_client, caplog):
 
 @pytest.mark.asyncio
 async def test_create_rule_success(mock_get_client):
-    """create_rule returns a success message with the rule ID and name."""
+    """create_rule returns structured output with the rule ID, name, and summary."""
     result = await create_rule(
         rule_text=SAMPLE_RULE_TEXT,
         project_id="my-project",
@@ -356,7 +360,10 @@ async def test_create_rule_success(mock_get_client):
         region="us",
     )
 
-    assert isinstance(result, str)
-    assert SAMPLE_RULE_ID in result
-    assert "suspicious_powershell_download" in result
-    assert "successfully" in result.lower()
+    assert isinstance(result, dict)
+    assert result["status"] == "success"
+    assert result["rule_id"] == SAMPLE_RULE_ID
+    assert result["rule_name"] == "suspicious_powershell_download"
+    assert SAMPLE_RULE_ID in result["summary"]
+    assert "suspicious_powershell_download" in result["summary"]
+    assert "successfully" in result["summary"].lower()

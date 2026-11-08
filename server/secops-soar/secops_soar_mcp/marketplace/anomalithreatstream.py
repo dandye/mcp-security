@@ -12,25 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
+from logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the AnomaliThreatStream integration.
 
-    @mcp.tool()
-    async def anomali_threat_stream_add_tags_to_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], tags: Annotated[str, Field(..., description="Specify a comma-separated list of tags that need to be added to entities in Anomali ThreatStream.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Anomali Threat Stream: Add Tags to Entities',
+        annotations=ToolAnnotations(
+            title='Anomali Threat Stream: Add Tags to Entities',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def anomali_threat_stream_add_tags_to_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], tags: Annotated[str, Field(..., description="Specify a comma-separated list of tags that need to be added to entities in Anomali ThreatStream.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add tags to entities in Anomali ThreatStream. Supported entities: Hash, URL, IP Address, Email Address (user entity that matches email regex).
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -44,10 +63,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -57,15 +73,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="AnomaliThreatStream")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for AnomaliThreatStream: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for AnomaliThreatStream: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Tags"] = tags
@@ -91,21 +111,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "AnomaliThreatStream_Add Tags To Entities")
             except Exception as e:
-                print(f"Error executing action AnomaliThreatStream_Add Tags To Entities for AnomaliThreatStream: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action AnomaliThreatStream_Add Tags To Entities for AnomaliThreatStream: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for AnomaliThreatStream")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for AnomaliThreatStream")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def anomali_threat_stream_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Anomali Threat Stream: Ping',
+        annotations=ToolAnnotations(
+            title='Anomali Threat Stream: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def anomali_threat_stream_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test connectivity to the Anomali ThreatStream with parameters provided at the integration configuration page on the Marketplace tab.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -119,10 +153,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -132,15 +163,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="AnomaliThreatStream")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for AnomaliThreatStream: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for AnomaliThreatStream: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -165,21 +200,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "AnomaliThreatStream_Ping")
             except Exception as e:
-                print(f"Error executing action AnomaliThreatStream_Ping for AnomaliThreatStream: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action AnomaliThreatStream_Ping for AnomaliThreatStream: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for AnomaliThreatStream")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for AnomaliThreatStream")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def anomali_threat_stream_get_related_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], confidence_threshold: Annotated[str, Field(..., description="Specify what should be the confidence threshold. Note: Maximum is 100.")], search_threat_bulletins: Annotated[bool, Field(default=None, description="If enabled, action will search among threat bulletins.")], search_actors: Annotated[bool, Field(default=None, description="If enabled, action will search among actors.")], search_attack_patterns: Annotated[bool, Field(default=None, description="If enabled, action will search among attack patterns.")], search_campaigns: Annotated[bool, Field(default=None, description="If enabled, action will search among campaigns.")], search_courses_of_action: Annotated[bool, Field(default=None, description="If enabled, action will search among courses of action.")], search_identities: Annotated[bool, Field(default=None, description="If enabled, action will search among identities.")], search_incidents: Annotated[bool, Field(default=None, description="If enabled, action will search among incidents.")], search_infrastructures: Annotated[bool, Field(default=None, description="If enabled, action will search among infrastructures.")], search_intrusion_sets: Annotated[bool, Field(default=None, description="If enabled, action will search among intrusion sets.")], search_malware: Annotated[bool, Field(default=None, description="If enabled, action will search among malware.")], search_signatures: Annotated[bool, Field(default=None, description="If enabled, action will search among signatures.")], search_tools: Annotated[bool, Field(default=None, description="If enabled, action will search among tools.")], search_tt_ps: Annotated[bool, Field(default=None, description="If enabled, action will search among TTPs.")], search_vulnerabilities: Annotated[bool, Field(default=None, description="If enabled, action will search among vulnerabilities.")], max_entities_to_return: Annotated[str, Field(default=None, description="Specify how many entities to return per entity type. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Anomali Threat Stream: Get Related Entities',
+        annotations=ToolAnnotations(
+            title='Anomali Threat Stream: Get Related Entities',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def anomali_threat_stream_get_related_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], confidence_threshold: Annotated[str, Field(..., description="Specify what should be the confidence threshold. Note: Maximum is 100.")], search_threat_bulletins: Annotated[Optional[bool], Field(default=None, description="If enabled, action will search among threat bulletins.")], search_actors: Annotated[Optional[bool], Field(default=None, description="If enabled, action will search among actors.")], search_attack_patterns: Annotated[Optional[bool], Field(default=None, description="If enabled, action will search among attack patterns.")], search_campaigns: Annotated[Optional[bool], Field(default=None, description="If enabled, action will search among campaigns.")], search_courses_of_action: Annotated[Optional[bool], Field(default=None, description="If enabled, action will search among courses of action.")], search_identities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will search among identities.")], search_incidents: Annotated[Optional[bool], Field(default=None, description="If enabled, action will search among incidents.")], search_infrastructures: Annotated[Optional[bool], Field(default=None, description="If enabled, action will search among infrastructures.")], search_intrusion_sets: Annotated[Optional[bool], Field(default=None, description="If enabled, action will search among intrusion sets.")], search_malware: Annotated[Optional[bool], Field(default=None, description="If enabled, action will search among malware.")], search_signatures: Annotated[Optional[bool], Field(default=None, description="If enabled, action will search among signatures.")], search_tools: Annotated[Optional[bool], Field(default=None, description="If enabled, action will search among tools.")], search_tt_ps: Annotated[Optional[bool], Field(default=None, description="If enabled, action will search among TTPs.")], search_vulnerabilities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will search among vulnerabilities.")], max_entities_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many entities to return per entity type. Default: 50.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Retrieve related entities based on the associations in Anomali ThreatStream. Supported entities: Hash, URL, IP Address, Email Address (user entity that matches email regex), Threat Actor, CVE.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -193,10 +242,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -206,15 +252,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="AnomaliThreatStream")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for AnomaliThreatStream: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for AnomaliThreatStream: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Confidence Threshold"] = confidence_threshold
@@ -270,21 +320,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "AnomaliThreatStream_Get Related Entities")
             except Exception as e:
-                print(f"Error executing action AnomaliThreatStream_Get Related Entities for AnomaliThreatStream: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action AnomaliThreatStream_Get Related Entities for AnomaliThreatStream: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for AnomaliThreatStream")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for AnomaliThreatStream")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def anomali_threat_stream_report_as_false_positive(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], reason: Annotated[str, Field(..., description="Specify the reason why you want to mark entities as false positives.")], comment: Annotated[str, Field(..., description="Specify additional information related to your decision regarding marking the entity as false positive.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Anomali Threat Stream: Report as False Positive',
+        annotations=ToolAnnotations(
+            title='Anomali Threat Stream: Report as False Positive',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def anomali_threat_stream_report_as_false_positive(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], reason: Annotated[str, Field(..., description="Specify the reason why you want to mark entities as false positives.")], comment: Annotated[str, Field(..., description="Specify additional information related to your decision regarding marking the entity as false positive.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Report entities in Anomali ThreatStream as false positive. Supported entities: Hash, URL, IP Address, Email Address (user entity that matches email regex).
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -298,10 +362,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -311,15 +372,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="AnomaliThreatStream")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for AnomaliThreatStream: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for AnomaliThreatStream: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Reason"] = reason
@@ -346,21 +411,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "AnomaliThreatStream_Report As False Positive")
             except Exception as e:
-                print(f"Error executing action AnomaliThreatStream_Report As False Positive for AnomaliThreatStream: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action AnomaliThreatStream_Report As False Positive for AnomaliThreatStream: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for AnomaliThreatStream")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for AnomaliThreatStream")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def anomali_threat_stream_submit_observables(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], classification: Annotated[List[str], Field(..., description="Specify the classification of the observable.")], threat_type: Annotated[List[str], Field(..., description="Specify the threat type of the observables.")], source: Annotated[str, Field(default=None, description="Specify the intelligence source for the observable.")], expiration_date: Annotated[str, Field(default=None, description="Specify the expiration date in days for the observable. If nothing is specified here, action will create an observable that will never expire.")], trusted_circle_i_ds: Annotated[str, Field(default=None, description="Specify the comma-separated list of trusted circle ids. Observables will be shared with those trusted circles.")], tlp: Annotated[List[str], Field(default=None, description="Specify the TLP for your observables.")], confidence: Annotated[str, Field(default=None, description="Specify what should be the confidence for the observable. Note: this parameter will only work, if you create observables in your organization and requires 'Override System Confidence' to be enabled.")], override_system_confidence: Annotated[bool, Field(default=None, description="If enabled, created observables will have the confidence specified in the 'Confidence' parameter. Note: you can't share observables in trusted circles and publicly, when this parameter is enabled.")], anonymous_submission: Annotated[bool, Field(default=None, description="If enabled, action will make an anonymous submission.")], tags: Annotated[str, Field(default=None, description="Specify a comma-separated list of tags that you want to add to observable.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Anomali Threat Stream: Submit Observables',
+        annotations=ToolAnnotations(
+            title='Anomali Threat Stream: Submit Observables',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=True,
+        ),
+    )
+    async def anomali_threat_stream_submit_observables(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], classification: Annotated[List[str], Field(..., description="Specify the classification of the observable.")], threat_type: Annotated[List[str], Field(..., description="Specify the threat type of the observables.")], source: Annotated[Optional[str], Field(default=None, description="Specify the intelligence source for the observable.")], expiration_date: Annotated[Optional[str], Field(default=None, description="Specify the expiration date in days for the observable. If nothing is specified here, action will create an observable that will never expire.")], trusted_circle_i_ds: Annotated[Optional[str], Field(default=None, description="Specify the comma-separated list of trusted circle ids. Observables will be shared with those trusted circles.")], tlp: Annotated[Optional[List[str]], Field(default=None, description="Specify the TLP for your observables.")], confidence: Annotated[Optional[str], Field(default=None, description="Specify what should be the confidence for the observable. Note: this parameter will only work, if you create observables in your organization and requires 'Override System Confidence' to be enabled.")], override_system_confidence: Annotated[Optional[bool], Field(default=None, description="If enabled, created observables will have the confidence specified in the 'Confidence' parameter. Note: you can't share observables in trusted circles and publicly, when this parameter is enabled.")], anonymous_submission: Annotated[Optional[bool], Field(default=None, description="If enabled, action will make an anonymous submission.")], tags: Annotated[Optional[str], Field(default=None, description="Specify a comma-separated list of tags that you want to add to observable.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Submit an observable to Anomali ThreatStream based on IP, URL, Hash, Email entities. Note: requires "Org admin", "Create Anomali Community Intel" and "Approve Intel" permissions. Supported entities: Hash, URL, IP Address, Email Address (user entity that matches email regex).
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -374,10 +453,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -387,15 +463,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="AnomaliThreatStream")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for AnomaliThreatStream: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for AnomaliThreatStream: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Classification"] = classification
@@ -438,21 +518,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "AnomaliThreatStream_Submit Observables")
             except Exception as e:
-                print(f"Error executing action AnomaliThreatStream_Submit Observables for AnomaliThreatStream: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action AnomaliThreatStream_Submit Observables for AnomaliThreatStream: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for AnomaliThreatStream")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for AnomaliThreatStream")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def anomali_threat_stream_get_related_associations(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], return_campaigns: Annotated[bool, Field(default=None, description="If enabled, action will fetch related campaigns and details about them.")], return_threat_bulletins: Annotated[bool, Field(default=None, description="If enabled, action will fetch related threat bulletins and details about them.")], return_actors: Annotated[bool, Field(default=None, description="If enabled, action will fetch related actors and details about them.")], return_attack_patterns: Annotated[bool, Field(default=None, description="If enabled, action will fetch related attack patterns and details about them.")], return_courses_of_action: Annotated[bool, Field(default=None, description="If enabled, action will fetch related courses of action and details about them.")], return_identities: Annotated[bool, Field(default=None, description="If enabled, action will fetch related identities and details about them.")], return_incidents: Annotated[bool, Field(default=None, description="If enabled, action will fetch related incidents and details about them.")], return_infrastructure: Annotated[bool, Field(default=None, description="If enabled, action will fetch related infrastructure and details about them.")], return_intrusion_sets: Annotated[bool, Field(default=None, description="If enabled, action will fetch related intrusion sets and details about them.")], return_malware: Annotated[bool, Field(default=None, description="If enabled, action will fetch related malware and details about them.")], return_signatures: Annotated[bool, Field(default=None, description="If enabled, action will fetch related signatures and details about them.")], return_tools: Annotated[bool, Field(default=None, description="If enabled, action will fetch related tools and details about them.")], return_tt_ps: Annotated[bool, Field(default=None, description="If enabled, action will fetch related TTPs and details about them.")], return_vulnerabilities: Annotated[bool, Field(default=None, description="If enabled, action will fetch related vulnerabilities and details about them.")], create_campaign_entity: Annotated[bool, Field(default=None, description="If enabled, action will create an entity out of available \u201cCampaign\u201d associations.")], create_actors_entity: Annotated[bool, Field(default=None, description="If enabled, action will create an entity out of available \u201cActor\u201d associations.")], create_signature_entity: Annotated[bool, Field(default=None, description="If enabled, action will create an entity out of available \u201cSignature\u201d associations.")], create_vulnerability_entity: Annotated[bool, Field(default=None, description="If enabled, action will create an entity out of available \u201cVulnerability\u201d associations.")], create_case_tag: Annotated[bool, Field(default=None, description="If enabled, action will create case tags based on the results.")], create_insight: Annotated[bool, Field(default=None, description="If enabled, action will create an insight base on the results.")], max_associations_to_return: Annotated[str, Field(default=None, description="Specify how many associations to return per type. Default: 5")], max_statistics_to_return: Annotated[str, Field(default=None, description="Specify how many top statistics results regarding IOCs to return. Note: action will at max process 1000 IOCs related to the association. If you provide \"0\", action will not try to fetch statistics information.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Anomali Threat Stream: Get Related Associations',
+        annotations=ToolAnnotations(
+            title='Anomali Threat Stream: Get Related Associations',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def anomali_threat_stream_get_related_associations(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], return_campaigns: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related campaigns and details about them.")], return_threat_bulletins: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related threat bulletins and details about them.")], return_actors: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related actors and details about them.")], return_attack_patterns: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related attack patterns and details about them.")], return_courses_of_action: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related courses of action and details about them.")], return_identities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related identities and details about them.")], return_incidents: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related incidents and details about them.")], return_infrastructure: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related infrastructure and details about them.")], return_intrusion_sets: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related intrusion sets and details about them.")], return_malware: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related malware and details about them.")], return_signatures: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related signatures and details about them.")], return_tools: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related tools and details about them.")], return_tt_ps: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related TTPs and details about them.")], return_vulnerabilities: Annotated[Optional[bool], Field(default=None, description="If enabled, action will fetch related vulnerabilities and details about them.")], create_campaign_entity: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an entity out of available \u201cCampaign\u201d associations.")], create_actors_entity: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an entity out of available \u201cActor\u201d associations.")], create_signature_entity: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an entity out of available \u201cSignature\u201d associations.")], create_vulnerability_entity: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an entity out of available \u201cVulnerability\u201d associations.")], create_case_tag: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create case tags based on the results.")], create_insight: Annotated[Optional[bool], Field(default=None, description="If enabled, action will create an insight base on the results.")], max_associations_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many associations to return per type. Default: 5")], max_statistics_to_return: Annotated[Optional[str], Field(default=None, description="Specify how many top statistics results regarding IOCs to return. Note: action will at max process 1000 IOCs related to the association. If you provide \"0\", action will not try to fetch statistics information.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Retrieve entity related associations from Anomali ThreatStream. Supported entities: Hash, URL, IP Address, Email Address (user entity that matches email regex).
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -466,10 +560,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -479,15 +570,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="AnomaliThreatStream")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for AnomaliThreatStream: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for AnomaliThreatStream: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if return_campaigns is not None:
@@ -556,21 +651,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "AnomaliThreatStream_Get Related Associations")
             except Exception as e:
-                print(f"Error executing action AnomaliThreatStream_Get Related Associations for AnomaliThreatStream: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action AnomaliThreatStream_Get Related Associations for AnomaliThreatStream: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for AnomaliThreatStream")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for AnomaliThreatStream")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def anomali_threat_stream_remove_tags_from_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], tags: Annotated[str, Field(..., description="Specify a comma-separated list of tags that need to be removed from entities in Anomali ThreatStream.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Anomali Threat Stream: Remove Tags from Entities',
+        annotations=ToolAnnotations(
+            title='Anomali Threat Stream: Remove Tags from Entities',
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def anomali_threat_stream_remove_tags_from_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], tags: Annotated[str, Field(..., description="Specify a comma-separated list of tags that need to be removed from entities in Anomali ThreatStream.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Remove tags from entities in Anomali ThreatStream. Supported entities: Hash, URL, IP Address, Email Address (user entity that matches email regex).
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -584,10 +693,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -597,15 +703,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="AnomaliThreatStream")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for AnomaliThreatStream: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for AnomaliThreatStream: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Tags"] = tags
@@ -631,21 +741,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "AnomaliThreatStream_Remove Tags From Entities")
             except Exception as e:
-                print(f"Error executing action AnomaliThreatStream_Remove Tags From Entities for AnomaliThreatStream: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action AnomaliThreatStream_Remove Tags From Entities for AnomaliThreatStream: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for AnomaliThreatStream")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for AnomaliThreatStream")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def anomali_threat_stream_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], severity_threshold: Annotated[List[str], Field(..., description="Specify what should be the severity threshold for the entity, in order to mark it as suspicious. If multiple records are found for the same entity, action will take the highest severity out of all available records.")], confidence_threshold: Annotated[str, Field(..., description="Specify what should be the confidence threshold for the entity, in order to mark it as suspicious. Note: Maximum is 100. If multiple records are found for the entity, action will take the average. Active records have priority.")], create_insight: Annotated[bool, Field(..., description="If enabled, action will add an insight per processed entity.")], only_suspicious_entity_insight: Annotated[bool, Field(..., description="If enabled, action will create insight only for entities that exceeded the \"Severity Threshold\" and \"Confidence Threshold\".")], ignore_false_positive_status: Annotated[bool, Field(default=None, description="If enabled, action will ignore the false positive status and mark the entity as suspicious based on the \"Severity Threshold\" and \"Confidence Threshold\". If disabled, action will never label false positive entities as suspicious, regardless, if they pass the \"Severity Threshold\" and \"Confidence Threshold\" conditions or not.")], add_threat_type_to_case: Annotated[bool, Field(default=None, description="If enabled, action will add threat types of the entity from all records as tags to the case. Example: apt")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='Anomali Threat Stream: Enrich Entities',
+        annotations=ToolAnnotations(
+            title='Anomali Threat Stream: Enrich Entities',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        ),
+    )
+    async def anomali_threat_stream_enrich_entities(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], severity_threshold: Annotated[List[str], Field(..., description="Specify what should be the severity threshold for the entity, in order to mark it as suspicious. If multiple records are found for the same entity, action will take the highest severity out of all available records.")], confidence_threshold: Annotated[str, Field(..., description="Specify what should be the confidence threshold for the entity, in order to mark it as suspicious. Note: Maximum is 100. If multiple records are found for the entity, action will take the average. Active records have priority.")], create_insight: Annotated[bool, Field(..., description="If enabled, action will add an insight per processed entity.")], only_suspicious_entity_insight: Annotated[bool, Field(..., description="If enabled, action will create insight only for entities that exceeded the \"Severity Threshold\" and \"Confidence Threshold\".")], ignore_false_positive_status: Annotated[Optional[bool], Field(default=None, description="If enabled, action will ignore the false positive status and mark the entity as suspicious based on the \"Severity Threshold\" and \"Confidence Threshold\". If disabled, action will never label false positive entities as suspicious, regardless, if they pass the \"Severity Threshold\" and \"Confidence Threshold\" conditions or not.")], add_threat_type_to_case: Annotated[Optional[bool], Field(default=None, description="If enabled, action will add threat types of the entity from all records as tags to the case. Example: apt")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Retrieve information about entities from Anomali ThreatStream. Supported entities: Hash, URL, IP Address, Email Address (user entity that matches email regex), Hostname, Domain.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -659,10 +783,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -672,15 +793,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="AnomaliThreatStream")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for AnomaliThreatStream: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for AnomaliThreatStream: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Severity Threshold"] = severity_threshold
@@ -713,10 +838,10 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "AnomaliThreatStream_Enrich Entities")
             except Exception as e:
-                print(f"Error executing action AnomaliThreatStream_Enrich Entities for AnomaliThreatStream: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action AnomaliThreatStream_Enrich Entities for AnomaliThreatStream: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for AnomaliThreatStream")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for AnomaliThreatStream")
+            return marketplace_error_result("No active instance found.")

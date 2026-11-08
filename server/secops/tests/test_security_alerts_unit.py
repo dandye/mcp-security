@@ -13,7 +13,6 @@
 # limitations under the License.
 """Unit tests for security alert formatting."""
 
-import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -51,10 +50,10 @@ async def test_get_security_alerts_includes_actionable_fields(chronicle_client):
         }
     }
 
-    # get_security_alerts currently returns a JSON-encoded display string.
-    output = json.loads(
-        await get_security_alerts(project_id="test", customer_id="test")
-    )
+    result = await get_security_alerts(project_id="test", customer_id="test")
+    assert isinstance(result, dict)
+    assert result["count"] == 1
+    output = result["summary"]
 
     assert (
         "Alert ID: de_f47e71ca\n"
@@ -82,9 +81,10 @@ async def test_get_security_alerts_handles_missing_actionable_fields(
         }
     ]
 
-    output = json.loads(
-        await get_security_alerts(project_id="test", customer_id="test")
-    )
+    result = await get_security_alerts(project_id="test", customer_id="test")
+    assert isinstance(result, dict)
+    assert result["count"] == 1
+    output = result["summary"]
 
     assert "Alert ID:" not in output
     assert "Status: OPEN" in output
@@ -107,9 +107,10 @@ async def test_get_security_alerts_falls_back_from_empty_feedback_summary(
         }
     ]
 
-    output = json.loads(
-        await get_security_alerts(project_id="test", customer_id="test")
-    )
+    result = await get_security_alerts(project_id="test", customer_id="test")
+    assert isinstance(result, dict)
+    assert result["count"] == 1
+    output = result["summary"]
 
     assert "Status: OPEN" in output
     assert "Verdict: FALSE_POSITIVE" in output
@@ -126,8 +127,9 @@ async def test_get_security_alerts_preserves_unspecified_verdict(chronicle_clien
         }
     ]
 
-    output = json.loads(
-        await get_security_alerts(project_id="test", customer_id="test")
-    )
+    result = await get_security_alerts(project_id="test", customer_id="test")
+    assert isinstance(result, dict)
+    assert result["count"] == 1
+    output = result["summary"]
 
     assert "Verdict: VERDICT_UNSPECIFIED" in output

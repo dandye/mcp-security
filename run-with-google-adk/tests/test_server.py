@@ -1,8 +1,11 @@
 """Unit tests for mcp_security_agent.server."""
 
+import json
 import sys
 import unicodedata
 from pathlib import Path
+from unittest.mock import patch
+
 from fastapi.testclient import TestClient
 
 # Add src directory to path
@@ -27,21 +30,59 @@ def test_app_name():
     assert response.json() == {"app_name": "Google Security Agent"}
 
 
-def test_info():
-    client = TestClient(create_app())
-    response = client.get("/info")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["version"] == "0.2.0"
-    assert "tools" in data
-    assert "user" in data
-    assert bool(data["user"])
+def test_info(monkeypatch):
+    import mcp_security_agent.server.routes as server_routes
+    from mcp_security_agent.config import AgentSettings
+
+    monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+    monkeypatch.delenv("GCP_PROJECT_ID", raising=False)
+    custom_settings = AgentSettings(
+        _env_file=None,
+        google_cloud_project="secops-info-proj",
+        load_secops_mcp=True,
+        secops_mcp_url="https://us-chronicle.googleapis.com/mcp",
+        load_scc_mcp=True,
+        load_gti_mcp=False,
+        load_secops_soar_mcp=False,
+        mcp_tool_name_prefix_enabled=True,
+        mcp_use_resources=True,
+        confirm_destructive_tools=True,
+        elicitation_policy="decline",
+    )
+    with patch.object(server_routes, "get_settings", return_value=custom_settings):
+        client = TestClient(create_app())
+        response = client.get("/info")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["version"] == "0.3.0"
+        assert data["model"] == custom_settings.google_model
+        assert data["location"] == custom_settings.google_cloud_location
+        assert data["project_id"] == "secops-info-proj"
+        assert data["tool_name_prefix_enabled"] is True
+        assert data["use_mcp_resources"] is True
+        assert data["confirm_destructive_tools"] is True
+        assert data["elicitation_policy"] == "decline"
+        assert data["tools"] == {
+            "secops": True,
+            "scc": True,
+            "gti": False,
+            "soar": False,
+        }
+        assert data["transports"] == {
+            "secops": "streamable-http",
+            "scc": "stdio",
+            "gti": "disabled",
+            "soar": "disabled",
+        }
+        assert "user" in data
+        assert bool(data["user"])
 
 
 def test_root():
     client = TestClient(create_app())
     response = client.get("/")
     assert response.status_code == 200
+    assert "gemini-3.1-pro-preview" in response.text
 
 
 def test_get_session_default():
@@ -53,7 +94,6 @@ def test_get_session_default():
     assert len(data["session_id"]) > 10
     assert "user_id" in data
     assert bool(data["user_id"])
-
 
 
 def test_get_session_with_username():
@@ -68,17 +108,21 @@ class MockRunner:
     async def run_async(self, *args, **kwargs):
         from google.adk.events import Event
         from google.genai import types
+
         yield Event(
             author="SecurityOperationsAgent",
-            content=types.Content(role="model", parts=[types.Part(text="Mocked analysis response")]),
+            content=types.Content(
+                role="model", parts=[types.Part(text="Mocked analysis response")]
+            ),
         )
 
 
 def test_chat_post():
-    from unittest.mock import patch
     with patch("mcp_security_agent.server.routes.get_runner", return_value=MockRunner()):
         client = TestClient(create_app())
-        response = client.post("/chat", json={"prompt": "Investigate alert 123", "session_id": "test-sess"})
+        response = client.post(
+            "/chat", json={"prompt": "Investigate alert 123", "session_id": "test-sess"}
+        )
         assert response.status_code == 200
         data = response.json()
         assert "response" in data
@@ -87,14 +131,257 @@ def test_chat_post():
 
 
 def test_chat_sse_stream():
-    from unittest.mock import patch
     with patch("mcp_security_agent.server.routes.get_runner", return_value=MockRunner()):
         client = TestClient(create_app())
-        response = client.get("/chat", params={"message": "check finding", "session_id": "test-sess"})
+        response = client.get(
+            "/chat", params={"message": "check finding", "session_id": "test-sess"}
+        )
         assert response.status_code == 200
         assert "text/event-stream" in response.headers["content-type"]
         assert "Mocked analysis response" in response.text
         assert "Stream finished." in response.text
+
+
+def test_chat_destructive_confirmation_interrupt_and_resume():
+    from google.adk.events import Event
+    from google.genai import types
+    import mcp_security_agent.server.routes as server_routes
+
+    svc = server_routes.BoundedSessionService(max_sessions=10)
+    captured_calls = []
+
+    class ConfirmationAwareRunner:
+        async def run_async(self, **kwargs):
+            captured_calls.append(kwargs)
+            sess = await svc.get_session(
+                app_name="mcp_security_agent",
+                user_id=kwargs["user_id"],
+                session_id=kwargs["session_id"],
+            )
+            new_msg = kwargs["new_message"]
+            await svc.append_event(
+                sess,
+                Event(author="user", invocation_id="inv-1", content=new_msg),
+            )
+            if len(captured_calls) == 1:
+                confirm_fc = types.FunctionCall(
+                    id="confirm-fc-1",
+                    name="adk_request_confirmation",
+                    args={
+                        "originalFunctionCall": {
+                            "id": "orig-fc-1",
+                            "name": "delete_rule",
+                            "args": {"rule_id": "ru_a1b2c3d4-e5f6-4321-abcd-ef1234567890"},
+                        }
+                    },
+                )
+                ev = Event(
+                    author="SecurityOperationsAgent",
+                    invocation_id="inv-1",
+                    long_running_tool_ids={"confirm-fc-1"},
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part(function_call=confirm_fc)],
+                    ),
+                )
+                await svc.append_event(sess, ev)
+                yield ev
+            else:
+                ev = Event(
+                    author="SecurityOperationsAgent",
+                    invocation_id=kwargs.get("invocation_id") or "inv-1",
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part(text="Confirmed and deleted rule.")],
+                    ),
+                )
+                await svc.append_event(sess, ev)
+                yield ev
+
+    with (
+        patch(
+            "mcp_security_agent.server.routes.get_runner",
+            return_value=ConfirmationAwareRunner(),
+        ),
+        patch(
+            "mcp_security_agent.server.routes.get_session_service",
+            return_value=svc,
+        ),
+    ):
+        client = TestClient(create_app())
+        first = client.post(
+            "/chat",
+            json={
+                "message": "Delete rule ru_a1b2c3d4-e5f6-4321-abcd-ef1234567890",
+                "session_id": "confirm-sess",
+                "user_id": "analyst",
+            },
+            headers={"accept": "text/event-stream"},
+        )
+        assert first.status_code == 200
+        assert "confirmation_request" in first.text
+        assert "delete_rule" in first.text
+
+        second = client.post(
+            "/chat",
+            json={
+                "message": "yes",
+                "session_id": "confirm-sess",
+                "user_id": "analyst",
+            },
+            headers={"accept": "text/event-stream"},
+        )
+        assert second.status_code == 200
+        assert "Confirmed and deleted rule." in second.text
+
+        assert len(captured_calls) == 2
+        resumed_kwargs = captured_calls[1]
+        assert resumed_kwargs.get("invocation_id") == "inv-1"
+        fr = resumed_kwargs["new_message"].parts[0].function_response
+        assert fr.id == "confirm-fc-1"
+        assert fr.name == "adk_request_confirmation"
+        assert fr.response == {"confirmed": True}
+
+
+def test_chat_post_json_strips_tool_traces_and_handles_confirmation_call_id():
+    from google.adk.events import Event
+    from google.genai import types
+    import mcp_security_agent.server.routes as server_routes
+
+    svc = server_routes.BoundedSessionService(max_sessions=10)
+    captured_calls = []
+
+    class JsonRestRunner:
+        async def run_async(self, **kwargs):
+            captured_calls.append(kwargs)
+            sess = await svc.get_session(
+                app_name="mcp_security_agent",
+                user_id=kwargs["user_id"],
+                session_id=kwargs["session_id"],
+            )
+            new_msg = kwargs["new_message"]
+            await svc.append_event(
+                sess,
+                Event(author="user", invocation_id="inv-json", content=new_msg),
+            )
+            if len(captured_calls) == 1:
+                tool_call_ev = Event(
+                    author="SecurityOperationsAgent",
+                    invocation_id="inv-json",
+                    content=types.Content(
+                        role="model",
+                        parts=[
+                            types.Part(
+                                function_call=types.FunctionCall(
+                                    id="lookup-fc-1",
+                                    name="lookup_entity",
+                                    args={"entity_value": "198.51.100.10"},
+                                )
+                            )
+                        ],
+                    ),
+                )
+                tool_resp_ev = Event(
+                    author="SecurityOperationsAgent",
+                    invocation_id="inv-json",
+                    content=types.Content(
+                        role="user",
+                        parts=[
+                            types.Part(
+                                function_response=types.FunctionResponse(
+                                    id="lookup-fc-1",
+                                    name="lookup_entity",
+                                    response={"summary": "suspicious"},
+                                )
+                            )
+                        ],
+                    ),
+                )
+                confirm_ev = Event(
+                    author="SecurityOperationsAgent",
+                    invocation_id="inv-json",
+                    long_running_tool_ids={"confirm-json-1"},
+                    content=types.Content(
+                        role="model",
+                        parts=[
+                            types.Part(
+                                function_call=types.FunctionCall(
+                                    id="confirm-json-1",
+                                    name="adk_request_confirmation",
+                                    args={
+                                        "originalFunctionCall": {
+                                            "id": "orig-del-1",
+                                            "name": "delete_rule",
+                                            "args": {
+                                                "rule_id": "ru_a1b2c3d4-e5f6-4321-abcd-ef1234567890"
+                                            },
+                                        }
+                                    },
+                                )
+                            )
+                        ],
+                    ),
+                )
+                for ev in (tool_call_ev, tool_resp_ev, confirm_ev):
+                    await svc.append_event(sess, ev)
+                    yield ev
+            else:
+                final_ev = Event(
+                    author="SecurityOperationsAgent",
+                    invocation_id=kwargs.get("invocation_id") or "inv-json",
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part(text="Rule deleted after JSON confirmation.")],
+                    ),
+                )
+                await svc.append_event(sess, final_ev)
+                yield final_ev
+
+    with (
+        patch(
+            "mcp_security_agent.server.routes.get_runner",
+            return_value=JsonRestRunner(),
+        ),
+        patch(
+            "mcp_security_agent.server.routes.get_session_service",
+            return_value=svc,
+        ),
+    ):
+        client = TestClient(create_app())
+        first = client.post(
+            "/chat",
+            json={
+                "prompt": "Check IP and delete rule",
+                "session_id": "json-confirm-sess",
+                "user_id": "analyst",
+            },
+        )
+        assert first.status_code == 200
+        first_json = first.json()
+        assert "[Tool]" not in first_json["response"]
+        assert first_json["confirmation_required"] is True
+        assert first_json["tool_name"] == "delete_rule"
+        assert first_json["interrupt_id"] == "confirm-json-1"
+
+        second = client.post(
+            "/chat",
+            json={
+                "session_id": "json-confirm-sess",
+                "user_id": "analyst",
+                "confirmed": True,
+                "confirmation_call_id": "confirm-json-1",
+            },
+        )
+        assert second.status_code == 200
+        second_json = second.json()
+        assert second_json["response"] == "Rule deleted after JSON confirmation."
+        assert second_json["confirmation_required"] is False
+        assert second_json["tool_name"] is None
+        assert second_json["interrupt_id"] is None
+
+        resumed_fr = captured_calls[1]["new_message"].parts[0].function_response
+        assert resumed_fr.id == "confirm-json-1"
+        assert resumed_fr.response == {"confirmed": True}
 
 
 def test_login_and_alias_routes():
@@ -105,7 +392,6 @@ def test_login_and_alias_routes():
 
 
 def test_chat_post_sse_streaming():
-    from unittest.mock import patch
     with patch("mcp_security_agent.server.routes.get_runner", return_value=MockRunner()):
         client = TestClient(create_app())
         response = client.post(
@@ -117,7 +403,6 @@ def test_chat_post_sse_streaming():
         assert "text/event-stream" in response.headers["content-type"]
         assert "Mocked analysis response" in response.text
         assert "Stream finished." in response.text
-
 
 
 def test_no_cache_headers():
@@ -150,18 +435,45 @@ def test_no_emojis_in_web_app_and_stream():
         assert resp.status_code == 200
         for char in resp.text:
             code = ord(char)
-            if (code > 0x2000 and unicodedata.category(char) in ("So", "Sk", "Sm", "Cn")) or code > 0x1F000 or (0x2600 <= code <= 0x27BF):
-                assert char in ("`", "^", "~", "<", ">", "+", "=", "|", "•"), f"Unexpected emoji/symbol in {path}: {char!r} (U+{code:04X})"
+            if (
+                (code > 0x2000 and unicodedata.category(char) in ("So", "Sk", "Sm", "Cn"))
+                or code > 0x1F000
+                or (0x2600 <= code <= 0x27BF)
+            ):
+                assert char in (
+                    "`",
+                    "^",
+                    "~",
+                    "<",
+                    ">",
+                    "+",
+                    "=",
+                    "|",
+                    "\u2022",
+                ), f"Unexpected emoji/symbol in {path}: {char!r} (U+{code:04X})"
 
-    from unittest.mock import patch
     with patch("mcp_security_agent.server.routes.get_runner", return_value=None):
         resp = client.get("/chat", params={"message": "hello"})
         assert resp.status_code == 200
         assert "[Warning]" in resp.text
         for char in resp.text:
             code = ord(char)
-            if (code > 0x2000 and unicodedata.category(char) in ("So", "Sk", "Sm", "Cn")) or code > 0x1F000 or (0x2600 <= code <= 0x27BF):
-                assert char in ("`", "^", "~", "<", ">", "+", "=", "|", "•"), f"Unexpected emoji/symbol in stream: {char!r}"
+            if (
+                (code > 0x2000 and unicodedata.category(char) in ("So", "Sk", "Sm", "Cn"))
+                or code > 0x1F000
+                or (0x2600 <= code <= 0x27BF)
+            ):
+                assert char in (
+                    "`",
+                    "^",
+                    "~",
+                    "<",
+                    ">",
+                    "+",
+                    "=",
+                    "|",
+                    "\u2022",
+                ), f"Unexpected emoji/symbol in stream: {char!r}"
 
 
 def test_scroll_and_layout_constraints():
@@ -170,13 +482,9 @@ def test_scroll_and_layout_constraints():
     assert resp.status_code == 200
     css = resp.text
 
-    # Ensure body is constrained to viewport height to avoid pushing input offscreen
     assert "max-height: 100vh" in css or "height: 100vh" in css
-    # Ensure layout and workspace flex items allow shrinking
     assert "min-height: 0" in css
-    # Ensure messages container scrolls vertically
     assert "overflow-y: auto" in css
-    # Ensure custom scrollbar rules are defined for visibility
     assert "scrollbar-width: thin" in css
     assert "::-webkit-scrollbar" in css
 
@@ -187,8 +495,8 @@ def test_bounded_session_service_eviction():
     service = BoundedSessionService(max_sessions=10)
 
     import asyncio
+
     async def run_test():
-        # Test eviction within single user
         for i in range(12):
             await service.create_session(
                 app_name="test_app",
@@ -203,7 +511,6 @@ def test_bounded_session_service_eviction():
         assert "sess_10" in user_sessions
         assert "sess_11" in user_sessions
 
-        # Test eviction across distinct users and empty user dict pruning
         multi_service = BoundedSessionService(max_sessions=5)
         for i in range(8):
             await multi_service.create_session(
@@ -212,15 +519,12 @@ def test_bounded_session_service_eviction():
                 session_id=f"sess_{i}",
             )
         assert len(multi_service._session_order) == 5
-        # Users 0, 1, 2 should be completely evicted and pruned from test_app dict
         assert "user_0" not in multi_service.sessions["test_app"]
         assert "user_1" not in multi_service.sessions["test_app"]
         assert "user_2" not in multi_service.sessions["test_app"]
-        # Users 3..7 should remain
         for i in range(3, 8):
             assert f"user_{i}" in multi_service.sessions["test_app"]
 
-        # Test explicit session deletion and empty dict cleanup
         await multi_service.delete_session(
             app_name="test_app",
             user_id="user_7",
@@ -232,11 +536,10 @@ def test_bounded_session_service_eviction():
 
 
 def test_get_runner_agent_creation():
-    from unittest.mock import patch, MagicMock
-    import mcp_security_agent.server.routes as server_routes
+    from unittest.mock import MagicMock
     import mcp_security_agent.agent as agent_mod
+    import mcp_security_agent.server.routes as server_routes
 
-    # Reset globals for test isolation
     original_runner = server_routes._runner
     original_root = getattr(agent_mod, "_root_agent", None)
     try:
@@ -244,8 +547,12 @@ def test_get_runner_agent_creation():
         agent_mod._root_agent = None
 
         mock_agent = MagicMock()
-        with patch("mcp_security_agent.agent.create_security_agent", return_value=mock_agent) as mock_create, \
-             patch("mcp_security_agent.server.routes.Runner") as mock_runner_cls:
+        with (
+            patch(
+                "mcp_security_agent.agent.create_security_agent", return_value=mock_agent
+            ) as mock_create,
+            patch("mcp_security_agent.server.routes.Runner"),
+        ):
             runner = server_routes.get_runner()
             assert runner is not None
             mock_create.assert_called_once()
@@ -260,13 +567,12 @@ def test_dompurify_xss_protection():
     html = client.get("/index.html").text
     js = client.get("/static/app.js").text
 
-    # Verify DOMPurify is loaded in HTML before marked/app.js
     assert "dompurify" in html
-    # Verify app.js defines renderMarkdown and uses DOMPurify.sanitize
     assert "DOMPurify.sanitize" in js
     assert "renderMarkdown" in js
-    # Verify fail-closed behavior if DOMPurify is not available
     assert "failing closed to escaped text" in js
+    assert "Failed to get response from server: ${err.message}</span>" not in js
+    assert "errSpan.textContent = `Failed to get response from server: ${err.message}`" in js
 
 
 def test_frontend_streaming_abort_on_reset():
@@ -274,20 +580,40 @@ def test_frontend_streaming_abort_on_reset():
     js = client.get("/static/app.js").text
 
     assert "cancelStreaming" in js
-    # Verify newInvestigationBtn and saveUser call cancelStreaming when isStreaming is true
     assert "newInvestigationBtn.addEventListener" in js
     assert "if (isStreaming) {\n      cancelStreaming();\n    }\n    messagesContainer.innerHTML = '';" in js
     assert "if (isStreaming) {\n      cancelStreaming();\n    }\n    currentUserId = newName;" in js
 
 
+def test_frontend_inline_approve_reject_confirmation_controls():
+    client = TestClient(create_app())
+    js = client.get("/static/app.js").text
+    css = client.get("/static/app.css").text
+
+    assert "renderConfirmationControls" in js
+    assert "confirm-approve-btn" in js
+    assert "confirm-reject-btn" in js
+    assert "approveBtn.type = 'button'" in js
+    assert "rejectBtn.type = 'button'" in js
+    assert "approveBtn.textContent = 'Approve'" in js
+    assert "rejectBtn.textContent = 'Reject'" in js
+    assert "confirmation_call_id" in js
+    assert ".confirm-actions" in css
+    assert ".confirm-approve-btn" in css
+    assert ".confirm-reject-btn" in css
+    assert '[data-theme="light"] .confirm-approve-btn' in css
+    assert '[data-theme="light"] .confirm-reject-btn' in css
+
+
 def test_bounded_session_service_thread_safe_lookups():
-    from mcp_security_agent.server.routes import BoundedSessionService
     from google.adk.events import Event
     from google.genai import types
+    from mcp_security_agent.server.routes import BoundedSessionService
 
     service = BoundedSessionService(max_sessions=5)
 
     import asyncio
+
     async def run_test():
         sess = await service.create_session(
             app_name="test_app",
@@ -296,15 +622,15 @@ def test_bounded_session_service_thread_safe_lookups():
         )
         assert sess is not None
 
-        # Test get_session and list_sessions
-        retrieved = await service.get_session(app_name="test_app", user_id="alice", session_id="sess_1")
+        retrieved = await service.get_session(
+            app_name="test_app", user_id="alice", session_id="sess_1"
+        )
         assert retrieved is not None
         assert retrieved.id == "sess_1"
 
         sessions_list = await service.list_sessions(app_name="test_app", user_id="alice")
         assert len(sessions_list.sessions) == 1
 
-        # Test append_event on existing session
         test_event = Event(
             author="SecurityOperationsAgent",
             content=types.Content(role="model", parts=[types.Part(text="Test event")]),
@@ -312,10 +638,10 @@ def test_bounded_session_service_thread_safe_lookups():
         appended = await service.append_event(sess, test_event)
         assert appended == test_event
 
-        # Test append_event on non-existent / evicted session does not crash
-        dummy_sess = type("DummySession", (), {"app_name": "test_app", "user_id": "bob", "id": "sess_gone"})()
+        dummy_sess = type(
+            "DummySession", (), {"app_name": "test_app", "user_id": "bob", "id": "sess_gone"}
+        )()
         result_evicted = await service.append_event(dummy_sess, test_event)
         assert result_evicted == test_event
 
     asyncio.run(run_test())
-

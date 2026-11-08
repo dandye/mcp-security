@@ -12,20 +12,129 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import json
+from typing import Annotated, Any, Awaitable, Callable, List, Optional
+
+from logger_utils import get_logger
+from mcp.server.mcpserver import Context, MCPServer
+from mcp.types import CallToolResult, ResourceLink, TextContent, ToolAnnotations
+from pydantic import Field
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from secops_soar_mcp.phase5 import CloseCaseConfirmation, confirm_destructive_action
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import CasePriority
-from logger_utils import get_logger
-from typing import Annotated, Optional, List
-from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
+from secops_soar_mcp.utils.utils import tool_error_result
 
 logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
-    @mcp.tool()
+async def _execute_soar_call(
+    action: str,
+    coro_factory: Callable[[], Awaitable[Any]],
+) -> dict[str, Any]:
+    """Execute a SOAR HTTP call and standardize structured output and error signaling."""
+    if bindings.http_client is None:
+        return tool_error_result(  # type: ignore[return-value]
+            "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration.",
+            action=action,
+        )
+    try:
+        resp = await coro_factory()
+    except Exception as exc:
+        logger.error("Error executing SOAR action %s: %s", action, exc)
+        return tool_error_result(f"Error executing {action}: {exc}", action=action)  # type: ignore[return-value]
+
+    if resp is None:
+        return tool_error_result(  # type: ignore[return-value]
+            f"SOAR API request failed for {action}.",
+            action=action,
+        )
+    if isinstance(resp, dict):
+        if "error" in resp and isinstance(resp["error"], str):
+            details = {k: v for k, v in resp.items() if k != "error"}
+            return tool_error_result(resp["error"], **details)  # type: ignore[return-value]
+        return resp
+    if isinstance(resp, list):
+        return {"items": resp, "count": len(resp)}
+    return {"result": resp}
+
+
+_UNSAFE_RESOURCE_LINK_CHARS = frozenset("/\\%?#")
+
+
+def _is_safe_resource_segment(value: str) -> bool:
+    """Return True when value is safe to embed as a single ResourceLink URI segment."""
+    if not value or value in {".", ".."} or ".." in value:
+        return False
+    return not any(
+        ord(ch) < 32 or ord(ch) == 127 or ch.isspace() or ch in _UNSAFE_RESOURCE_LINK_CHARS
+        for ch in value
+    )
+
+
+def _build_case_resource_links(payload: dict[str, Any]) -> list[ResourceLink]:
+    """Build soar://cases/{case_id} ResourceLink items from a list_cases payload."""
+    candidates: list[Any] = []
+    for key in ("items", "cases", "value", "objectsList"):
+        val = payload.get(key)
+        if isinstance(val, list):
+            candidates = val
+            break
+
+    links: list[ResourceLink] = []
+    seen_ids: set[str] = set()
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        raw_id = (
+            item.get("id")
+            if item.get("id") is not None
+            else item.get("Id")
+            if item.get("Id") is not None
+            else item.get("identifier")
+            if item.get("identifier") is not None
+            else item.get("caseId")
+        )
+        if raw_id is None:
+            continue
+        case_id = str(raw_id).strip()
+        if not _is_safe_resource_segment(case_id) or case_id in seen_ids:
+            continue
+        seen_ids.add(case_id)
+        title = str(
+            item.get("title")
+            or item.get("Title")
+            or item.get("name")
+            or item.get("Name")
+            or f"SOAR Case {case_id}"
+        )
+        links.append(
+            ResourceLink(
+                type="resource_link",
+                uri=f"soar://cases/{case_id}",
+                name=title,
+                title=f"SOAR Case #{case_id}: {title}",
+                description=(
+                    f"Google Security Operations SOAR case {case_id} ({title})"
+                ),
+                mime_type="application/json",
+            )
+        )
+    return links
+
+
+def register_tools(mcp: MCPServer):
+    @mcp.tool(
+        title="Create SOAR Case",
+        annotations=ToolAnnotations(
+            title="Create SOAR Case",
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
     async def create_case(
         name: Annotated[str, Field(..., description="The name or title of the case.")],
         priority: Annotated[
@@ -44,22 +153,22 @@ def register_tools(mcp: FastMCP):
                     ]
                 },
             ),
-        ],
+        ] = None,
         description: Annotated[
             Optional[str],
             Field(
                 default=None,
                 description="A description for the case providing context about the security incident.",
             ),
-        ],
+        ] = None,
         environment: Annotated[
             Optional[str],
             Field(
                 default=None,
                 description="The environment for the case.",
             ),
-        ],
-    ) -> dict:
+        ] = None,
+    ) -> dict[str, Any]:
         """Create a new manual case in the Security Orchestration, Automation, and Response (SOAR) platform.
 
         This tool creates a new case for tracking a security incident, investigation,
@@ -98,16 +207,28 @@ def register_tools(mcp: FastMCP):
         - Use `update_case_description` to refine the case description with additional details.
         - Use `get_case_full_details` to verify the case was created correctly and review its full state.
         """
-        req = {"Name": name}
+        req: dict[str, Any] = {"Name": name}
         if priority is not None:
             req["Priority"] = priority
         if description is not None:
             req["Description"] = description
         if environment is not None:
             req["Environment"] = environment
-        return await bindings.http_client.post(Endpoints.BASE_CASE_URL, req=req)
+        return await _execute_soar_call(
+            "create_case",
+            lambda: bindings.http_client.post(Endpoints.BASE_CASE_URL, req=req),
+        )
 
-    @mcp.tool()
+    @mcp.tool(
+        title="List SOAR Cases",
+        annotations=ToolAnnotations(
+            title="List SOAR Cases",
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def list_cases(
         next_page_token: Annotated[
             Optional[str],
@@ -115,8 +236,9 @@ def register_tools(mcp: FastMCP):
                 default=None,
                 description="The nextPageToken to fetch the next page of results.",
             ),
-        ],
-    ) -> dict:
+        ] = None,
+        ctx: Optional[Context] = None,
+    ) -> dict[str, Any]:
         """List cases available in the Security Orchestration, Automation, and Response (SOAR) platform.
 
         In a SOAR context, a 'case' typically represents a security incident, investigation,
@@ -142,19 +264,48 @@ def register_tools(mcp: FastMCP):
         - Begin enrichment by extracting key indicators from the case summary and using appropriate SIEM, TI, or other security tool MCP integrations.
         """
         if next_page_token:
-            return await bindings.http_client.get(
-                Endpoints.BASE_CASE_URL,
-                params={"$expand": "tags", "pageToken": next_page_token},
+            payload = await _execute_soar_call(
+                "list_cases",
+                lambda: bindings.http_client.get(
+                    Endpoints.BASE_CASE_URL,
+                    params={"$expand": "tags", "pageToken": next_page_token},
+                ),
             )
-        return await bindings.http_client.get(Endpoints.BASE_CASE_URL)
+        else:
+            payload = await _execute_soar_call(
+                "list_cases",
+                lambda: bindings.http_client.get(Endpoints.BASE_CASE_URL),
+            )
 
-    @mcp.tool()
+        if isinstance(payload, CallToolResult):
+            return payload  # type: ignore[return-value]
+        if ctx is not None and isinstance(payload, dict):
+            resource_links = _build_case_resource_links(payload)
+            return CallToolResult(  # type: ignore[return-value]
+                content=[
+                    TextContent(type="text", text=json.dumps(payload, indent=2)),
+                    *resource_links,
+                ],
+                structured_content=payload,
+            )
+        return payload
+
+    @mcp.tool(
+        title="Post SOAR Case Comment",
+        annotations=ToolAnnotations(
+            title="Post SOAR Case Comment",
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
     async def post_case_comment(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         comment: Annotated[
             str, Field(..., description="The comment we wish to add to the case.")
         ],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Post a comment to a specific case within the SOAR platform.
 
         Cases are used to track security incidents and investigations. Adding comments
@@ -182,12 +333,24 @@ def register_tools(mcp: FastMCP):
         - Use comments to justify changes in case priority (using a case priority tool) or status.
         - Share key comments or findings with other relevant systems if needed (e.g., ticketing, reporting).
         """
-        return await bindings.http_client.post(
-            Endpoints.BASE_CASE_COMMENTS_URL.format(CASE_ID=case_id),
-            req={"Comment": comment},
+        return await _execute_soar_call(
+            "post_case_comment",
+            lambda: bindings.http_client.post(
+                Endpoints.BASE_CASE_COMMENTS_URL.format(CASE_ID=case_id),
+                req={"Comment": comment},
+            ),
         )
 
-    @mcp.tool()
+    @mcp.tool(
+        title="List Alerts by SOAR Case",
+        annotations=ToolAnnotations(
+            title="List Alerts by SOAR Case",
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def list_alerts_by_case(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         next_page_token: Annotated[
@@ -196,8 +359,8 @@ def register_tools(mcp: FastMCP):
                 default=None,
                 description="The nextPageToken to fetch the next page of results.",
             ),
-        ],
-    ) -> dict:
+        ] = None,
+    ) -> dict[str, Any]:
         """List the security alerts associated with a specific case ID in the SOAR platform.
 
         Alerts are notifications generated by security tools (like SIEMs, EDRs) indicating
@@ -229,15 +392,30 @@ def register_tools(mcp: FastMCP):
         - Correlate alert details with findings from other security tools (EDR, Network, Cloud, TI) via their MCP tools.
         """
         if next_page_token:
-            return await bindings.http_client.get(
-                Endpoints.BASE_ALERT_URL.format(CASE_ID=case_id),
-                params={"pageToken": next_page_token},
+            return await _execute_soar_call(
+                "list_alerts_by_case",
+                lambda: bindings.http_client.get(
+                    Endpoints.BASE_ALERT_URL.format(CASE_ID=case_id),
+                    params={"pageToken": next_page_token},
+                ),
             )
-        return await bindings.http_client.get(
-            Endpoints.BASE_ALERT_URL.format(CASE_ID=case_id)
+        return await _execute_soar_call(
+            "list_alerts_by_case",
+            lambda: bindings.http_client.get(
+                Endpoints.BASE_ALERT_URL.format(CASE_ID=case_id)
+            ),
         )
 
-    @mcp.tool()
+    @mcp.tool(
+        title="List Alert Group Identifiers by SOAR Case",
+        annotations=ToolAnnotations(
+            title="List Alert Group Identifiers by SOAR Case",
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def list_alert_group_identifiers_by_case(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         next_page_token: Annotated[
@@ -246,8 +424,8 @@ def register_tools(mcp: FastMCP):
                 default=None,
                 description="The nextPageToken to fetch the next page of results.",
             ),
-        ],
-    ):
+        ] = None,
+    ) -> dict[str, Any]:
         """List alert group identifiers associated with a specific case ID in the SOAR platform.
 
         In this SOAR implementation, alerts within a case can be grouped using identifiers,
@@ -277,15 +455,30 @@ def register_tools(mcp: FastMCP):
           (potentially from various security tools connected via MCP) if they operate on alert groups.
         """
         if next_page_token:
-            return await bindings.http_client.get(
-                Endpoints.LIST_ALERT_GROUP_IDENTIFIERS_BY_CASE.format(CASE_ID=case_id),
-                params={"pageToken": next_page_token},
+            return await _execute_soar_call(
+                "list_alert_group_identifiers_by_case",
+                lambda: bindings.http_client.get(
+                    Endpoints.LIST_ALERT_GROUP_IDENTIFIERS_BY_CASE.format(CASE_ID=case_id),
+                    params={"pageToken": next_page_token},
+                ),
             )
-        return await bindings.http_client.get(
-            Endpoints.LIST_ALERT_GROUP_IDENTIFIERS_BY_CASE.format(CASE_ID=case_id)
+        return await _execute_soar_call(
+            "list_alert_group_identifiers_by_case",
+            lambda: bindings.http_client.get(
+                Endpoints.LIST_ALERT_GROUP_IDENTIFIERS_BY_CASE.format(CASE_ID=case_id)
+            ),
         )
 
-    @mcp.tool()
+    @mcp.tool(
+        title="List Events by SOAR Alert",
+        annotations=ToolAnnotations(
+            title="List Events by SOAR Alert",
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def list_events_by_alert(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_id: Annotated[str, Field(..., description="The ID of the alert.")],
@@ -295,8 +488,8 @@ def register_tools(mcp: FastMCP):
                 default=None,
                 description="The nextPageToken to fetch the next page of results.",
             ),
-        ],
-    ):
+        ] = None,
+    ) -> dict[str, Any]:
         """List the underlying security events associated with a specific alert within a given case.
 
         Security alerts (often derived from detection rules or IoC matches) are typically
@@ -328,19 +521,34 @@ def register_tools(mcp: FastMCP):
         - Document findings in the relevant case management system using a commenting tool.
         """
         if next_page_token:
-            return await bindings.http_client.get(
+            return await _execute_soar_call(
+                "list_events_by_alert",
+                lambda: bindings.http_client.get(
+                    Endpoints.LIST_INVOLVED_EVENTS_BY_ALERT.format(
+                        CASE_ID=case_id, ALERT_ID=alert_id
+                    ),
+                    params={"pageToken": next_page_token},
+                ),
+            )
+        return await _execute_soar_call(
+            "list_events_by_alert",
+            lambda: bindings.http_client.get(
                 Endpoints.LIST_INVOLVED_EVENTS_BY_ALERT.format(
                     CASE_ID=case_id, ALERT_ID=alert_id
-                ),
-                params={"pageToken": next_page_token},
-            )
-        return await bindings.http_client.get(
-            Endpoints.LIST_INVOLVED_EVENTS_BY_ALERT.format(
-                CASE_ID=case_id, ALERT_ID=alert_id
-            )
+                )
+            ),
         )
 
-    @mcp.tool()
+    @mcp.tool(
+        title="Change SOAR Case Priority",
+        annotations=ToolAnnotations(
+            title="Change SOAR Case Priority",
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def change_case_priority(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         case_priority: Annotated[
@@ -359,7 +567,7 @@ def register_tools(mcp: FastMCP):
                 ]
             }
         )],
-    ):
+    ) -> dict[str, Any]:
         """Change the priority level of a specific case in the SOAR platform.
 
         Case priority (e.g., PriorityUnspecified, PriorityInfo, PriorityLow, PriorityMedium,
@@ -389,12 +597,24 @@ def register_tools(mcp: FastMCP):
         - Document the reason for the priority change using a case commenting tool.
         - Adjust investigation efforts based on the new priority level.
         """
-        return await bindings.http_client.patch(
-            Endpoints.BASE_SPECIFIC_CASE_URL.format(CASE_ID=case_id),
-            req={"Priority": case_priority},
+        return await _execute_soar_call(
+            "change_case_priority",
+            lambda: bindings.http_client.patch(
+                Endpoints.BASE_SPECIFIC_CASE_URL.format(CASE_ID=case_id),
+                req={"Priority": case_priority},
+            ),
         )
 
-    @mcp.tool()
+    @mcp.tool(
+        title="Update SOAR Case Description",
+        annotations=ToolAnnotations(
+            title="Update SOAR Case Description",
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def update_case_description(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         description: Annotated[
@@ -404,7 +624,7 @@ def register_tools(mcp: FastMCP):
                 description="The new description for the case.",
             ),
         ],
-    ):
+    ) -> dict[str, Any]:
         """Update the description of a specific case in the SOAR platform.
 
         This tool replaces the existing description of a case with a new one. Case
@@ -440,12 +660,24 @@ def register_tools(mcp: FastMCP):
         - Use `get_case_full_details` to verify the description was updated correctly.
         - Continue the investigation using other available tools.
         """
-        return await bindings.http_client.post(
-            Endpoints.CHANGE_CASE_DESCRIPTION,
-            req={"CaseId": case_id, "Description": description},
+        return await _execute_soar_call(
+            "update_case_description",
+            lambda: bindings.http_client.post(
+                Endpoints.CHANGE_CASE_DESCRIPTION,
+                req={"CaseId": case_id, "Description": description},
+            ),
         )
 
-    @mcp.tool()
+    @mcp.tool(
+        title="Close SOAR Case",
+        annotations=ToolAnnotations(
+            title="Close SOAR Case",
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def close_case(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         root_cause: Annotated[
@@ -479,8 +711,9 @@ def register_tools(mcp: FastMCP):
                 default=None,
                 description="Optional comma-separated tags to apply to the case when closing.",
             ),
-        ],
-    ):
+        ] = None,
+        ctx: Optional[Context] = None,
+    ) -> dict[str, Any]:
         """Close a specific case in the SOAR platform.
 
         Closing a case (with a reason such as Malicious, NotMalicious, Maintenance, or
@@ -517,17 +750,58 @@ def register_tools(mcp: FastMCP):
         - Use `get_case_full_details` to confirm the closure details were recorded correctly.
         - Document any remaining findings or remediation steps using a case commenting tool.
         """
-        req = {
+        outcome = await confirm_destructive_action(
+            ctx,
+            action_name="close_case",
+            message=(
+                f"Confirm closing SOAR case '{case_id}' with reason='{reason}' "
+                f"and root_cause='{root_cause}'."
+            ),
+            schema=CloseCaseConfirmation,
+        )
+        if outcome.input_required is not None:
+            return outcome.input_required  # type: ignore[return-value]
+        if not outcome.proceed:
+            return {
+                **(outcome.cancelled_response or {}),
+                "case_id": case_id,
+                "closed": False,
+            }
+
+        effective_reason = (
+            outcome.data.close_reason.strip()
+            if outcome.data is not None and outcome.data.close_reason.strip()
+            else reason
+        )
+        effective_root_cause = (
+            outcome.data.root_cause.strip()
+            if outcome.data is not None and outcome.data.root_cause.strip()
+            else root_cause
+        )
+
+        req: dict[str, Any] = {
             "CaseId": case_id,
-            "RootCause": root_cause,
+            "RootCause": effective_root_cause,
             "Comment": comment,
-            "Reason": reason,
+            "Reason": effective_reason,
         }
         if tags is not None:
             req["Tags"] = tags
-        return await bindings.http_client.post(Endpoints.CLOSE_CASE, req=req)
+        return await _execute_soar_call(
+            "close_case",
+            lambda: bindings.http_client.post(Endpoints.CLOSE_CASE, req=req),
+        )
 
-    @mcp.tool()
+    @mcp.tool(
+        title="Assign SOAR Case",
+        annotations=ToolAnnotations(
+            title="Assign SOAR Case",
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def assign_case(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         user: Annotated[
@@ -537,7 +811,7 @@ def register_tools(mcp: FastMCP):
                 description="The username or email of the user to assign to the case.",
             ),
         ],
-    ):
+    ) -> dict[str, Any]:
         """Assign a user to a specific case in the SOAR platform.
 
         Case assignment establishes ownership for the investigation, which is essential
@@ -566,12 +840,24 @@ def register_tools(mcp: FastMCP):
         - Use `get_case_full_details` to verify the assignment was applied correctly.
         - Adjust investigation efforts based on the assigned analyst's expertise.
         """
-        return await bindings.http_client.post(
-            Endpoints.ASSIGN_USER_TO_CASE,
-            req={"CaseId": case_id, "User": user},
+        return await _execute_soar_call(
+            "assign_case",
+            lambda: bindings.http_client.post(
+                Endpoints.ASSIGN_USER_TO_CASE,
+                req={"CaseId": case_id, "User": user},
+            ),
         )
 
-    @mcp.tool()
+    @mcp.tool(
+        title="Change SOAR Case Stage",
+        annotations=ToolAnnotations(
+            title="Change SOAR Case Stage",
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def change_case_stage(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         stage: Annotated[
@@ -581,7 +867,7 @@ def register_tools(mcp: FastMCP):
                 description="The new stage for the case. Stages are configurable per deployment (e.g., 'Triage', 'Investigation', 'Containment', 'Remediation').",
             ),
         ],
-    ):
+    ) -> dict[str, Any]:
         """Change the workflow stage of a specific case in the SOAR platform.
 
         Case stages (e.g., Triage, Investigation, Containment, Eradication, Recovery)
@@ -612,12 +898,24 @@ def register_tools(mcp: FastMCP):
         - Document the reason for the stage transition using a case commenting tool.
         - Adjust investigation efforts based on the new stage requirements.
         """
-        return await bindings.http_client.post(
-            Endpoints.CHANGE_CASE_STAGE,
-            req={"CaseId": case_id, "Stage": stage},
+        return await _execute_soar_call(
+            "change_case_stage",
+            lambda: bindings.http_client.post(
+                Endpoints.CHANGE_CASE_STAGE,
+                req={"CaseId": case_id, "Stage": stage},
+            ),
         )
 
-    @mcp.tool()
+    @mcp.tool(
+        title="Add Tag to SOAR Case",
+        annotations=ToolAnnotations(
+            title="Add Tag to SOAR Case",
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def add_case_tag(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         tag: Annotated[
@@ -627,7 +925,7 @@ def register_tools(mcp: FastMCP):
                 description="The tag to add to the case.",
             ),
         ],
-    ):
+    ) -> dict[str, Any]:
         """Add a tag to a specific case in the SOAR platform.
 
         Tags (e.g., "phishing", "ransomware", "insider-threat") are descriptive labels
@@ -657,12 +955,24 @@ def register_tools(mcp: FastMCP):
         - Document the reason for tagging using a case commenting tool.
         - Use `get_case_full_details` to verify the tag was applied correctly.
         """
-        return await bindings.http_client.post(
-            Endpoints.ADD_CASE_TAG,
-            req={"CaseId": case_id, "Tag": tag},
+        return await _execute_soar_call(
+            "add_case_tag",
+            lambda: bindings.http_client.post(
+                Endpoints.ADD_CASE_TAG,
+                req={"CaseId": case_id, "Tag": tag},
+            ),
         )
 
-    @mcp.tool()
+    @mcp.tool(
+        title="Remove Tag from SOAR Case",
+        annotations=ToolAnnotations(
+            title="Remove Tag from SOAR Case",
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def remove_case_tag(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         tag: Annotated[
@@ -672,7 +982,7 @@ def register_tools(mcp: FastMCP):
                 description="The tag to remove from the case.",
             ),
         ],
-    ):
+    ) -> dict[str, Any]:
         """Remove a tag from a specific case in the SOAR platform.
 
         Tags are descriptive labels applied to cases for categorization and filtering.
@@ -700,18 +1010,30 @@ def register_tools(mcp: FastMCP):
         - Document the reason for the tag removal using a case commenting tool.
         - Use `add_case_tag` to apply a corrected tag if needed.
         """
-        return await bindings.http_client.post(
-            Endpoints.REMOVE_CASE_TAG,
-            req={"CaseId": case_id, "Tag": tag},
+        return await _execute_soar_call(
+            "remove_case_tag",
+            lambda: bindings.http_client.post(
+                Endpoints.REMOVE_CASE_TAG,
+                req={"CaseId": case_id, "Tag": tag},
+            ),
         )
 
-    @mcp.tool()
+    @mcp.tool(
+        title="Get Entities by Alert Group Identifiers",
+        annotations=ToolAnnotations(
+            title="Get Entities by Alert Group Identifiers",
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def get_entities_by_alert_group_identifiers(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
         alert_group_identifiers: Annotated[
             List[str], Field(..., description="Identifiers for the alert groups.")
         ],
-    ):
+    ) -> dict[str, Any]:
         """Retrieve entities (e.g., IP addresses, hostnames, users) involved in specific alert groups within a case.
 
         Understanding which entities are associated with alerts is fundamental for incident
@@ -744,12 +1066,24 @@ def register_tools(mcp: FastMCP):
         - Use threat intelligence tools to enrich the identified entities.
         - Use the entity list as input for targeted response actions via SOAR playbooks or other security tool integrations (e.g., EDR, firewall).
         """
-        return await bindings.http_client.post(
-            Endpoints.GET_ALERT_GROUP_IDENTIFIERS_ENTITIES,
-            req={"caseId": case_id, "alertGroupIdentifiers": alert_group_identifiers},
+        return await _execute_soar_call(
+            "get_entities_by_alert_group_identifiers",
+            lambda: bindings.http_client.post(
+                Endpoints.GET_ALERT_GROUP_IDENTIFIERS_ENTITIES,
+                req={"caseId": case_id, "alertGroupIdentifiers": alert_group_identifiers},
+            ),
         )
 
-    @mcp.tool()
+    @mcp.tool(
+        title="Get SOAR Entity Details",
+        annotations=ToolAnnotations(
+            title="Get SOAR Entity Details",
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def get_entity_details(
         entity_identifier: Annotated[
             str, Field(..., description="The identifier of the entity.")
@@ -758,7 +1092,7 @@ def register_tools(mcp: FastMCP):
         entity_environment: Annotated[
             str, Field(..., description="The environment of the entity.")
         ],
-    ):
+    ) -> dict[str, Any]:
         """Fetch detailed information about a specific entity known to the SOAR platform.
 
         Entities (like IPs, domains, users, assets) are central to security investigations.
@@ -791,18 +1125,30 @@ def register_tools(mcp: FastMCP):
         - Document key details using a case commenting tool.
         - Correlate with information from other security tools (EDR, Network, Cloud, TI) via their MCP tools.
         """
-        return await bindings.http_client.post(
-            Endpoints.FETCH_FULL_UNIQUE_ENTITY,
-            req={
-                "EntityIdentifier": entity_identifier,
-                "EntityType": entity_type,
-                "EntityEnvironment": entity_environment,
-                "LastCaseType": 0,
-                "CaseDistributionType": 0,
-            },
+        return await _execute_soar_call(
+            "get_entity_details",
+            lambda: bindings.http_client.post(
+                Endpoints.FETCH_FULL_UNIQUE_ENTITY,
+                req={
+                    "EntityIdentifier": entity_identifier,
+                    "EntityType": entity_type,
+                    "EntityEnvironment": entity_environment,
+                    "LastCaseType": 0,
+                    "CaseDistributionType": 0,
+                },
+            ),
         )
 
-    @mcp.tool()
+    @mcp.tool(
+        title="Search SOAR Entities",
+        annotations=ToolAnnotations(
+            title="Search SOAR Entities",
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def search_entity(
         term: Annotated[
             Optional[str],
@@ -810,50 +1156,50 @@ def register_tools(mcp: FastMCP):
                 default=None,
                 description="The term to search for",
             ),
-        ],
+        ] = None,
         type: Annotated[
             Optional[List[str]],
             Field(
                 default=None,
                 description="The type of the entity",
             ),
-        ],
+        ] = None,
         is_suspicious: Annotated[
             Optional[bool],
             Field(
                 default=None,
                 description="A boolean that states if the entity is suspicious",
             ),
-        ],
+        ] = None,
         is_internal_asset: Annotated[
             Optional[bool],
             Field(
                 default=None,
                 description="A boolean that states if the entity is an internal asset",
             ),
-        ],
+        ] = None,
         is_enriched: Annotated[
             Optional[bool],
             Field(
                 default=None,
                 description="A boolean that states if the entity is enriched",
             ),
-        ],
+        ] = None,
         network_name: Annotated[
             Optional[List[str]],
             Field(
                 default=None,
                 description="The network name",
             ),
-        ],
+        ] = None,
         environment_name: Annotated[
             Optional[List[str]],
             Field(
                 default=None,
                 description="The environment name",
             ),
-        ],
-    ):
+        ] = None,
+    ) -> dict[str, Any]:
         """Search for entities within the SOAR platform based on various criteria.
 
         This tool provides a flexible way to find entities (assets, users, IOCs, etc.)
@@ -889,23 +1235,35 @@ def register_tools(mcp: FastMCP):
         - Use SIEM entity lookup tools for broader historical context on interesting entities.
         - Use threat intelligence tools to enrich findings.
         """
-        return await bindings.http_client.post(
-            Endpoints.SEARCH_ENTITY,
-            req={
-                "Term": term,
-                "Type": type,
-                "IsSuspicious": is_suspicious,
-                "IsInternalAsset": is_internal_asset,
-                "IsEnriched": is_enriched,
-                "NetworkName": network_name,
-                "EnvironmentName": environment_name,
-            },
+        return await _execute_soar_call(
+            "search_entity",
+            lambda: bindings.http_client.post(
+                Endpoints.SEARCH_ENTITY,
+                req={
+                    "Term": term,
+                    "Type": type,
+                    "IsSuspicious": is_suspicious,
+                    "IsInternalAsset": is_internal_asset,
+                    "IsEnriched": is_enriched,
+                    "NetworkName": network_name,
+                    "EnvironmentName": environment_name,
+                },
+            ),
         )
 
-    @mcp.tool()
+    @mcp.tool(
+        title="Get SOAR Case Full Details",
+        annotations=ToolAnnotations(
+            title="Get SOAR Case Full Details",
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
     async def get_case_full_details(
         case_id: Annotated[str, Field(..., description="The ID of the case.")],
-    ):
+    ) -> dict[str, Any]:
         """Retrieve comprehensive details for a specific case by aggregating its core information, associated alerts, and comments.
 
         This tool provides a consolidated view of a security case by fetching its primary details
@@ -939,16 +1297,43 @@ def register_tools(mcp: FastMCP):
         - Document investigation progress using a case commenting tool.
         - Consider adjusting case priority using a priority management tool based on findings.
         """
-        case_coro = bindings.http_client.get(
-            Endpoints.BASE_SPECIFIC_CASE_URL.format(CASE_ID=case_id)
-        )
-        case_alerts_coro = bindings.http_client.get(
-            Endpoints.BASE_ALERT_URL.format(CASE_ID=case_id)
-        )
-        case_comments_coro = bindings.http_client.get(
-            Endpoints.BASE_CASE_COMMENTS_URL.format(CASE_ID=case_id)
-        )
-        results = await asyncio.gather(case_coro, case_alerts_coro, case_comments_coro)
+        if bindings.http_client is None:
+            return tool_error_result(  # type: ignore[return-value]
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration.",
+                action="get_case_full_details",
+                case_id=case_id,
+            )
+        try:
+            case_coro = bindings.http_client.get(
+                Endpoints.BASE_SPECIFIC_CASE_URL.format(CASE_ID=case_id)
+            )
+            case_alerts_coro = bindings.http_client.get(
+                Endpoints.BASE_ALERT_URL.format(CASE_ID=case_id)
+            )
+            case_comments_coro = bindings.http_client.get(
+                Endpoints.BASE_CASE_COMMENTS_URL.format(CASE_ID=case_id)
+            )
+            results = await asyncio.gather(
+                case_coro, case_alerts_coro, case_comments_coro
+            )
+        except Exception as exc:
+            logger.error("Error fetching full details for case %s: %s", case_id, exc)
+            return tool_error_result(  # type: ignore[return-value]
+                f"Error fetching full details for case {case_id}: {exc}",
+                case_id=case_id,
+            )
+        if results[0] is None:
+            return tool_error_result(  # type: ignore[return-value]
+                f"Failed to retrieve case details for case_id '{case_id}'.",
+                case_id=case_id,
+            )
+        if isinstance(results[0], dict) and isinstance(results[0].get("error"), str):
+            details = {k: v for k, v in results[0].items() if k != "error"}
+            return tool_error_result(  # type: ignore[return-value]
+                results[0]["error"],
+                case_id=case_id,
+                **details,
+            )
         return {
             "case_details": results[0],
             "case_alerts": results[1],

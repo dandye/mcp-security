@@ -12,25 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from secops_soar_mcp import bindings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from secops_soar_mcp.utils.consts import Endpoints
+from secops_soar_mcp.utils.utils import marketplace_error_result, normalize_marketplace_response
 from secops_soar_mcp.utils.models import ApiManualActionDataModel, EmailContent, TargetEntity
 import json
-from typing import Optional, List, Dict, Union, Annotated
+from typing import Any, Optional, List, Dict, Union, Annotated
 from pydantic import Field
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
+from logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
-def register_tools(mcp: FastMCP):
+def register_tools(mcp: MCPServer):
     # This function registers all tools (actions) for the RSAArcher integration.
 
-    @mcp.tool()
-    async def rsa_archer_add_incident_journal_entry(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], destination_content_id: Annotated[str, Field(..., description="Specify a content id of the security incident to which you want to add journal entry.")], text: Annotated[str, Field(..., description="Specify the text for the journal entry.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Archer: Add Incident Journal Entry',
+        annotations=ToolAnnotations(
+            title='RSA Archer: Add Incident Journal Entry',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_archer_add_incident_journal_entry(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], destination_content_id: Annotated[str, Field(..., description="Specify a content id of the security incident to which you want to add journal entry.")], text: Annotated[str, Field(..., description="Specify the text for the journal entry.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Add a journal entry to the Security Incident in RSA Archer.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -44,10 +63,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -57,15 +73,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="RSAArcher")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for RSAArcher: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for RSAArcher: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Destination Content ID"] = destination_content_id
@@ -92,21 +112,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "RSAArcher_Add Incident Journal Entry")
             except Exception as e:
-                print(f"Error executing action RSAArcher_Add Incident Journal Entry for RSAArcher: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action RSAArcher_Add Incident Journal Entry for RSAArcher: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for RSAArcher")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for RSAArcher")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def rsa_archer_update_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], content_id: Annotated[str, Field(..., description="Content Id of the incident to update.")], application_name: Annotated[str, Field(default=None, description="Specify an application name for the incident. Default: Incidents.")], incident_summary: Annotated[str, Field(default=None, description="The new summary of the incident.")], incident_details: Annotated[str, Field(default=None, description="The new details (decsription) of the incident.")], incident_owner: Annotated[str, Field(default=None, description="The new owner of the incident.")], incident_status: Annotated[str, Field(default=None, description="The new status of the incident.")], priority: Annotated[str, Field(default=None, description="The new priority of the incident.")], category: Annotated[str, Field(default=None, description="The new category of the incident.")], custom_fields: Annotated[str, Field(default=None, description="Specify a JSON object of fields that need to be updated. Example: {\u201cCategory\u201d:\u201cMalware\u201d}.")], custom_mapping_file: Annotated[str, Field(default=None, description="Specify an absolute path to the file that contains all of the required mapping. If \u201cRemote File\u201c is enabled, then provide a URL that contains the mapping file. Please refer to action documentation for the additional information.")], remote_file: Annotated[bool, Field(default=None, description="If enabled, action will treat value provided in \u201cCustom Mapping File\u201c as a URL and try to fetch a file from it.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Archer: Update Incident',
+        annotations=ToolAnnotations(
+            title='RSA Archer: Update Incident',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_archer_update_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], content_id: Annotated[str, Field(..., description="Content Id of the incident to update.")], application_name: Annotated[Optional[str], Field(default=None, description="Specify an application name for the incident. Default: Incidents.")], incident_summary: Annotated[Optional[str], Field(default=None, description="The new summary of the incident.")], incident_details: Annotated[Optional[str], Field(default=None, description="The new details (decsription) of the incident.")], incident_owner: Annotated[Optional[str], Field(default=None, description="The new owner of the incident.")], incident_status: Annotated[Optional[str], Field(default=None, description="The new status of the incident.")], priority: Annotated[Optional[str], Field(default=None, description="The new priority of the incident.")], category: Annotated[Optional[str], Field(default=None, description="The new category of the incident.")], custom_fields: Annotated[Optional[str], Field(default=None, description="Specify a JSON object of fields that need to be updated. Example: {\u201cCategory\u201d:\u201cMalware\u201d}.")], custom_mapping_file: Annotated[Optional[str], Field(default=None, description="Specify an absolute path to the file that contains all of the required mapping. If \u201cRemote File\u201c is enabled, then provide a URL that contains the mapping file. Please refer to action documentation for the additional information.")], remote_file: Annotated[Optional[bool], Field(default=None, description="If enabled, action will treat value provided in \u201cCustom Mapping File\u201c as a URL and try to fetch a file from it.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Update an incident
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -120,10 +154,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -133,15 +164,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="RSAArcher")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for RSAArcher: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for RSAArcher: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Content ID"] = content_id
@@ -187,21 +222,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "RSAArcher_Update Incident")
             except Exception as e:
-                print(f"Error executing action RSAArcher_Update Incident for RSAArcher: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action RSAArcher_Update Incident for RSAArcher: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for RSAArcher")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for RSAArcher")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def rsa_archer_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Archer: Ping',
+        annotations=ToolAnnotations(
+            title='RSA Archer: Ping',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_archer_ping(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Test Connectivity
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -215,10 +264,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -228,15 +274,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="RSAArcher")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for RSAArcher: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for RSAArcher: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
     
@@ -261,21 +311,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "RSAArcher_Ping")
             except Exception as e:
-                print(f"Error executing action RSAArcher_Ping for RSAArcher: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action RSAArcher_Ping for RSAArcher: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for RSAArcher")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for RSAArcher")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def rsa_archer_get_incident_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], content_id: Annotated[str, Field(..., description="Specify ID of the content for which you want to retrieve details.")], application_name: Annotated[str, Field(default=None, description="Specify an application name for the incident. Default: Incidents.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Archer: Get Incident Details',
+        annotations=ToolAnnotations(
+            title='RSA Archer: Get Incident Details',
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_archer_get_incident_details(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], content_id: Annotated[str, Field(..., description="Specify ID of the content for which you want to retrieve details.")], application_name: Annotated[Optional[str], Field(default=None, description="Specify an application name for the incident. Default: Incidents.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Retrieve information about the incident from RSA Archer.
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -289,10 +353,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -302,15 +363,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="RSAArcher")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for RSAArcher: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for RSAArcher: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             script_params["Content ID"] = content_id
@@ -338,21 +403,35 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "RSAArcher_Get Incident Details")
             except Exception as e:
-                print(f"Error executing action RSAArcher_Get Incident Details for RSAArcher: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action RSAArcher_Get Incident Details for RSAArcher: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for RSAArcher")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for RSAArcher")
+            return marketplace_error_result("No active instance found.")
 
-    @mcp.tool()
-    async def rsa_archer_create_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_summary: Annotated[str, Field(default=None, description="The summary of the new incident.")], application_name: Annotated[str, Field(default=None, description="Specify an application name for the incident. Default: Incidents.")], incident_details: Annotated[str, Field(default=None, description="The details (description) of the new incident.")], incident_owner: Annotated[str, Field(default=None, description="The owner of the new incident.")], incident_status: Annotated[str, Field(default=None, description="The status of the new incident.")], priority: Annotated[str, Field(default=None, description="The priority of the new incident.")], category: Annotated[str, Field(default=None, description="The category of the new incident.")], custom_fields: Annotated[str, Field(default=None, description="Specify a JSON object of fields that need to be used, when creating an incident . Example: {\u201cCategory\u201d:\u201cMalware\u201d}.")], custom_mapping_file: Annotated[str, Field(default=None, description="Specify an absolute path to the file that contains all of the required mapping. If \u201cRemote File\u201c is enabled, then provide a URL that contains the mapping file. Please refer to action documentation for the additional information.")], remote_file: Annotated[bool, Field(default=None, description="If enabled, action will treat value provided in \u201cCustom Mapping File\u201c as a URL and try to fetch a file from it.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict:
+    @mcp.tool(
+        title='RSA Archer: Create Incident',
+        annotations=ToolAnnotations(
+            title='RSA Archer: Create Incident',
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=False,
+        ),
+    )
+    async def rsa_archer_create_incident(case_id: Annotated[str, Field(..., description="The ID of the case.")], alert_group_identifiers: Annotated[List[str], Field(..., description="Identifiers for the alert groups.")], incident_summary: Annotated[Optional[str], Field(default=None, description="The summary of the new incident.")], application_name: Annotated[Optional[str], Field(default=None, description="Specify an application name for the incident. Default: Incidents.")], incident_details: Annotated[Optional[str], Field(default=None, description="The details (description) of the new incident.")], incident_owner: Annotated[Optional[str], Field(default=None, description="The owner of the new incident.")], incident_status: Annotated[Optional[str], Field(default=None, description="The status of the new incident.")], priority: Annotated[Optional[str], Field(default=None, description="The priority of the new incident.")], category: Annotated[Optional[str], Field(default=None, description="The category of the new incident.")], custom_fields: Annotated[Optional[str], Field(default=None, description="Specify a JSON object of fields that need to be used, when creating an incident . Example: {\u201cCategory\u201d:\u201cMalware\u201d}.")], custom_mapping_file: Annotated[Optional[str], Field(default=None, description="Specify an absolute path to the file that contains all of the required mapping. If \u201cRemote File\u201c is enabled, then provide a URL that contains the mapping file. Please refer to action documentation for the additional information.")], remote_file: Annotated[Optional[bool], Field(default=None, description="If enabled, action will treat value provided in \u201cCustom Mapping File\u201c as a URL and try to fetch a file from it.")], target_entities: Annotated[List[TargetEntity], PydanticListField(TargetEntity, description="Optional list of specific target entities (Identifier, EntityType) to run the action on.")], scope: Annotated[str, Field(default="All entities", description="Defines the scope for the action.")]) -> dict[str, Any]:
         """Create a new incident
 
         Returns:
             dict: A dictionary containing the result of the action execution.
         """
+        if bindings.http_client is None:
+            return marketplace_error_result(
+                "SOAR HTTP client is not initialized. Verify SOAR_URL and SOAR_APP_KEY configuration."
+            )
+
         final_target_entities: Optional[List[TargetEntity]] = None
         final_scope: Optional[str] = None
         is_predefined_scope: Optional[bool] = None
@@ -366,10 +445,7 @@ def register_tools(mcp: FastMCP):
             # Check if the provided scope is valid
             if scope not in bindings.valid_scopes:
                 allowed_values_str = ", ".join(sorted(list(bindings.valid_scopes)))
-                return {
-                    "Status": "Failed",
-                    "Message": f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}",
-                }
+                return marketplace_error_result(f"Invalid scope '{scope}'. Allowed values are: {allowed_values_str}")
             final_target_entities = [] # Pass empty list for entities when using scope
             final_scope = scope
             is_predefined_scope = True
@@ -379,15 +455,19 @@ def register_tools(mcp: FastMCP):
             instance_response = await bindings.http_client.get(
                 Endpoints.LIST_INTEGRATION_INSTANCES.format(INTEGRATION_NAME="RSAArcher")
             )
+            if not isinstance(instance_response, dict):
+                return marketplace_error_result(
+                    "Failed to fetch integration instances from SOAR API."
+                )
             instances = instance_response.get("integration_instances", [])
         except Exception as e:
-            print(f"Error fetching instance for RSAArcher: {e}")
-            return {"Status": "Failed", "Message": f"Error fetching instance: {e}"}
+            logger.error("Error fetching instance for RSAArcher: %s", e)
+            return marketplace_error_result(f"Error fetching instance: {e}")
     
         if instances:
             instance_identifier = instances[0].get("identifier")
             if not instance_identifier:
-                return {"Status": "Failed", "Message": "Instance found but identifier is missing."}
+                return marketplace_error_result("Instance found but identifier is missing.")
     
             script_params = {}
             if incident_summary is not None:
@@ -432,10 +512,10 @@ def register_tools(mcp: FastMCP):
                     Endpoints.EXECUTE_MANUAL_ACTION,
                     req=action_data.model_dump()
                 )
-                return execution_response
+                return normalize_marketplace_response(execution_response, "RSAArcher_Create Incident")
             except Exception as e:
-                print(f"Error executing action RSAArcher_Create Incident for RSAArcher: {e}")
-                return {"Status": "Failed", "Message": f"Error executing action: {e}"}
+                logger.error("Error executing action RSAArcher_Create Incident for RSAArcher: %s", e)
+                return marketplace_error_result(f"Error executing action: {e}")
         else:
-            print(f"Warning: No active integration instance found for RSAArcher")
-            return {"Status": "Failed", "Message": "No active instance found."}
+            logger.warning("Warning: No active integration instance found for RSAArcher")
+            return marketplace_error_result("No active instance found.")

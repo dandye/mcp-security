@@ -1,6 +1,18 @@
 # Google Cloud Security Command Center (SCC) MCP Server
 
-This is an MCP (Model Context Protocol) server for interacting with Google Cloud Security Command Center (SCC) and Cloud Asset Inventory (CAI).
+This is a Model Context Protocol (MCP `2026-07-28`, `mcp>=2.3.0`) server (`scc-mcp` `0.3.0`) for interacting with Google Cloud Security Command Center (SCC) and Cloud Asset Inventory (CAI).
+
+## MCP 2026-07-28 Capabilities
+
+- **Transports**: Local `stdio` (default) and stateless single-exchange `streamable-http` (`--transport streamable-http --host 127.0.0.1 --port 8080`) with `server/discover`, `/healthz`, and `/readyz`.
+- **Discovery Caching (`SEP-2549`) and OpenTelemetry**: `CacheHint` TTLs via `MCP_TOOLS_CACHE_TTL_MS` and `OpenTelemetryMiddleware` span instrumentation (`OTEL_EXPORTER_OTLP_ENDPOINT`).
+- **Annotations and Typed Envelopes**: 100% `title` + `ToolAnnotations` coverage, typed `structuredContent`, and `is_error=True` operational failure signaling.
+- **Resources and `ResourceLink` Compaction**: Exposes `scc://info/capabilities` and `scc://findings/{organization_id}/{finding_id}` under `DEFAULT_RESOURCE_SECURITY`, plus `ResourceLink` summaries on `top_vulnerability_findings`.
+- **SOC Prompts**: `@server.prompt()` workflow `triage_cloud_finding_exposure(finding_id, organization_id)`.
+- **Stateless MRTR Elicitation**: `AESGCMRequestStateCodec` confirmation (`MCP_ELICIT_DESTRUCTIVE`, `MCP_UNATTENDED_DESTRUCTIVE_POLICY`, `MCP_REQUEST_STATE_SECRET`) on `set_finding_mute`.
+- **OAuth 2.1 Resource Server**: Optional RFC 9728 Protected Resource Metadata and JWT/JWKS validation (`MCP_OAUTH_ISSUER_URL`, `MCP_RESOURCE_SERVER_URL`, `MCP_OAUTH_JWKS_URL`, `MCP_OAUTH_JWKS_JSON`, `MCP_REQUIRED_SCOPES`).
+- **Dark-Mode MCP App**: Interactive cloud posture finding card at `ui://scc/finding-card.html` (opt out via `--disable-apps` or `MCP_ENABLE_APPS=false`).
+- **Official MCP Registry**: Manifest published at `server/scc/server.json` (`io.github.google/scc-mcp`).
 
 ## Features
 
@@ -92,6 +104,16 @@ Add the following configuration to your MCP client's settings file:
     }
   }
 }
+```
+
+### Running Over Stateless `streamable-http`
+
+```bash
+MCP_HOST="127.0.0.1"
+MCP_PORT="8080"
+
+MCP_ELICIT_DESTRUCTIVE="true" \
+scc_mcp --transport streamable-http --host "$MCP_HOST" --port "$MCP_PORT"
 ```
 
 ### Authentication
