@@ -30,18 +30,52 @@ def test_app_name():
     assert response.json() == {"app_name": "Google Security Agent"}
 
 
-def test_info():
-    client = TestClient(create_app())
-    response = client.get("/info")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["version"] == "0.3.0"
-    assert "model" in data
-    assert "location" in data
-    assert "confirm_destructive_tools" in data
-    assert "tools" in data
-    assert "user" in data
-    assert bool(data["user"])
+def test_info(monkeypatch):
+    import mcp_security_agent.server.routes as server_routes
+    from mcp_security_agent.config import AgentSettings
+
+    monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+    monkeypatch.delenv("GCP_PROJECT_ID", raising=False)
+    custom_settings = AgentSettings(
+        _env_file=None,
+        google_cloud_project="secops-info-proj",
+        load_secops_mcp=True,
+        secops_mcp_url="https://us-chronicle.googleapis.com/mcp",
+        load_scc_mcp=True,
+        load_gti_mcp=False,
+        load_secops_soar_mcp=False,
+        mcp_tool_name_prefix_enabled=True,
+        mcp_use_resources=True,
+        confirm_destructive_tools=True,
+        elicitation_policy="decline",
+    )
+    with patch.object(server_routes, "get_settings", return_value=custom_settings):
+        client = TestClient(create_app())
+        response = client.get("/info")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["version"] == "0.3.0"
+        assert data["model"] == custom_settings.google_model
+        assert data["location"] == custom_settings.google_cloud_location
+        assert data["project_id"] == "secops-info-proj"
+        assert data["tool_name_prefix_enabled"] is True
+        assert data["use_mcp_resources"] is True
+        assert data["confirm_destructive_tools"] is True
+        assert data["elicitation_policy"] == "decline"
+        assert data["tools"] == {
+            "secops": True,
+            "scc": True,
+            "gti": False,
+            "soar": False,
+        }
+        assert data["transports"] == {
+            "secops": "streamable-http",
+            "scc": "stdio",
+            "gti": "disabled",
+            "soar": "disabled",
+        }
+        assert "user" in data
+        assert bool(data["user"])
 
 
 def test_root():
@@ -207,6 +241,147 @@ def test_chat_destructive_confirmation_interrupt_and_resume():
         assert fr.id == "confirm-fc-1"
         assert fr.name == "adk_request_confirmation"
         assert fr.response == {"confirmed": True}
+
+
+def test_chat_post_json_strips_tool_traces_and_handles_confirmation_call_id():
+    from google.adk.events import Event
+    from google.genai import types
+    import mcp_security_agent.server.routes as server_routes
+
+    svc = server_routes.BoundedSessionService(max_sessions=10)
+    captured_calls = []
+
+    class JsonRestRunner:
+        async def run_async(self, **kwargs):
+            captured_calls.append(kwargs)
+            sess = await svc.get_session(
+                app_name="mcp_security_agent",
+                user_id=kwargs["user_id"],
+                session_id=kwargs["session_id"],
+            )
+            new_msg = kwargs["new_message"]
+            await svc.append_event(
+                sess,
+                Event(author="user", invocation_id="inv-json", content=new_msg),
+            )
+            if len(captured_calls) == 1:
+                tool_call_ev = Event(
+                    author="SecurityOperationsAgent",
+                    invocation_id="inv-json",
+                    content=types.Content(
+                        role="model",
+                        parts=[
+                            types.Part(
+                                function_call=types.FunctionCall(
+                                    id="lookup-fc-1",
+                                    name="lookup_entity",
+                                    args={"entity_value": "198.51.100.10"},
+                                )
+                            )
+                        ],
+                    ),
+                )
+                tool_resp_ev = Event(
+                    author="SecurityOperationsAgent",
+                    invocation_id="inv-json",
+                    content=types.Content(
+                        role="user",
+                        parts=[
+                            types.Part(
+                                function_response=types.FunctionResponse(
+                                    id="lookup-fc-1",
+                                    name="lookup_entity",
+                                    response={"summary": "suspicious"},
+                                )
+                            )
+                        ],
+                    ),
+                )
+                confirm_ev = Event(
+                    author="SecurityOperationsAgent",
+                    invocation_id="inv-json",
+                    long_running_tool_ids={"confirm-json-1"},
+                    content=types.Content(
+                        role="model",
+                        parts=[
+                            types.Part(
+                                function_call=types.FunctionCall(
+                                    id="confirm-json-1",
+                                    name="adk_request_confirmation",
+                                    args={
+                                        "originalFunctionCall": {
+                                            "id": "orig-del-1",
+                                            "name": "delete_security_rule",
+                                            "args": {
+                                                "rule_id": "ru_a1b2c3d4-e5f6-4321-abcd-ef1234567890"
+                                            },
+                                        }
+                                    },
+                                )
+                            )
+                        ],
+                    ),
+                )
+                for ev in (tool_call_ev, tool_resp_ev, confirm_ev):
+                    await svc.append_event(sess, ev)
+                    yield ev
+            else:
+                final_ev = Event(
+                    author="SecurityOperationsAgent",
+                    invocation_id=kwargs.get("invocation_id") or "inv-json",
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part(text="Rule deleted after JSON confirmation.")],
+                    ),
+                )
+                await svc.append_event(sess, final_ev)
+                yield final_ev
+
+    with (
+        patch(
+            "mcp_security_agent.server.routes.get_runner",
+            return_value=JsonRestRunner(),
+        ),
+        patch(
+            "mcp_security_agent.server.routes.get_session_service",
+            return_value=svc,
+        ),
+    ):
+        client = TestClient(create_app())
+        first = client.post(
+            "/chat",
+            json={
+                "prompt": "Check IP and delete rule",
+                "session_id": "json-confirm-sess",
+                "user_id": "analyst",
+            },
+        )
+        assert first.status_code == 200
+        first_json = first.json()
+        assert "[Tool]" not in first_json["response"]
+        assert first_json["confirmation_required"] is True
+        assert first_json["tool_name"] == "delete_security_rule"
+        assert first_json["interrupt_id"] == "confirm-json-1"
+
+        second = client.post(
+            "/chat",
+            json={
+                "session_id": "json-confirm-sess",
+                "user_id": "analyst",
+                "confirmed": True,
+                "confirmation_call_id": "confirm-json-1",
+            },
+        )
+        assert second.status_code == 200
+        second_json = second.json()
+        assert second_json["response"] == "Rule deleted after JSON confirmation."
+        assert second_json["confirmation_required"] is False
+        assert second_json["tool_name"] is None
+        assert second_json["interrupt_id"] is None
+
+        resumed_fr = captured_calls[1]["new_message"].parts[0].function_response
+        assert resumed_fr.id == "confirm-json-1"
+        assert resumed_fr.response == {"confirmed": True}
 
 
 def test_login_and_alias_routes():
@@ -406,6 +581,24 @@ def test_frontend_streaming_abort_on_reset():
     assert "newInvestigationBtn.addEventListener" in js
     assert "if (isStreaming) {\n      cancelStreaming();\n    }\n    messagesContainer.innerHTML = '';" in js
     assert "if (isStreaming) {\n      cancelStreaming();\n    }\n    currentUserId = newName;" in js
+
+
+def test_frontend_inline_approve_reject_confirmation_controls():
+    client = TestClient(create_app())
+    js = client.get("/static/app.js").text
+    css = client.get("/static/app.css").text
+
+    assert "renderConfirmationControls" in js
+    assert "confirm-approve-btn" in js
+    assert "confirm-reject-btn" in js
+    assert "approveBtn.type = 'button'" in js
+    assert "rejectBtn.type = 'button'" in js
+    assert "approveBtn.textContent = 'Approve'" in js
+    assert "rejectBtn.textContent = 'Reject'" in js
+    assert "confirmation_call_id" in js
+    assert ".confirm-actions" in css
+    assert ".confirm-approve-btn" in css
+    assert ".confirm-reject-btn" in css
 
 
 def test_bounded_session_service_thread_safe_lookups():

@@ -189,6 +189,21 @@ def test_bootstrap_environment_vertex_ai_global_default(monkeypatch):
         assert os.environ.get("GOOGLE_GENAI_USE_VERTEXAI") == "TRUE"
         assert os.environ.get("GOOGLE_CLOUD_PROJECT") == "my-gcp-proj"
         assert os.environ.get("GOOGLE_CLOUD_LOCATION") == "global"
+        assert os.environ.get("ADK_MAX_TOOL_OUTPUT_SCHEMA_BYTES") == "4096"
+
+
+def test_bootstrap_environment_exports_dotenv_max_tool_output_schema_bytes(
+    monkeypatch, tmp_path
+):
+    monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+    monkeypatch.delenv("GOOGLE_CLOUD_LOCATION", raising=False)
+    monkeypatch.delenv("ADK_MAX_TOOL_OUTPUT_SCHEMA_BYTES", raising=False)
+    dotenv_path = tmp_path / ".env"
+    dotenv_path.write_text("ADK_MAX_TOOL_OUTPUT_SCHEMA_BYTES=1536\n", encoding="utf-8")
+    with patch.dict(os.environ, {}, clear=True):
+        settings = AgentSettings(_env_file=str(dotenv_path))
+        assert settings.max_tool_output_schema_bytes == 1536
+        assert os.environ.get("ADK_MAX_TOOL_OUTPUT_SCHEMA_BYTES") == "1536"
 
 
 def test_env_files_precedence_order():

@@ -1044,8 +1044,8 @@ AI uses: list_curated_rule_sets() to get rule set details
 AI extracts category_id and rule_set_id from the rule set information
 
 AI uses: update_curated_rule_set_deployment(
-  category_id="110fa43d-7165-2355-1985-a63b7cdf90e8",
-  rule_set_id="00ad672e-ebb3-0dd1-2a4d-99bd7c5e5f93",
+  category_id="110fa43d-7165-4321-abcd-a63b7cdf90e8",
+  rule_set_id="00ad672e-ebb3-4321-abcd-99bd7c5e5f93",
   precision="precise",
   enabled=True,
   alerting=True
@@ -1060,7 +1060,7 @@ The rule set is now actively monitoring your Azure network traffic.
 
 User: Can you show me what detections this rule set has generated in the last 7 days?
 
-AI uses: get_curated_rule_set(rule_set_id="00ad672e-ebb3-0dd1-2a4d-99bd7c5e5f93")
+AI uses: get_curated_rule_set(rule_set_id="00ad672e-ebb3-4321-abcd-99bd7c5e5f93")
 AI gets the rule IDs from the rule set
 
 AI uses: search_curated_detections(

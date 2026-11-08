@@ -18,6 +18,7 @@ from mcp_security_agent.config import AgentSettings
 from mcp_security_agent.toolsets import (
     GcpRemoteHeaderProvider,
     McpElicitationHandler,
+    PrefixedLoadMcpResourceTool,
     SecurityMcpToolset,
     build_mcp_toolsets,
     filter_non_bloat_feed_tools,
@@ -208,27 +209,35 @@ def test_gcp_remote_header_provider_auth_otel_and_pickling():
         quota_project="secops-quota-proj",
     )
 
-    with (
-        patch("google.auth.default", return_value=(mock_creds, "secops-quota-proj")),
-        patch("opentelemetry.trace.get_current_span") as mock_get_span,
-        patch("opentelemetry.propagate.inject") as mock_inject,
-    ):
-        mock_span = MagicMock()
-        mock_span.get_span_context.return_value.is_valid = True
-        mock_get_span.return_value = mock_span
-        mock_inject.side_effect = lambda h: h.update(
-            {"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}
-        )
+    async def run_oauth_checks():
+        with (
+            patch("google.auth.default", return_value=(mock_creds, "secops-quota-proj")) as mock_default,
+            patch("opentelemetry.trace.get_current_span") as mock_get_span,
+            patch("opentelemetry.propagate.inject") as mock_inject,
+        ):
+            mock_span = MagicMock()
+            mock_span.get_span_context.return_value.is_valid = True
+            mock_get_span.return_value = mock_span
+            mock_inject.side_effect = lambda h: h.update(
+                {"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}
+            )
 
-        headers = provider()
-        assert headers["Authorization"] == f"Bearer {synthetic_token}"
-        assert headers["x-goog-user-project"] == "secops-quota-proj"
-        assert headers["traceparent"].startswith("00-")
-        mock_creds.refresh.assert_called_once()
+            headers1 = await provider()
+            headers2 = await provider()
+            assert headers1["Authorization"] == f"Bearer {synthetic_token}"
+            assert headers2["Authorization"] == f"Bearer {synthetic_token}"
+            assert headers1["x-goog-user-project"] == "secops-quota-proj"
+            assert headers1["traceparent"].startswith("00-")
+            # Cached credentials reused on second call without network refresh
+            mock_default.assert_called_once()
+            mock_creds.refresh.assert_called_once()
 
-    # Verify pickle drops live _creds cleanly
+    asyncio.run(run_oauth_checks())
+
+    # Verify pickle drops live _creds and _auth_request cleanly and restores _lock
     restored = pickle.loads(pickle.dumps(provider))
     assert restored._creds is None
+    assert restored._auth_request is None
     assert restored.quota_project == "secops-quota-proj"
 
     # Verify GTI remote header provider injects x-apikey without GCP OAuth on virustotal.com
@@ -237,12 +246,126 @@ def test_gcp_remote_header_provider_auth_otel_and_pickling():
         server_slug="gti",
         vt_apikey="vt-api-key-abc",
     )
-    gti_headers = gti_provider()
+    gti_headers = asyncio.run(gti_provider())
     assert gti_headers["x-apikey"] == "vt-api-key-abc"
     assert "Authorization" not in gti_headers
+    assert gti_provider.get_headers_sync()["x-apikey"] == "vt-api-key-abc"
+
+
+def test_gcp_remote_header_provider_id_token_sa_path_impersonation_and_cache():
+    # 1. id_token + sa_path uses service_account.IDTokenCredentials and caches token
+    sa_id_creds = MagicMock()
+    sa_id_creds.valid = False
+    sa_id_creds.expired = True
+
+    def sa_refresh(_req):
+        sa_id_creds.valid = True
+        sa_id_creds.expired = False
+        sa_id_creds.token = "oidc_sa_id_token_xyz"
+
+    sa_id_creds.refresh.side_effect = sa_refresh
+
+    sa_provider = GcpRemoteHeaderProvider(
+        remote_url="https://scc-mcp.a.run.app/mcp",
+        server_slug="scc",
+        auth_mode="id_token",
+        sa_path="/tmp/fake-sa.json",
+    )
+
+    async def run_sa_id_token():
+        with patch(
+            "google.oauth2.service_account.IDTokenCredentials.from_service_account_file",
+            return_value=sa_id_creds,
+        ) as mock_from_sa:
+            h1 = await sa_provider()
+            h2 = await sa_provider()
+            assert h1["Authorization"] == "Bearer oidc_sa_id_token_xyz"
+            assert h2["Authorization"] == "Bearer oidc_sa_id_token_xyz"
+            mock_from_sa.assert_called_once_with(
+                "/tmp/fake-sa.json",
+                target_audience="https://scc-mcp.a.run.app",
+            )
+            sa_id_creds.refresh.assert_called_once()
+
+    asyncio.run(run_sa_id_token())
+
+    # 2. id_token + impersonate_service_account mints OIDC IDTokenCredentials (not OAuth access token)
+    base_adc_creds = MagicMock()
+    imp_target_creds = MagicMock()
+    imp_id_creds = MagicMock()
+    imp_id_creds.valid = False
+    imp_id_creds.expired = True
+
+    def imp_refresh(_req):
+        imp_id_creds.valid = True
+        imp_id_creds.expired = False
+        imp_id_creds.token = "oidc_impersonated_id_token_789"
+
+    imp_id_creds.refresh.side_effect = imp_refresh
+
+    imp_provider = GcpRemoteHeaderProvider(
+        remote_url="https://secops-mcp.a.run.app/mcp",
+        server_slug="secops",
+        auth_mode="id_token",
+        impersonate_service_account="soc-caller@proj.iam.gserviceaccount.com",
+    )
+
+    async def run_impersonated_id_token():
+        with (
+            patch("google.auth.default", return_value=(base_adc_creds, "proj")),
+            patch(
+                "google.auth.impersonated_credentials.Credentials",
+                return_value=imp_target_creds,
+            ) as mock_imp_creds,
+            patch(
+                "google.auth.impersonated_credentials.IDTokenCredentials",
+                return_value=imp_id_creds,
+            ) as mock_imp_id_creds,
+        ):
+            h1 = await imp_provider()
+            h2 = await imp_provider()
+            assert h1["Authorization"] == "Bearer oidc_impersonated_id_token_789"
+            assert h2["Authorization"] == "Bearer oidc_impersonated_id_token_789"
+            mock_imp_creds.assert_called_once()
+            mock_imp_id_creds.assert_called_once_with(
+                target_credentials=imp_target_creds,
+                target_audience="https://secops-mcp.a.run.app",
+                include_email=True,
+            )
+            imp_id_creds.refresh.assert_called_once()
+
+    asyncio.run(run_impersonated_id_token())
+
+    # 3. Default id_token fallback to fetch_id_token caches returned JWT without re-fetching
+    fallback_provider = GcpRemoteHeaderProvider(
+        remote_url="https://soar-mcp.a.run.app/mcp",
+        server_slug="soar",
+        auth_mode="id_token",
+    )
+
+    async def run_default_id_token_fallback():
+        with (
+            patch(
+                "google.oauth2.id_token.fetch_id_token_credentials",
+                side_effect=RuntimeError("authorized_user ADC"),
+            ),
+            patch(
+                "google.oauth2.id_token.fetch_id_token",
+                return_value="oidc_fallback_token_321",
+            ) as mock_fetch_id_tok,
+        ):
+            h1 = await fallback_provider()
+            h2 = await fallback_provider()
+            assert h1["Authorization"] == "Bearer oidc_fallback_token_321"
+            assert h2["Authorization"] == "Bearer oidc_fallback_token_321"
+            mock_fetch_id_tok.assert_called_once()
+
+    asyncio.run(run_default_id_token_fallback())
 
 
 def test_security_mcp_toolset_destructive_confirmation_and_resource_prefix():
+    from google.adk.models.llm_request import LlmRequest
+    from google.adk.tools.load_mcp_resource_tool import LoadMcpResourceTool
     from google.adk.tools.mcp_tool.mcp_toolset import McpToolset, StreamableHTTPConnectionParams
     from google.adk.tools.mcp_tool.mcp_tool import McpTool
 
@@ -284,18 +407,38 @@ def test_security_mcp_toolset_destructive_confirmation_and_resource_prefix():
 
     ro_tool = McpTool(mcp_tool=ro_raw, mcp_session_manager=toolset._mcp_session_manager)
     dest_tool = McpTool(mcp_tool=dest_raw, mcp_session_manager=toolset._mcp_session_manager)
-    resource_tool = type("FakeResourceTool", (), {"name": "load_mcp_resource", "description": "orig"})()
+    resource_tool = LoadMcpResourceTool(toolset)
 
     async def run_check():
-        with patch.object(
-            McpToolset,
-            "get_tools",
-            return_value=[ro_tool, dest_tool, resource_tool],
+        with (
+            patch.object(
+                McpToolset,
+                "get_tools",
+                return_value=[ro_tool, dest_tool, resource_tool],
+            ),
+            patch.object(
+                SecurityMcpToolset,
+                "list_resources",
+                return_value=["secops://udm/field-reference"],
+            ),
         ):
             tools = await toolset.get_tools()
             assert tools[0]._require_confirmation is False
             assert tools[1]._require_confirmation is True
+            assert isinstance(tools[2], PrefixedLoadMcpResourceTool)
             assert tools[2].name == "secops_load_mcp_resource"
+
+            llm_req = LlmRequest()
+            await tools[2].process_llm_request(tool_context=MagicMock(), llm_request=llm_req)
+            joined_dyn = "\n".join(llm_req._dynamic_instructions)
+            assert "secops_load_mcp_resource" in joined_dyn
+            assert "`load_mcp_resource`" not in joined_dyn
+
+            run_res = await tools[2].run_async(
+                args={"resource_names": ["secops://udm/field-reference"]},
+                tool_context=MagicMock(),
+            )
+            assert "secops_load_mcp_resource" in run_res["status"]
 
     asyncio.run(run_check())
 

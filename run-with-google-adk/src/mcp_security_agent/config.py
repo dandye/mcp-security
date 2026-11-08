@@ -242,6 +242,44 @@ class AgentSettings(BaseSettings):
             return self.chronicle_remote_mcp_url.strip()  # type: ignore[union-attr]
         return None
 
+    @property
+    def resolved_project_id(self) -> Optional[str]:
+        """Returns the effective Google Cloud project ID across settings and environment."""
+        import os
+
+        candidate = (
+            self.google_cloud_project
+            or os.environ.get("GOOGLE_CLOUD_PROJECT")
+            or os.environ.get("GCP_PROJECT_ID")
+            or self.chronicle_project_id
+        )
+        return candidate.strip() if candidate and candidate.strip() else None
+
+    def get_server_transports(self) -> Dict[str, str]:
+        """Returns per-server transport status ('streamable-http', 'stdio', or 'disabled')."""
+        return {
+            "secops": (
+                ("streamable-http" if self.effective_secops_mcp_url else "stdio")
+                if self.load_secops_mcp
+                else "disabled"
+            ),
+            "scc": (
+                ("streamable-http" if _is_configured(self.scc_mcp_url) else "stdio")
+                if self.load_scc_mcp
+                else "disabled"
+            ),
+            "gti": (
+                ("streamable-http" if _is_configured(self.gti_mcp_url) else "stdio")
+                if self.load_gti_mcp
+                else "disabled"
+            ),
+            "soar": (
+                ("streamable-http" if _is_configured(self.secops_soar_mcp_url) else "stdio")
+                if self.load_secops_soar_mcp
+                else "disabled"
+            ),
+        }
+
     @model_validator(mode="after")
     def resolve_tool_enablement(self) -> "AgentSettings":
         """Auto-detects MCP tool enablement from remote URLs, API keys, and tenant credentials."""
@@ -303,6 +341,10 @@ class AgentSettings(BaseSettings):
             os.environ["GOOGLE_API_USE_MTLS_ENDPOINT"] = "never"
         if "CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE" not in os.environ:
             os.environ["CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE"] = "false"
+
+        os.environ.setdefault(
+            "ADK_MAX_TOOL_OUTPUT_SCHEMA_BYTES", str(self.max_tool_output_schema_bytes)
+        )
 
         if self.google_api_key and not os.environ.get("GOOGLE_API_KEY"):
             os.environ["GOOGLE_API_KEY"] = self.google_api_key

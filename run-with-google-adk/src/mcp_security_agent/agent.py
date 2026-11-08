@@ -13,6 +13,7 @@
 # limitations under the License.
 """ADK v2.x Agent definition and factory for MCP Security Agent."""
 
+import functools
 import logging
 import threading
 from typing import Optional, Any
@@ -52,12 +53,16 @@ def create_security_agent(settings: Optional[AgentSettings] = None) -> Any:
         logger.warning("google.adk.agents.llm_agent not available; returning dummy agent.")
         return None
 
+    before_model_callback = functools.partial(
+        bmc_trim_llm_request,
+        max_output_schema_bytes=settings.max_tool_output_schema_bytes,
+    )
     agent = LlmAgent(
         name="SecurityOperationsAgent",
         model=settings.google_model,
         instruction=settings.default_prompt or SOC_AGENT_SYSTEM_PROMPT,
         tools=toolsets,
-        before_model_callback=bmc_trim_llm_request,
+        before_model_callback=before_model_callback,
     )
     return agent
 

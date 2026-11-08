@@ -35,8 +35,9 @@
 }
 
 [data-theme="light"] {
+  color-scheme: light;
   --bg-primary: #f8f9fa;
-  --bg-secondary: #ffffff;
+  --bg-secondary: #fcfbf8;
   --bg-surface: #f1f3f4;
   --bg-surface-hover: #e8eaed;
   --border-color: #dadce0;
@@ -130,7 +131,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: #f8f9fa;
   font-weight: 700;
   font-size: 16px;
 }
@@ -143,7 +144,7 @@ body {
 }
 
 .brand-badge {
-  font-size: 11px;
+  font-size: 12px;
   padding: 2px 6px;
   border-radius: 4px;
   background-color: var(--accent-surface);
@@ -158,14 +159,14 @@ body {
 }
 
 .status-pill {
-  font-size: 11px;
+  font-size: 12px;
   padding: 3px 8px;
   border-radius: 12px;
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
 }
 
 .status-dot {
@@ -177,7 +178,7 @@ body {
 
 .status-dot.active {
   background-color: var(--color-success);
-  box-shadow: 0 0 6px var(--color-success);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
 .header-actions {
@@ -214,7 +215,7 @@ body {
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .icon-btn {
@@ -283,11 +284,10 @@ body {
 }
 
 .sidebar-section-title {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-tertiary);
+  letter-spacing: 0.01em;
+  color: var(--text-secondary);
   margin-bottom: 6px;
 }
 
@@ -321,7 +321,7 @@ body {
   background-color: var(--bg-surface);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
   display: flex;
   flex-direction: column;
@@ -430,7 +430,7 @@ body {
 
 .message-row.agent .msg-avatar {
   background-color: #34a853;
-  color: #fff;
+  color: #f8f9fa;
 }
 
 .message-body-wrap {
@@ -444,8 +444,8 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
-  color: var(--text-tertiary);
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .message-row.user .message-header-info {
@@ -523,8 +523,9 @@ body {
   border: 1px solid var(--border-color);
   border-radius: 4px;
   color: var(--text-secondary);
-  font-size: 11px;
-  padding: 3px 8px;
+  font-size: 12px;
+  padding: 4px 10px;
+  min-height: 32px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -532,6 +533,54 @@ body {
 .code-copy-btn:hover {
   background: var(--bg-surface-hover);
   color: var(--text-primary);
+}
+
+/* Destructive Tool Confirmation Controls */
+.confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.confirm-btn {
+  min-height: 36px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.confirm-approve-btn {
+  background-color: var(--accent-primary);
+  border: 1px solid var(--accent-primary);
+  color: #121316;
+}
+
+.confirm-approve-btn:hover:not(:disabled) {
+  background-color: var(--accent-primary-hover);
+  border-color: var(--accent-primary-hover);
+}
+
+.confirm-reject-btn {
+  background-color: transparent;
+  border: 1px solid var(--color-danger);
+  color: var(--color-danger);
+}
+
+.confirm-reject-btn:hover:not(:disabled) {
+  background-color: var(--color-danger-bg);
+}
+
+.confirm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Tool Execution Accordion */
@@ -562,7 +611,7 @@ body {
 
 .tool-badge {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   padding: 2px 6px;
   border-radius: 4px;
   background-color: var(--accent-surface);
@@ -626,7 +675,6 @@ body {
   flex: 1;
   background: transparent;
   border: none;
-  outline: none;
   resize: none;
   font-family: var(--font-sans);
   font-size: 14px;
@@ -636,11 +684,16 @@ body {
   min-height: 24px;
 }
 
+.chat-textarea:focus-visible {
+  outline: 2px solid transparent;
+}
+
 .chat-textarea::placeholder {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 .send-btn {
+  min-height: 36px;
   padding: 8px 16px;
   border: none;
   border-radius: var(--radius-sm);
@@ -667,12 +720,12 @@ body {
 
 .cancel-btn {
   background-color: var(--color-danger);
-  color: #fff;
+  color: #121316;
 }
 
 .input-footer-hints {
-  font-size: 11px;
-  color: var(--text-tertiary);
+  font-size: 12px;
+  color: var(--text-secondary);
   display: flex;
   justify-content: space-between;
   padding: 0 4px;
@@ -779,17 +832,19 @@ body {
 
 .modal-input {
   width: 100%;
+  min-height: 36px;
   padding: 8px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
   background-color: var(--bg-surface);
   color: var(--text-primary);
   font-size: 14px;
-  outline: none;
 }
 
-.modal-input:focus {
+.modal-input:focus-visible {
   border-color: var(--accent-primary);
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 .modal-actions {
@@ -802,6 +857,7 @@ body {
   background: transparent;
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
+  min-height: 36px;
   padding: 6px 12px;
   border-radius: var(--radius-sm);
   font-size: 13px;
@@ -813,10 +869,29 @@ body {
   border: none;
   color: #121316;
   font-weight: 600;
+  min-height: 36px;
   padding: 6px 14px;
   border-radius: var(--radius-sm);
   font-size: 13px;
   cursor: pointer;
+}
+
+button:focus-visible,
+.user-chip:focus-visible,
+.quick-prompt-card:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+::selection {
+  background-color: var(--accent-surface);
+  color: var(--text-primary);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+  }
 }
 
 /* Responsive adjustments */

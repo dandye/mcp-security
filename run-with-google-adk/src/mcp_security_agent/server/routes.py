@@ -46,11 +46,15 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = None
     user_id: Optional[str] = None
     confirmed: Optional[bool] = None
+    confirmation_call_id: Optional[str] = None
 
 
 class ChatResponse(BaseModel):
     response: str
     session_id: str
+    confirmation_required: bool = False
+    tool_name: Optional[str] = None
+    interrupt_id: Optional[str] = None
 
 
 @router.get("/")
@@ -124,14 +128,19 @@ def get_info() -> Dict[str, Any]:
         "version": __version__,
         "model": settings.google_model,
         "location": settings.google_cloud_location,
+        "project_id": settings.resolved_project_id,
         "user": discover_user_identity(),
+        "tool_name_prefix_enabled": settings.mcp_tool_name_prefix_enabled,
+        "use_mcp_resources": settings.mcp_use_resources,
         "confirm_destructive_tools": settings.confirm_destructive_tools,
+        "elicitation_policy": settings.elicitation_policy,
         "tools": {
             "secops": settings.load_secops_mcp,
             "scc": settings.load_scc_mcp,
             "gti": settings.load_gti_mcp,
             "soar": settings.load_secops_soar_mcp,
         },
+        "transports": settings.get_server_transports(),
     }
 
 
@@ -297,8 +306,11 @@ def _parse_confirmation_decision(message: str, explicit_confirmed: Optional[bool
     return {"confirmed": affirmative}
 
 
-def _find_open_confirmation_interrupt(session: Any) -> Tuple[Optional[str], Optional[str]]:
-    """Finds the latest unanswered adk_request_confirmation interrupt in session.events."""
+def _find_open_confirmation_interrupt(
+    session: Any,
+    preferred_call_id: Optional[str] = None,
+) -> Tuple[Optional[str], Optional[str]]:
+    """Finds an unanswered adk_request_confirmation interrupt in session.events."""
     events = getattr(session, "events", None) or []
     if not events:
         return None, None
@@ -325,6 +337,16 @@ def _find_open_confirmation_interrupt(session: Any) -> Tuple[Optional[str], Opti
     if not open_ids:
         return None, None
 
+    if preferred_call_id and preferred_call_id in open_ids:
+        for ev in reversed(events):
+            for fc in ev.get_function_calls():
+                fc_id = getattr(fc, "id", None)
+                if (
+                    fc_id == preferred_call_id
+                    and getattr(fc, "name", None) == CONFIRMATION_FUNCTION_CALL_NAME
+                ):
+                    return fc_id, getattr(ev, "invocation_id", None)
+
     for ev in reversed(events):
         for fc in ev.get_function_calls():
             fc_id = getattr(fc, "id", None)
@@ -338,6 +360,7 @@ async def sse_event_generator(
     session_id: str,
     user_id: Optional[str] = None,
     confirmed: Optional[bool] = None,
+    confirmation_call_id: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """Streams real ADK agent execution events over Server-Sent Events (SSE)."""
     uid = user_id or discover_user_identity()
@@ -371,7 +394,9 @@ async def sse_event_generator(
             session_id=session_id,
         )
 
-    interrupt_id, interrupt_invocation_id = _find_open_confirmation_interrupt(session)
+    interrupt_id, interrupt_invocation_id = _find_open_confirmation_interrupt(
+        session, preferred_call_id=confirmation_call_id
+    )
     run_kwargs: Dict[str, Any] = {
         "user_id": session.user_id,
         "session_id": session.id,
@@ -501,11 +526,20 @@ async def chat_sse_stream(
     confirmed: Optional[bool] = Query(
         None, description="Explicit confirmation decision for pending destructive tool"
     ),
+    confirmation_call_id: Optional[str] = Query(
+        None, description="Optional interrupt call ID for pending destructive tool confirmation"
+    ),
 ):
     """Server-Sent Events (SSE) streaming endpoint for web UI clients."""
     sess_id = session_id or str(uuid.uuid4())
     return StreamingResponse(
-        sse_event_generator(message, sess_id, user_id, confirmed=confirmed),
+        sse_event_generator(
+            message,
+            sess_id,
+            user_id,
+            confirmed=confirmed,
+            confirmation_call_id=confirmation_call_id,
+        ),
         media_type="text/event-stream",
     )
 
@@ -521,20 +555,45 @@ async def chat_post(request: ChatRequest, http_request: Request):
     if "text/event-stream" in accept_header:
         return StreamingResponse(
             sse_event_generator(
-                query_text, sess_id, uid, confirmed=request.confirmed
+                query_text,
+                sess_id,
+                uid,
+                confirmed=request.confirmed,
+                confirmation_call_id=request.confirmation_call_id,
             ),
             media_type="text/event-stream",
         )
 
-    # For non-streaming REST queries, collect text parts from runner
+    # For non-streaming REST queries, collect model content, confirmation, and error text
+    # while omitting intermediate tool-call trace banners from the response body.
     accumulated = []
+    confirmation_required = False
+    pending_tool_name: Optional[str] = None
+    pending_interrupt_id: Optional[str] = None
+
     async for chunk_str in sse_event_generator(
-        query_text, sess_id, uid, confirmed=request.confirmed
+        query_text,
+        sess_id,
+        uid,
+        confirmed=request.confirmed,
+        confirmation_call_id=request.confirmation_call_id,
     ):
         if chunk_str.startswith("data: "):
             try:
                 data = json.loads(chunk_str[6:].strip())
-                if not data.get("last_msg") and data.get("text"):
+                if data.get("last_msg"):
+                    continue
+                event_type = data.get("event_type")
+                if event_type == "confirmation_request":
+                    confirmation_required = True
+                    pending_tool_name = data.get("tool_name")
+                    pending_interrupt_id = data.get("interrupt_id")
+                if data.get("text") and event_type in (
+                    None,
+                    "content",
+                    "confirmation_request",
+                    "error",
+                ):
                     accumulated.append(data["text"])
             except Exception:
                 pass
@@ -548,5 +607,8 @@ async def chat_post(request: ChatRequest, http_request: Request):
         content={
             "response": response_text,
             "session_id": sess_id,
+            "confirmation_required": confirmation_required,
+            "tool_name": pending_tool_name,
+            "interrupt_id": pending_interrupt_id,
         }
     )

@@ -17,6 +17,7 @@ from collections.abc import MutableMapping
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -101,6 +102,46 @@ def _sanitize_tool_schemas(llm_request: Any, max_output_schema_bytes: int) -> No
         )
 
 
+def _rewrite_resource_tool_instructions(llm_request: Any) -> None:
+    """Rewrites bare load_mcp_resource instructions when a single prefixed resource tool is declared."""
+    config = getattr(llm_request, "config", None)
+    tools = getattr(config, "tools", None) if config is not None else None
+    if not isinstance(tools, (list, tuple)):
+        return
+
+    declared_names = []
+    for tool_entry in tools:
+        declarations = getattr(tool_entry, "function_declarations", None)
+        if not isinstance(declarations, (list, tuple)):
+            continue
+        for decl in declarations:
+            name = getattr(decl, "name", None)
+            if isinstance(name, str):
+                declared_names.append(name)
+
+    if "load_mcp_resource" in declared_names:
+        return
+
+    prefixed_resource_tools = [
+        name for name in declared_names if name.endswith("_load_mcp_resource")
+    ]
+    if len(prefixed_resource_tools) != 1:
+        return
+
+    target_name = prefixed_resource_tools[0]
+    pattern = re.compile(r"(?<![A-Za-z0-9_])load_mcp_resource\b")
+
+    sys_instruction = getattr(config, "system_instruction", None)
+    if isinstance(sys_instruction, str) and "load_mcp_resource" in sys_instruction:
+        config.system_instruction = pattern.sub(target_name, sys_instruction)
+
+    dyn_instructions = getattr(llm_request, "_dynamic_instructions", None)
+    if isinstance(dyn_instructions, list):
+        for idx, entry in enumerate(dyn_instructions):
+            if isinstance(entry, str) and "load_mcp_resource" in entry:
+                dyn_instructions[idx] = pattern.sub(target_name, entry)
+
+
 def _propagate_otel_trace_context(callback_context: Any, llm_request: Any) -> None:
     """Propagates W3C traceparent and tracestate headers when an OpenTelemetry span is active."""
     try:
@@ -169,5 +210,6 @@ def bmc_trim_llm_request(
         else max_output_schema_bytes
     )
     _sanitize_tool_schemas(llm_request, threshold)
+    _rewrite_resource_tool_instructions(llm_request)
     _propagate_otel_trace_context(callback_context, llm_request)
     return None

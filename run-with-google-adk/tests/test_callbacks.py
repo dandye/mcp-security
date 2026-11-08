@@ -119,3 +119,28 @@ def test_bmc_propagates_w3c_opentelemetry_traceparent():
         assert ctx.state["otel_trace_headers"]["traceparent"] == traceparent_val
         assert llm_request.config.http_options.headers["traceparent"] == traceparent_val
         assert llm_request.config.http_options.headers["x-existing"] == "1"
+
+
+def test_bmc_rewrites_bare_load_mcp_resource_instruction_when_single_prefixed_tool():
+    prefixed_decl = types.FunctionDeclaration(
+        name="secops_load_mcp_resource",
+        description="Loads MCP resources from secops",
+        parameters_json_schema={"type": "object", "properties": {}},
+    )
+    llm_request = type(
+        "FakeLlmRequest",
+        (),
+        {
+            "config": types.GenerateContentConfig(
+                system_instruction=(
+                    "Call the `load_mcp_resource` function. "
+                    "Always call load_mcp_resource before answering."
+                ),
+                tools=[types.Tool(function_declarations=[prefixed_decl])],
+            )
+        },
+    )()
+    ctx = type("FakeCtx", (), {"state": {}})()
+    bmc_trim_llm_request(ctx, llm_request)
+    assert "secops_load_mcp_resource" in llm_request.config.system_instruction
+    assert "`load_mcp_resource`" not in llm_request.config.system_instruction

@@ -72,7 +72,7 @@ uv run mcp-security-agent serve --port "$ADK_PORT"
 - **Tool Name Prefixing (`MCP_TOOL_NAME_PREFIX_ENABLED`)**: Optional per-server prefixes (`secops_`, `gti_`, `soar_`, `scc_`) prevent tool name collisions across multi-server deployments while keeping unprefixed tool names by default for backward compatibility.
 - **MCP Resources (`MCP_USE_RESOURCES`) and Tool-List Caching (`MCP_TOOL_LIST_CACHE_TTL_SECONDS`)**: Enables ADK's `use_mcp_resources=True` (automatically namespacing `<server>_load_mcp_resource` when multiple unprefixed servers are active) and caches `tools/list` metadata for `300s` by default alongside server-side `SEP-2549` `CacheHint` TTLs.
 - **Destructive-Tool Confirmation and MRTR Elicitation**:
-  - `SecurityMcpToolset` inspects `ToolAnnotations.destructive_hint` and triggers ADK human-in-the-loop confirmation (`adk_request_confirmation`) in both `mcp-security-agent chat` and the FastAPI Web UI (`mcp-security-agent serve`) when `ADK_CONFIRM_DESTRUCTIVE_TOOLS=true`.
+  - `SecurityMcpToolset` inspects `ToolAnnotations.destructive_hint` and triggers ADK human-in-the-loop confirmation (`adk_request_confirmation`) in both `mcp-security-agent chat` (interactive REPL and single-turn queries) and the FastAPI Web UI (`mcp-security-agent serve`) when `ADK_CONFIRM_DESTRUCTIVE_TOOLS=true` (default `False`, or `--confirm-destructive`).
   - `McpElicitationHandler` wires MCP `2026-07-28` server-initiated `ctx.elicit(...)` forms according to `ADK_ELICITATION_POLICY` (`prompt`, `accept`, `decline`, `cancel`), failing closed to `decline` in non-interactive environments.
 - **LLM Schema Sanitization and OpenTelemetry Propagation (`bmc_trim_llm_request`)**: Strips `x-google-enum-descriptions` vendor metadata, removes oversized `response_json_schema` definitions exceeding `ADK_MAX_TOOL_OUTPUT_SCHEMA_BYTES` (`4096` bytes default), and propagates active W3C OpenTelemetry `traceparent` and `tracestate` headers across outbound LLM and remote MCP calls.
 
@@ -82,15 +82,15 @@ uv run mcp-security-agent serve --port "$ADK_PORT"
 
 ### `mcp-security-agent info`
 
-Prints package version, active Gemini model, Vertex AI endpoint location, resolved Google Cloud project ID, ADC source, tool prefix/resource/confirmation settings, and transport status (`stdio` vs `streamable-http`) for each MCP server.
+Prints package version, active Gemini model, Vertex AI endpoint location, resolved Google Cloud project ID (`project_id`), ADC source, `tool_name_prefix_enabled`, `use_mcp_resources`, destructive-tool confirmation status, `elicitation_policy`, and transport status (`stdio`, `streamable-http`, or `disabled`) for each MCP server.
 
-### `mcp-security-agent chat [PROMPT] [OPTIONS]`
+### `mcp-security-agent chat [QUERY] [OPTIONS]`
 
-Starts an interactive terminal REPL with confirmation prompts for destructive tools (`destructiveHint=True`) and MCP MRTR elicitation forms.
+Starts an interactive terminal REPL when called without `QUERY`, or executes a confirmation-aware single-turn investigation when `QUERY` is supplied. During single-turn execution with `--confirm-destructive`, interactive terminals prompt `[Confirm] Approve execution of <tool_name>? [y/N]: ` in plain ASCII and resume in the same run; non-interactive callers exit with code `2` and print the `--session-id <id>` command to approve or reject.
 
 | Option | Type | Description |
 | :--- | :--- | :--- |
-| `PROMPT` | Argument | Optional initial prompt executed on startup. |
+| `QUERY` | Argument | Optional single-turn investigation query (starts interactive REPL if omitted). |
 | `--secops / --no-secops` | Flag | Enable or disable Google Security Operations SIEM MCP. |
 | `--scc / --no-scc` | Flag | Enable or disable Security Command Center MCP. |
 | `--gti / --no-gti` | Flag | Enable or disable Google Threat Intelligence MCP. |
@@ -100,8 +100,9 @@ Starts an interactive terminal REPL with confirmation prompts for destructive to
 | `--location <loc>` | String | Override Vertex AI location (default: `global`). |
 | `--project <id>` | String | Override `GOOGLE_CLOUD_PROJECT` and `CHRONICLE_PROJECT_ID`. |
 | `--customer-id <uuid>` | String | Override `CHRONICLE_CUSTOMER_ID`. |
-| `--prefix-tools / --no-prefix-tools` | Flag | Toggle `secops_`, `gti_`, `soar_`, `scc_` tool name prefixes. |
 | `--confirm-destructive / --no-confirm-destructive` | Flag | Toggle human confirmation for tools with `destructiveHint=True`. |
+| `--prefix-tools / --no-prefix-tools` | Flag | Toggle `secops_`, `gti_`, `soar_`, `scc_` tool name prefixes. |
+| `--session-id <id>` | String | Session ID to create or resume in single-turn `chat` mode (alias `--session_id`). |
 
 ### `mcp-security-agent serve [OPTIONS]`
 
@@ -136,17 +137,17 @@ Launches the FastAPI web console and REST/SSE API server (`--host`, `--port`, `-
 | `GTI_MCP_URL` | None | Remote Streamable HTTP endpoint for `gti-mcp`. |
 | `SOAR_MCP_URL` | None | Remote Streamable HTTP endpoint for `secops-soar-mcp` (alias `SECOPS_SOAR_MCP_URL`). |
 | `SCC_MCP_URL` | None | Remote Streamable HTTP endpoint for `scc-mcp`. |
-| `MCP_REMOTE_USE_GCP_AUTH` | `True` | Attach fresh Google Cloud credentials via `GcpRemoteHeaderProvider` on remote HTTP calls. |
+| `MCP_REMOTE_USE_GCP_AUTH` | Auto (`None`) | Attach Google Cloud credentials via `GcpRemoteHeaderProvider` (`None` auto-enables for `.googleapis.com` and `.run.app` endpoints; set `True` or `False` to override). |
 | `MCP_REMOTE_AUTH_MODE` | `oauth` | Token type for remote HTTP endpoints: `oauth` (access token), `id_token` (Cloud Run OIDC), or `none`. |
 | `MCP_BEARER_TOKEN` | None | Static bearer token override when `MCP_REMOTE_USE_GCP_AUTH=False`. |
 | `MCP_TOOL_NAME_PREFIX_ENABLED` | `False` | Prefix tools with `secops_`, `gti_`, `soar_`, `scc_`. |
 | `MCP_USE_RESOURCES` | `True` | Expose MCP `2026-07-28` resources (`secops://`, `gti://`, `soar://`, `scc://`) to the ADK agent. |
 | `MCP_TOOL_LIST_CACHE_TTL_SECONDS` | `300.0` | Client-side TTL cache in seconds for `tools/list` discovery (`0` disables caching). |
-| `MCP_FILTER_BLOAT_FEED_TOOLS` | `True` | Exclude the 7 heavy feed-management schemas on managed Chronicle OneMCP endpoints. |
-| `ADK_CONFIRM_DESTRUCTIVE_TOOLS` | `True` | Require operator confirmation before executing tools marked `destructiveHint=True`. |
+| `MCP_FILTER_BLOAT_FEED_TOOLS` | `True` | Exclude the 7 heavy feed-management schemas on managed Google SecOps OneMCP endpoints. |
+| `ADK_CONFIRM_DESTRUCTIVE_TOOLS` | `False` | Require operator confirmation before executing tools marked `destructiveHint=True` (`true` in `.env.example`). |
 | `ADK_ELICITATION_POLICY` | `prompt` | Policy for MCP server `ctx.elicit(...)` requests: `prompt`, `accept`, `decline`, or `cancel`. |
 | `ADK_MAX_TOOL_OUTPUT_SCHEMA_BYTES` | `4096` | Maximum serialized byte size for `response_json_schema` forwarded to the LLM (`0` strips all). |
-| `MCP_HTTP_TIMEOUT` | `30.0` | Connection/request timeout in seconds for remote Streamable HTTP toolsets. |
+| `MCP_HTTP_TIMEOUT` | `60.0` | Connection/request timeout in seconds for remote Streamable HTTP toolsets. |
 | `MCP_SSE_READ_TIMEOUT` | `300.0` | Stream read timeout in seconds for remote Streamable HTTP toolsets. |
 | `STDIO_PARAM_TIMEOUT` | `60.0` | Timeout in seconds for local `stdio` MCP subprocess initialization and calls. |
 | `MINIMAL_LOGGING` | `False` | Suppress full LLM request payload logging in production environments. |
@@ -164,11 +165,11 @@ Open `http://127.0.0.1:8080` in your browser to use the dark-mode SOC investigat
 
 ### REST and Streaming Endpoints
 
-- `GET /`: Serves the dark-mode SOC investigation UI, including inline Approve/Reject confirmation controls when a tool with `destructiveHint=True` requests approval.
+- `GET /`: Serves the dark-mode SOC investigation UI, including inline **Approve** and **Reject** confirmation buttons (as well as typed `yes` / `no` replies) when a tool with `destructiveHint=True` requests approval.
 - `GET /healthz`: Liveness and readiness probe returning `{"status": "ok"}`.
-- `GET /info`: Runtime metadata including `version`, `model`, `location`, `project_id`, `tool_name_prefix_enabled`, `use_mcp_resources`, `confirm_destructive_tools`, `elicitation_policy`, and per-server transport modes.
-- `POST /chat`: Synchronous JSON endpoint accepting `{"prompt": "...", "session_id": "...", "confirmation_call_id": "...", "confirmed": true}`.
-- `GET /chat?message=...`: Server-Sent Events (SSE) streaming endpoint emitting `token`, `confirmation_request`, `done`, and `error` events.
+- `GET /info`: Runtime metadata returning `version`, `model`, `location`, `project_id`, `user`, `tool_name_prefix_enabled`, `use_mcp_resources`, `confirm_destructive_tools`, `elicitation_policy`, `tools`, and per-server `transports` (`stdio`, `streamable-http`, or `disabled`).
+- `POST /chat`: Accepts `{"message": "...", "prompt": "...", "session_id": "...", "user_id": "...", "confirmed": true, "confirmation_call_id": "..."}`. Returns synchronous JSON `{"response": "...", "session_id": "...", "confirmation_required": false, "tool_name": null, "interrupt_id": null}` (omitting intermediate `[Tool]` trace banners), or streams Server-Sent Events when `Accept: text/event-stream` is sent.
+- `GET /chat?message=...`: Server-Sent Events (SSE) streaming endpoint accepting `message`, `session_id`, `user_id`, `confirmed`, and `confirmation_call_id`, emitting JSON `data:` frames with `event_type` values `content`, `tool_call`, `tool_response`, `confirmation_request`, and `error`, followed by a final `{"text": "Stream finished.", "last_msg": true, "session_id": "..."}` frame.
 
 ---
 

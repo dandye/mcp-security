@@ -71,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toast.appendChild(textSpan);
 
     const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
     closeBtn.className = 'toast-close';
     closeBtn.innerHTML = '&times;';
     closeBtn.onclick = () => removeToast(toast);
@@ -137,23 +138,26 @@ document.addEventListener('DOMContentLoaded', () => {
           updateUserUI();
         }
         const mcp = data.tools || data.mcp_servers || {};
-        updatePill(pillSecops, mcp.secops);
-        updatePill(pillScc, mcp.scc);
-        updatePill(pillGti, mcp.gti);
-        updatePill(pillSoar, mcp.soar);
+        const transports = data.transports || {};
+        updatePill(pillSecops, mcp.secops, transports.secops);
+        updatePill(pillScc, mcp.scc, transports.scc);
+        updatePill(pillGti, mcp.gti, transports.gti);
+        updatePill(pillSoar, mcp.soar, transports.soar);
       }
     } catch (e) {
       console.warn('Could not fetch MCP server info:', e);
     }
   }
 
-  function updatePill(pillEl, isEnabled) {
+  function updatePill(pillEl, isEnabled, transport) {
     if (!pillEl) return;
     const dot = pillEl.querySelector('.status-dot');
     if (dot) {
       if (isEnabled) {
         dot.classList.add('active');
-        pillEl.title = 'Enabled and connected';
+        pillEl.title = transport
+          ? `Enabled and connected (${transport})`
+          : 'Enabled and connected';
       } else {
         dot.classList.remove('active');
         pillEl.title = 'Disabled or not configured';
@@ -265,6 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (pre.querySelector('.code-copy-btn')) return;
       const code = pre.querySelector('code');
       const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
       copyBtn.className = 'code-copy-btn';
       copyBtn.textContent = 'Copy';
       copyBtn.onclick = async () => {
@@ -287,24 +292,70 @@ document.addEventListener('DOMContentLoaded', () => {
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
   }
 
-  // Stream Response Handler
-  async function handleUserSubmit() {
-    const prompt = chatTextarea.value.trim();
-    if (!prompt || isStreaming) return;
+  function disableOpenConfirmationButtons() {
+    messagesContainer
+      .querySelectorAll('.confirm-actions:not([data-resolved]) .confirm-btn')
+      .forEach((btn) => {
+        btn.disabled = true;
+      });
+  }
 
-    if (!currentSessionId) {
-      await initSession();
-      if (!currentSessionId) {
-        showToast('Waiting for session initialization. Try again in a moment.', 'warning');
-        return;
-      }
+  function renderConfirmationControls(bubble, confirmationMeta) {
+    if (!bubble || !confirmationMeta) return;
+    const existing = bubble.querySelector('.confirm-actions');
+    if (existing) {
+      existing.remove();
     }
 
-    appendMessage(prompt, 'user', 0);
-    chatTextarea.value = '';
-    autoResizeTextarea();
+    const actions = document.createElement('div');
+    actions.className = 'confirm-actions';
+    actions.setAttribute('role', 'group');
+    actions.setAttribute(
+      'aria-label',
+      `Confirmation controls for ${confirmationMeta.toolName || 'destructive tool'}`
+    );
 
-    // Prepare Agent Streaming Container
+    const approveBtn = document.createElement('button');
+    approveBtn.type = 'button';
+    approveBtn.className = 'confirm-btn confirm-approve-btn';
+    approveBtn.textContent = 'Approve';
+
+    const rejectBtn = document.createElement('button');
+    rejectBtn.type = 'button';
+    rejectBtn.className = 'confirm-btn confirm-reject-btn';
+    rejectBtn.textContent = 'Reject';
+
+    const submitDecision = async (approved) => {
+      if (isStreaming) return;
+      approveBtn.disabled = true;
+      rejectBtn.disabled = true;
+      actions.setAttribute('data-resolved', approved ? 'approved' : 'rejected');
+
+      appendMessage(approved ? 'Approve' : 'Reject', 'user', 0);
+      const payload = {
+        session_id: currentSessionId,
+        user_id: currentUserId,
+        message: approved ? 'yes' : 'no',
+        confirmed: approved,
+      };
+      if (confirmationMeta.interruptId) {
+        payload.confirmation_call_id = confirmationMeta.interruptId;
+      }
+      await streamChatRequest(
+        payload,
+        approved ? 'Executing approved action...' : 'Cancelling destructive action...'
+      );
+    };
+
+    approveBtn.addEventListener('click', () => submitDecision(true));
+    rejectBtn.addEventListener('click', () => submitDecision(false));
+
+    actions.appendChild(approveBtn);
+    actions.appendChild(rejectBtn);
+    bubble.appendChild(actions);
+  }
+
+  async function streamChatRequest(requestPayload, initialStatusText = 'Investigating...') {
     isStreaming = true;
     sendBtn.style.display = 'none';
     cancelBtn.style.display = 'flex';
@@ -324,7 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const headerInfo = document.createElement('div');
     headerInfo.className = 'message-header-info';
-    headerInfo.innerHTML = '<span class="streaming-pulse"></span><span>Investigating...</span>';
+    headerInfo.innerHTML = `<span class="streaming-pulse"></span><span>${initialStatusText}</span>`;
     bodyWrap.appendChild(headerInfo);
 
     const bubble = document.createElement('div');
@@ -338,6 +389,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     activeAbortController = new AbortController();
     let accumulatedText = '';
+    let pendingConfirmation = null;
 
     try {
       const response = await fetch(`${API_BASE_URL}/chat`, {
@@ -346,11 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream, application/json',
         },
-        body: JSON.stringify({
-          session_id: currentSessionId,
-          user_id: currentUserId,
-          message: prompt,
-        }),
+        body: JSON.stringify(requestPayload),
         signal: activeAbortController.signal,
       });
 
@@ -386,6 +434,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 reader.cancel();
                 break;
               } else if (data.text) {
+                if (data.event_type === 'confirmation_request') {
+                  pendingConfirmation = {
+                    toolName: data.tool_name || 'destructive_tool',
+                    interruptId: data.interrupt_id || null,
+                  };
+                }
+
                 const isBlock = data.event_type === 'tool_call' ||
                                 data.event_type === 'tool_response' ||
                                 data.event_type === 'confirmation_request' ||
@@ -401,6 +456,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 bubble.innerHTML = renderMarkdown(accumulatedText);
                 addCopyButtonsToPre(bubble);
+                if (pendingConfirmation) {
+                  renderConfirmationControls(bubble, pendingConfirmation);
+                }
                 headerInfo.innerHTML = `<span class="streaming-pulse"></span><span>${timeElapsed}ms (${timeDiff}ms)</span>`;
                 scrollToBottom();
               }
@@ -410,6 +468,10 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           boundary = buffer.indexOf('\n\n');
         }
+      }
+
+      if (pendingConfirmation && !bubble.querySelector('.confirm-actions')) {
+        renderConfirmationControls(bubble, pendingConfirmation);
       }
 
       const totalTime = Date.now() - requestStartTime;
@@ -432,6 +494,31 @@ document.addEventListener('DOMContentLoaded', () => {
       scrollToBottom();
       chatTextarea.focus();
     }
+  }
+
+  // Stream Response Handler
+  async function handleUserSubmit() {
+    const prompt = chatTextarea.value.trim();
+    if (!prompt || isStreaming) return;
+
+    if (!currentSessionId) {
+      await initSession();
+      if (!currentSessionId) {
+        showToast('Waiting for session initialization. Try again in a moment.', 'warning');
+        return;
+      }
+    }
+
+    disableOpenConfirmationButtons();
+    appendMessage(prompt, 'user', 0);
+    chatTextarea.value = '';
+    autoResizeTextarea();
+
+    await streamChatRequest({
+      session_id: currentSessionId,
+      user_id: currentUserId,
+      message: prompt,
+    });
   }
 
   // Cancel Streaming

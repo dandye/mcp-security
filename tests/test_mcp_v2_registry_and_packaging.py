@@ -83,7 +83,7 @@ SERVER_MANIFEST_CONTRACTS: list[tuple[str, str, str, str, MCPServer]] = [
 
 
 def _extract_setup_py_metadata(setup_path: Path) -> dict[str, Any]:
-    """Extract literal name and version arguments from setup(...) in setup.py."""
+    """Extract literal name, version, and install_requires from setup(...) in setup.py."""
     tree = ast.parse(setup_path.read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
@@ -98,6 +98,14 @@ def _extract_setup_py_metadata(setup_path: Path) -> dict[str, Any]:
                 for kw in node.keywords:
                     if kw.arg in ("name", "version") and isinstance(kw.value, ast.Constant):
                         extracted[kw.arg] = kw.value.value
+                    elif kw.arg == "install_requires" and isinstance(
+                        kw.value, (ast.List, ast.Tuple)
+                    ):
+                        extracted["install_requires"] = [
+                            elt.value
+                            for elt in kw.value.elts
+                            if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
+                        ]
                 return extracted
     return {}
 
@@ -127,18 +135,25 @@ async def test_server_registry_manifest_and_version_synchronization(
     pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
     py_name = pyproject["project"]["name"]
     py_version = pyproject["project"]["version"]
+    py_deps = pyproject["project"]["dependencies"]
     assert py_name == expected_pypi_name
     assert py_version == expected_version
     assert SEMVER_RE.fullmatch(py_version)
+    assert "mcp[cli]>=2.3.0,<3.0.0" in py_deps, (
+        f"{subdir}: pyproject.toml missing mcp[cli]>=2.3.0,<3.0.0 floor"
+    )
 
-    if setup_path.is_file():
-        setup_meta = _extract_setup_py_metadata(setup_path)
-        assert setup_meta.get("name") == py_name, (
-            f"{subdir}: setup.py name {setup_meta.get('name')} != pyproject.toml {py_name}"
-        )
-        assert setup_meta.get("version") == py_version, (
-            f"{subdir}: setup.py version {setup_meta.get('version')} != pyproject.toml {py_version}"
-        )
+    assert setup_path.is_file(), f"Missing {setup_path}"
+    setup_meta = _extract_setup_py_metadata(setup_path)
+    assert setup_meta.get("name") == py_name, (
+        f"{subdir}: setup.py name {setup_meta.get('name')} != pyproject.toml {py_name}"
+    )
+    assert setup_meta.get("version") == py_version, (
+        f"{subdir}: setup.py version {setup_meta.get('version')} != pyproject.toml {py_version}"
+    )
+    assert "mcp[cli]>=2.3.0,<3.0.0" in setup_meta.get("install_requires", []), (
+        f"{subdir}: setup.py missing mcp[cli]>=2.3.0,<3.0.0 floor"
+    )
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest.get("$schema") == REGISTRY_SCHEMA_URL
@@ -179,13 +194,16 @@ async def test_server_registry_manifest_and_version_synchronization(
 
 
 def test_adk_agent_package_version_synchronization() -> None:
-    """Verify run-with-google-adk pyproject.toml and runtime __version__ match."""
+    """Verify run-with-google-adk pyproject.toml version, __version__, and dependency floors."""
     adk_pyproject = tomllib.loads(
         (REPO_ROOT / "run-with-google-adk" / "pyproject.toml").read_text(encoding="utf-8")
     )
     assert adk_pyproject["project"]["name"] == "mcp-security-agent"
     assert adk_pyproject["project"]["version"] == "0.3.0"
     assert mcp_security_agent.__version__ == adk_pyproject["project"]["version"]
+    adk_deps = adk_pyproject["project"]["dependencies"]
+    assert "mcp[cli]>=2.3.0,<3.0.0" in adk_deps
+    assert "google-adk[mcp]>=2.13.0,<3.0.0" in adk_deps
 
 
 def test_workflows_pin_pip_installs_and_sync_server_json() -> None:
@@ -215,9 +233,14 @@ def test_setup_py_extractor_detects_version_and_name_drift(tmp_path: Path) -> No
     """Verify _extract_setup_py_metadata parses setup(...) literals accurately."""
     sample_setup = tmp_path / "setup.py"
     sample_setup.write_text(
-        'from setuptools import setup\nsetup(name="sample-mcp", version="1.2.3")\n',
+        'from setuptools import setup\n'
+        'setup(name="sample-mcp", version="1.2.3", install_requires=["mcp[cli]>=2.3.0,<3.0.0"])\n',
         encoding="utf-8",
     )
     meta = _extract_setup_py_metadata(sample_setup)
-    assert meta == {"name": "sample-mcp", "version": "1.2.3"}
+    assert meta == {
+        "name": "sample-mcp",
+        "version": "1.2.3",
+        "install_requires": ["mcp[cli]>=2.3.0,<3.0.0"],
+    }
     assert meta["version"] != "1.2.4"
