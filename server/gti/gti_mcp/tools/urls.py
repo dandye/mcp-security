@@ -187,3 +187,60 @@ async def get_entities_related_to_an_url(
     logging.exception("Error fetching relationships for URL %s: %s", url, e)
     return utils.tool_error_result(f"Failed to fetch URL relationships: {e}")  # type: ignore[return-value]
   return utils.sanitize_response(res.get(relationship_name, []))
+
+
+@server.tool(
+    title="Submit and Analyze URL",
+    annotations=_ToolAnnotations(
+        title="Submit and Analyze URL",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=True,
+    ),
+)
+async def analyse_url(
+    url: str, ctx: typing.Optional[Context] = None
+) -> dict[str, typing.Any]:
+  """Submit a URL for live scanning and wait for the Google Threat Intelligence analysis report.
+
+  Args:
+    url (required): The URL to submit for scanning and analysis.
+    ctx: Optional MCP request context for progress reporting.
+
+  Returns:
+    Sanitized analysis report dictionary from VirusTotal / Google Threat Intelligence.
+  """
+  try:
+    if ctx is not None:
+      await ctx.report_progress(
+          progress=0,
+          total=3,
+          message="Submitting URL for scanning...",
+      )
+    async with vt_client(ctx) as client:  # type: ignore[arg-type]
+      analysis = await client.scan_url_async(url)
+      if ctx is not None:
+        await ctx.report_progress(
+            progress=1,
+            total=3,
+            message="Polling URL analysis completion...",
+        )
+      res = await client.wait_for_analysis_completion(analysis)
+      if ctx is not None:
+        await ctx.report_progress(
+            progress=2,
+            total=3,
+            message="Fetching URL threat analysis report...",
+        )
+      sanitized = utils.sanitize_response(res.to_dict())
+    if ctx is not None:
+      await ctx.report_progress(
+          progress=3,
+          total=3,
+          message="URL analysis complete.",
+      )
+    return sanitized
+  except Exception as e:
+    logging.error("Error analysing URL %s: %s", url, e)
+    return utils.tool_error_result(f"Failed to analyse URL: {e}")  # type: ignore[return-value]

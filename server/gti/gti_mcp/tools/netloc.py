@@ -18,6 +18,10 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations as _ToolAnnotations
 
 from .. import utils
+from ..phase5 import (
+    GTI_IOC_VERDICT_URI as _GTI_IOC_VERDICT_URI,
+    ui_tool_meta as _ui_tool_meta,
+)
 from ..server import server, vt_client
 
 
@@ -99,6 +103,7 @@ IP_KEY_RELATIONSHIPS = [
         idempotent_hint=True,
         open_world_hint=True,
     ),
+    meta=_ui_tool_meta(_GTI_IOC_VERDICT_URI),
 )
 async def get_domain_report(domain: str, ctx: Context) -> dict[str, typing.Any]:
   """Get a comprehensive domain analysis report from Google Threat Intelligence.
@@ -214,6 +219,7 @@ async def get_entities_related_to_a_domain(
         idempotent_hint=True,
         open_world_hint=True,
     ),
+    meta=_ui_tool_meta(_GTI_IOC_VERDICT_URI),
 )
 async def get_ip_address_report(ip_address: str, ctx: Context) -> dict[str, typing.Any]:
   """Get a comprehensive IP Address analysis report from Google Threat Intelligence.

@@ -22,10 +22,18 @@ import logging
 import os
 from typing import Any, Optional, Sequence
 
+from mcp.server.auth.provider import TokenVerifier
 from mcp.server.caching import CacheHint
 from mcp.server.mcpserver import DEFAULT_RESOURCE_SECURITY, MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from secops import SecOpsClient
+from secops_mcp.phase5 import (
+    build_request_state_security,
+    build_root_oauth_well_known_routes,
+    build_secops_apps_extensions,
+    extract_resource_host_patterns,
+    resolve_oauth_configuration,
+)
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -150,7 +158,7 @@ server = MCPServer(
         'lookup_entity, and query raw telemetry with search_security_events '
         'or export_udm_search_csv using UDM syntax. All detection rule tools '
         '(list_security_rules, search_security_rules, create_rule, '
-        'update_rule, test_rule, get_rule_detections) author and evaluate '
+        'update_rule, delete_rule, test_rule, get_rule_detections) author and evaluate '
         'YARA-L 2.0 (YL2) Chronicle SIEM UDM event detection rules, not '
         'standard YARA binary/file payload rules (use gti-mcp for standard '
         'YARA file/payload hunting).'
@@ -158,6 +166,8 @@ server = MCPServer(
     log_level='ERROR',
     cache_hints=_build_cache_hints(),
     resource_security=DEFAULT_RESOURCE_SECURITY,
+    request_state_security=build_request_state_security(),
+    extensions=build_secops_apps_extensions() or None,
     middleware=[OpenTelemetryMiddleware()] if OpenTelemetryMiddleware is not None else None,
 )
 _deduplicate_otel_middleware(server)
@@ -315,10 +325,19 @@ def build_streamable_http_app(
     stateless_http: bool = True,
     allowed_hosts: Optional[list[str]] = None,
     allowed_origins: Optional[list[str]] = None,
+    oauth_issuer_url: Optional[str] = None,
+    resource_server_url: Optional[str] = None,
+    required_scopes: Optional[Sequence[str] | str] = None,
+    token_verifier: Optional[TokenVerifier] = None,
 ) -> Starlette:
-    """Build the bounded Streamable HTTP ASGI application with health probes."""
+    """Build the bounded Streamable HTTP ASGI application with health probes and optional OAuth 2.1 RS."""
     _register_health_routes(server_instance)
-    resolved_hosts = _resolve_allowed_hosts(host=host, allowed_hosts=allowed_hosts)
+    extra_hosts = list(allowed_hosts or [])
+    extra_hosts.extend(extract_resource_host_patterns(resource_server_url))
+    resolved_hosts = _resolve_allowed_hosts(
+        host=host,
+        allowed_hosts=extra_hosts or None,
+    )
     resolved_origins = _resolve_allowed_origins(
         resolved_hosts,
         allowed_origins=allowed_origins,
@@ -328,6 +347,32 @@ def build_streamable_http_app(
         allowed_hosts=resolved_hosts,
         allowed_origins=resolved_origins,
     )
+    auth_settings, resolved_verifier = resolve_oauth_configuration(
+        oauth_issuer_url=oauth_issuer_url,
+        resource_server_url=resource_server_url,
+        required_scopes=required_scopes,
+        token_verifier=token_verifier,
+    )
+    if auth_settings is not None and resolved_verifier is not None:
+        custom_routes = list(getattr(server_instance, '_custom_starlette_routes', []))
+        existing_paths = {getattr(r, 'path', None) for r in custom_routes}
+        for wk_route in build_root_oauth_well_known_routes(
+            auth_settings, server_name=server_instance.name
+        ):
+            if wk_route.path not in existing_paths:
+                custom_routes.append(wk_route)
+        return server_instance._lowlevel_server.streamable_http_app(
+            streamable_http_path='/mcp',
+            stateless_http=stateless_http,
+            max_request_body_size=DEFAULT_MAX_REQUEST_BODY_SIZE,
+            session_idle_timeout=DEFAULT_SESSION_IDLE_TIMEOUT,
+            max_sessions=DEFAULT_MAX_SESSIONS,
+            transport_security=transport_security,
+            host=host,
+            auth=auth_settings,
+            token_verifier=resolved_verifier,
+            custom_starlette_routes=custom_routes,
+        )
     return server_instance.streamable_http_app(
         streamable_http_path='/mcp',
         stateless_http=stateless_http,
@@ -400,6 +445,16 @@ class _MCPArgumentParser(argparse.ArgumentParser):
         elif not (1 <= parsed_ns.port <= 65535):
             self.error(f'--port must be between 1 and 65535, got {parsed_ns.port}')
 
+        if getattr(parsed_ns, 'unattended_policy', None) is None:
+            raw_policy = os.getenv('MCP_UNATTENDED_DESTRUCTIVE_POLICY', '').strip().lower()
+            if raw_policy:
+                if raw_policy not in {'allow', 'deny'}:
+                    self.error(
+                        f'invalid MCP_UNATTENDED_DESTRUCTIVE_POLICY value {raw_policy!r} '
+                        "(choose from 'allow', 'deny')"
+                    )
+                parsed_ns.unattended_policy = raw_policy
+
         return parsed_ns, remaining
 
 
@@ -432,18 +487,52 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=_resolve_default_stateless_http(),
         help='Serve stateless Streamable HTTP requests (default: MCP_STATELESS_HTTP or true).',
     )
+    parser.add_argument(
+        '--elicit-destructive',
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help='Require user elicitation before destructive operations (default: MCP_ELICIT_DESTRUCTIVE or false).',
+    )
+    parser.add_argument(
+        '--unattended-policy',
+        choices=('allow', 'deny'),
+        default=None,
+        help='Policy when client lacks elicitation capability (default: allow on stdio, deny on streamable-http).',
+    )
+    parser.add_argument(
+        '--oauth-issuer-url',
+        default=None,
+        help='OAuth 2.1 / OIDC issuer URL for streamable-http Resource Server mode (MCP_OAUTH_ISSUER_URL).',
+    )
+    parser.add_argument(
+        '--resource-server-url',
+        default=None,
+        help='Canonical RFC 8707 Resource Server URL for audience validation (MCP_RESOURCE_SERVER_URL).',
+    )
+    parser.add_argument(
+        '--required-scopes',
+        default=None,
+        help='Comma-separated OAuth 2.1 scopes required on streamable-http requests (MCP_REQUIRED_SCOPES).',
+    )
     return parser
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
     """Run the MCP server for SecOps tools."""
     args = build_arg_parser().parse_args(argv)
+    if args.elicit_destructive is not None:
+        os.environ['MCP_ELICIT_DESTRUCTIVE'] = 'true' if args.elicit_destructive else 'false'
+    if args.unattended_policy is not None:
+        os.environ['MCP_UNATTENDED_DESTRUCTIVE_POLICY'] = args.unattended_policy
     transport = _normalize_transport(args.transport)
     if transport == 'streamable-http':
         app = build_streamable_http_app(
             server,
             host=args.host,
             stateless_http=args.stateless_http,
+            oauth_issuer_url=args.oauth_issuer_url,
+            resource_server_url=args.resource_server_url,
+            required_scopes=args.required_scopes,
         )
         logger.info(
             'Starting %s over streamable-http on %s:%d (stateless_http=%s)',

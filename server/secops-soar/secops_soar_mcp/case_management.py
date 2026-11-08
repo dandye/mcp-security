@@ -20,6 +20,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import CallToolResult, ResourceLink, TextContent, ToolAnnotations
 from pydantic import Field
 from secops_soar_mcp import bindings
+from secops_soar_mcp.phase5 import CloseCaseConfirmation, confirm_destructive_action
 from secops_soar_mcp.utils.consts import Endpoints
 from secops_soar_mcp.utils.models import CasePriority
 from secops_soar_mcp.utils.pydantic_list_field import PydanticListField
@@ -698,6 +699,7 @@ def register_tools(mcp: MCPServer):
                 description="Optional comma-separated tags to apply to the case when closing.",
             ),
         ] = None,
+        ctx: Optional[Context] = None,
     ) -> dict[str, Any]:
         """Close a specific case in the SOAR platform.
 
@@ -735,11 +737,40 @@ def register_tools(mcp: MCPServer):
         - Use `get_case_full_details` to confirm the closure details were recorded correctly.
         - Document any remaining findings or remediation steps using a case commenting tool.
         """
+        outcome = await confirm_destructive_action(
+            ctx,
+            action_name="close_case",
+            message=(
+                f"Confirm closing SOAR case '{case_id}' with reason='{reason}' "
+                f"and root_cause='{root_cause}'."
+            ),
+            schema=CloseCaseConfirmation,
+        )
+        if outcome.input_required is not None:
+            return outcome.input_required  # type: ignore[return-value]
+        if not outcome.proceed:
+            return {
+                **(outcome.cancelled_response or {}),
+                "case_id": case_id,
+                "closed": False,
+            }
+
+        effective_reason = (
+            outcome.data.close_reason.strip()
+            if outcome.data is not None and outcome.data.close_reason.strip()
+            else reason
+        )
+        effective_root_cause = (
+            outcome.data.root_cause.strip()
+            if outcome.data is not None and outcome.data.root_cause.strip()
+            else root_cause
+        )
+
         req: dict[str, Any] = {
             "CaseId": case_id,
-            "RootCause": root_cause,
+            "RootCause": effective_root_cause,
             "Comment": comment,
-            "Reason": reason,
+            "Reason": effective_reason,
         }
         if tags is not None:
             req["Tags"] = tags

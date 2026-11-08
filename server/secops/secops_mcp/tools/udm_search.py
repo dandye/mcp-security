@@ -18,6 +18,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
+from mcp.server.mcpserver import Context as _Context
 from mcp.types import ToolAnnotations as _ToolAnnotations
 from secops_mcp.server import get_chronicle_client, server
 from secops_mcp.utils import (
@@ -49,6 +50,7 @@ async def export_udm_search_csv(
     project_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     region: Optional[str] = None,
+    ctx: Optional[_Context] = None,
 ) -> dict[str, Any]:
     """Export UDM search results to CSV format for analysis and reporting.
 
@@ -157,8 +159,21 @@ async def export_udm_search_csv(
             start_dt,
             end_dt,
         )
+        if ctx is not None:
+            await ctx.report_progress(
+                progress=0,
+                total=3,
+                message="Preparing Chronicle UDM CSV export query",
+            )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
+
+        if ctx is not None:
+            await ctx.report_progress(
+                progress=1,
+                total=3,
+                message="Exporting UDM events as CSV from Chronicle SIEM",
+            )
 
         # Call the fetch_udm_search_csv method on the chronicle client
         csv_results = chronicle.fetch_udm_search_csv(
@@ -168,6 +183,13 @@ async def export_udm_search_csv(
             fields=fields,
             case_insensitive=case_insensitive,
         )
+
+        if ctx is not None:
+            await ctx.report_progress(
+                progress=3,
+                total=3,
+                message="UDM CSV export complete",
+            )
 
         # SDK/Wrapper is returning JSON string directly instead of CSV
         if isinstance(csv_results, str):

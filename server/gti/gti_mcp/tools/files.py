@@ -11,16 +11,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
+import hashlib as _hashlib
+import json
 import logging
+import os as _os
 import typing
 import urllib.parse
-import json
-import asyncio
 
 from mcp.server.mcpserver import Context
+from mcp.server.mcpserver.exceptions import ToolError as _ToolError
 from mcp.types import ToolAnnotations as _ToolAnnotations
 
 from .. import utils
+from ..phase5 import (
+    GTI_IOC_VERDICT_URI as _GTI_IOC_VERDICT_URI,
+    confirm_destructive_action as _confirm_destructive_action,
+    ui_tool_meta as _ui_tool_meta,
+)
 from ..server import server, vt_client
 
 
@@ -95,6 +103,7 @@ FILE_KEY_RELATIONSHIPS = [
         idempotent_hint=True,
         open_world_hint=True,
     ),
+    meta=_ui_tool_meta(_GTI_IOC_VERDICT_URI),
 )
 async def get_file_report(hash: str, ctx: Context) -> dict[str, typing.Any]:
   """Get a comprehensive file analysis report using its hash (MD5/SHA-1/SHA-256).
@@ -319,25 +328,97 @@ async def get_file_behavior_summary(hash: str, ctx: Context) -> dict[str, typing
         open_world_hint=True,
     ),
 )
-async def analyse_file(file_path: str, ctx: Context) -> dict[str, typing.Any]:
+async def analyse_file(
+    file_path: str, ctx: typing.Optional[Context] = None
+) -> dict[str, typing.Any]:
   """Upload and analyse the file in VirusTotal.
 
   The file will be uploaded to VirusTotal and shared with the community.
 
   Args:
     file_path (required): Path to the file for analysis. Use absolute path.
+    ctx: Optional MCP request context for progress reporting and elicitation.
   Returns:
     The analysis report.
   """
+  basename = _os.path.basename(file_path) or file_path
   try:
-    async with vt_client(ctx) as client:
+    if ctx is not None:
+      await ctx.report_progress(
+          progress=0,
+          total=4,
+          message=f"Hashing local file {basename}...",
+      )
+    digest = _hashlib.sha256()
+    byte_size = 0
+    with open(file_path, "rb") as hash_file:
+      while True:
+        chunk = hash_file.read(65536)
+        if not chunk:
+          break
+        if isinstance(chunk, str):
+          chunk = chunk.encode("utf-8")
+        digest.update(chunk)
+        byte_size += len(chunk)
+    sha256_hex = digest.hexdigest()
+
+    outcome = await _confirm_destructive_action(
+        ctx,
+        action_name="analyse_file",
+        message=(
+            f"Confirm external upload of local file '{basename}' "
+            f"({byte_size} bytes, SHA-256: {sha256_hex}) to VirusTotal / "
+            "Google Threat Intelligence."
+        ),
+    )
+    if outcome.input_required is not None:
+      return outcome.input_required  # type: ignore[return-value]
+    if not outcome.proceed:
+      return {
+          **(outcome.cancelled_response or {}),
+          "file_name": basename,
+          "sha256": sha256_hex,
+          "size_bytes": byte_size,
+          "uploaded": False,
+      }
+
+    if ctx is not None:
+      await ctx.report_progress(
+          progress=1,
+          total=4,
+          message=f"Uploading file {basename} to VirusTotal...",
+      )
+    async with vt_client(ctx) as client:  # type: ignore[arg-type]
       with open(file_path, "rb") as f:
         analysis = await client.scan_file_async(file=f)
         logging.info("File %s uploaded.", file_path)
 
+      if ctx is not None:
+        await ctx.report_progress(
+            progress=2,
+            total=4,
+            message="Polling file analysis completion...",
+        )
       res = await client.wait_for_analysis_completion(analysis)
       logging.info("Analysis has completed with ID %s", res.id)
-      return utils.sanitize_response(res.to_dict())
+
+      if ctx is not None:
+        await ctx.report_progress(
+            progress=3,
+            total=4,
+            message="Fetching threat analysis report...",
+        )
+      sanitized = utils.sanitize_response(res.to_dict())
+
+    if ctx is not None:
+      await ctx.report_progress(
+          progress=4,
+          total=4,
+          message="File analysis complete.",
+      )
+    return sanitized
+  except _ToolError:
+    raise
   except Exception as e:
     logging.error("Error analysing file %s: %s", file_path, e)
     return utils.tool_error_result(f"Failed to analyse file: {e}")  # type: ignore[return-value]

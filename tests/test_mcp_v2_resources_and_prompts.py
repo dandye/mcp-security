@@ -150,7 +150,10 @@ async def test_servers_expose_static_capabilities_and_uri_templates_with_default
         f"{server_name} missing static capability resource {expected_static_uri}"
     )
     for res in resources_res.resources:
-        assert res.mime_type == "application/json"
+        if str(res.uri).startswith("ui://"):
+            assert res.mime_type == "text/html;profile=mcp-app"
+        else:
+            assert res.mime_type == "application/json"
         assert res.title and res.title.strip()
         assert res.description and res.description.strip()
 

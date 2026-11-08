@@ -20,11 +20,15 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from mcp.server.mcpserver import Context as _Context
+from mcp.server.mcpserver.exceptions import ToolError as _ToolError
 from mcp.types import (
     CallToolResult as _CallToolResult,
     ResourceLink as _ResourceLink,
     TextContent as _TextContent,
     ToolAnnotations as _ToolAnnotations,
+)
+from secops_mcp.phase5 import (
+    confirm_destructive_action as _confirm_destructive_action,
 )
 from secops_mcp.server import get_chronicle_client, server
 from secops_mcp.utils import tool_error_result as _tool_error_result
@@ -810,6 +814,88 @@ async def update_rule(
 
 
 @server.tool(
+    title="Delete YARA-L Detection Rule",
+    annotations=_ToolAnnotations(
+        title="Delete YARA-L Detection Rule",
+        read_only_hint=False,
+        destructive_hint=True,
+        idempotent_hint=False,
+        open_world_hint=False,
+    ),
+)
+async def delete_rule(
+    rule_id: str,
+    force: bool = False,
+    project_id: Optional[str] = None,
+    customer_id: Optional[str] = None,
+    region: Optional[str] = None,
+    ctx: Optional[_Context] = None,
+) -> dict[str, Any]:
+    """Delete a YARA-L 2.0 detection rule from Chronicle SIEM.
+
+    Permanently removes a YARA-L 2.0 (YL2) detection rule from Google Security
+    Operations (Chronicle SIEM). When `force=True`, also deletes associated
+    retrohunts for the rule.
+
+    Args:
+        rule_id: Unique rule identifier (`ru_<UUID>`) or full resource name.
+        force: If True, force-delete rule even when retrohunts exist.
+        project_id: Optional Google Cloud project ID.
+        customer_id: Optional Chronicle customer ID.
+        region: Optional Chronicle region (e.g., "us", "europe").
+        ctx: Optional MCP request context for confirmation elicitation.
+
+    Returns:
+        Dictionary confirming deletion status and `rule_id`.
+    """
+    clean_rule_id = rule_id.split("/")[-1].split("@")[0].strip() if rule_id else ""
+    if not clean_rule_id:
+        return _tool_error_result("rule_id is required.", rule_id=rule_id)
+
+    try:
+        outcome = await _confirm_destructive_action(
+            ctx,
+            action_name="delete_rule",
+            message=(
+                f"Confirm permanent deletion of Chronicle YARA-L 2.0 detection "
+                f"rule '{clean_rule_id}' (force={force})."
+            ),
+        )
+        if outcome.input_required is not None:
+            return outcome.input_required  # type: ignore[return-value]
+        if not outcome.proceed:
+            return {
+                **(outcome.cancelled_response or {}),
+                "rule_id": clean_rule_id,
+                "deleted": False,
+            }
+
+        logger.info(
+            "Deleting YARA-L 2.0 detection rule %s (force=%s)",
+            clean_rule_id,
+            force,
+        )
+        chronicle = get_chronicle_client(project_id, customer_id, region)
+        raw_result = chronicle.delete_rule(clean_rule_id, force=force)
+        return {
+            "status": "deleted",
+            "deleted": True,
+            "rule_id": clean_rule_id,
+            "force": force,
+            "result": raw_result if isinstance(raw_result, dict) else {},
+        }
+    except _ToolError:
+        raise
+    except Exception as e:
+        logger.error("Error deleting rule %s: %s", clean_rule_id, e, exc_info=True)
+        return _tool_error_result(
+            f"Error deleting rule {clean_rule_id}: {e}",
+            rule_id=clean_rule_id,
+            deleted=False,
+        )
+
+
+@server.tool(
     title="Test YARA-L Detection Rule",
     annotations=_ToolAnnotations(
         title="Test YARA-L Detection Rule",
@@ -826,6 +912,7 @@ async def test_rule(
     region: Optional[str] = None,
     hours_back: int = 168,  # 7 days default
     max_results: int = 100,
+    ctx: Optional[_Context] = None,
 ) -> dict[str, Any]:
     """Test a detection rule against historical data in Chronicle SIEM.
 
@@ -905,6 +992,12 @@ async def test_rule(
             "Testing detection rule against %s hours of historical data",
             hours_back,
         )
+        if ctx is not None:
+            await ctx.report_progress(
+                progress=0,
+                total=100,
+                message="Initializing Chronicle client for YARA-L 2.0 rule test",
+            )
 
         chronicle = get_chronicle_client(project_id, customer_id, region)
 
@@ -919,6 +1012,12 @@ async def test_rule(
             start_time,
             end_time,
         )
+        if ctx is not None:
+            await ctx.report_progress(
+                progress=20,
+                total=100,
+                message=f"Executing YARA-L 2.0 retrohunt over {hours_back}h window",
+            )
 
         # Test the rule
         test_results = chronicle.run_rule_test(
@@ -941,6 +1040,13 @@ async def test_rule(
                 # Progress update
                 percent_done = result.get("percentDone", 0)
                 progress_updates.append(f"Progress: {percent_done}%")
+                if ctx is not None:
+                    bounded_pct = min(max(float(percent_done), 20.0), 95.0)
+                    await ctx.report_progress(
+                        progress=bounded_pct,
+                        total=100,
+                        message=f"YARA-L 2.0 retrohunt progress: {percent_done}%",
+                    )
 
             elif result_type == "detection":
                 # Detection result
@@ -952,6 +1058,13 @@ async def test_rule(
                 # Error information
                 error_msg = result.get("message", "Unknown error")
                 errors.append(error_msg)
+
+        if ctx is not None:
+            await ctx.report_progress(
+                progress=100,
+                total=100,
+                message=f"Formatting {detection_count} YARA-L 2.0 detection(s)",
+            )
 
         # Format response
         response = f"Rule Test Results:\n\n"

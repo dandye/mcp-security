@@ -12,25 +12,61 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-from collections.abc import Sequence
+import asyncio
+import base64
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+import hashlib
+import hmac
+import inspect
 import json
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional
+import time
+from typing import Any, Dict, Generic, List, Optional, TypeVar
+from urllib.parse import urlparse
 
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from google.api_core import exceptions as google_exceptions
 from google.cloud import asset_v1
 from google.cloud import securitycenter_v2
 from google.protobuf import json_format
+from mcp.server.apps import Apps, ResourceCsp
+from mcp.server.auth.handlers.metadata import ProtectedResourceMetadataHandler
+from mcp.server.auth.provider import AccessToken, TokenVerifier
+from mcp.server.auth.routes import build_resource_metadata_url, cors_middleware
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.caching import CacheHint
+from mcp.server.elicitation import (
+    AcceptedElicitation,
+    ElicitSchemaModelT,
+    render_elicitation_schema,
+)
 from mcp.server.mcpserver import Context, DEFAULT_RESOURCE_SECURITY, MCPServer
-from mcp.server.mcpserver.exceptions import ResourceError
+from mcp.server.mcpserver.exceptions import ResourceError, ToolError
+from mcp.server.request_state import (
+    AESGCMRequestStateCodec,
+    RequestStateSecurity,
+    authenticated_principal,
+)
 from mcp.server.transport_security import TransportSecuritySettings
-from mcp.types import CallToolResult, ResourceLink, TextContent, ToolAnnotations
+from mcp.shared.auth import ProtectedResourceMetadata
+from mcp.types import (
+    CallToolResult,
+    ElicitRequest,
+    ElicitRequestFormParams,
+    InputRequiredResult,
+    ResourceLink,
+    TextContent,
+    ToolAnnotations,
+)
+from pydantic import AnyHttpUrl, BaseModel, Field
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+from starlette.routing import Route
 import uvicorn
 
 try:
@@ -141,6 +177,934 @@ def _register_health_routes(server_instance: MCPServer) -> None:
         server_instance.custom_route("/readyz", methods=["GET"])(_probe_response)
 
 
+_EPHEMERAL_STATE_KEY: bytes = os.urandom(32)
+_TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
+_FALSY_ENV_VALUES = frozenset({"0", "false", "no", "off"})
+
+SCC_FINDING_CARD_URI = "ui://scc/finding-card.html"
+
+FINDING_CARD_HTML = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Google Cloud SCC Finding Posture View</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg-canvas: #0E1012;
+  --bg-elevated: #15181C;
+  --border-hairline: #262B33;
+  --ink-primary: #ECEFF4;
+  --ink-secondary: #9AA4B2;
+  --focus-ring: #6FA8FF;
+  --font-display: "Space Grotesk", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: "Plus Jakarta Sans", "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-canvas);
+  color: var(--ink-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+main {
+  padding: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+header {
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+h1 {
+  margin: 0 0 8px 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.posture-summary {
+  margin: 0;
+  color: var(--ink-secondary);
+  font-size: 13px;
+  max-width: 68ch;
+  font-variant-numeric: tabular-nums;
+}
+h2 {
+  margin: 28px 0 12px 0;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.idx {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-secondary);
+  margin-right: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-hairline);
+  align-items: center;
+}
+.filter-label {
+  font-size: 12px;
+  color: var(--ink-secondary);
+}
+button.filter-pill {
+  min-height: 34px;
+  padding: 6px 12px;
+  background: var(--bg-elevated);
+  color: var(--ink-secondary);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+button.filter-pill[aria-pressed="true"] {
+  background: #1E2631;
+  color: var(--ink-primary);
+  border-color: var(--focus-ring);
+}
+button.filter-pill:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+th {
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-secondary);
+  border-bottom: 1px solid var(--border-hairline);
+}
+td {
+  padding: 12px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border-hairline);
+  vertical-align: top;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 4px;
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-elevated);
+}
+.badge-CRITICAL { color: #FF8A80; background: #2A1414; border-color: #6E2825; }
+.badge-HIGH { color: #FFB870; background: #291B0E; border-color: #6B441C; }
+.badge-MEDIUM { color: #F6D365; background: #26200D; border-color: #665419; }
+.badge-LOW { color: #7CC4FA; background: #10202E; border-color: #224E70; }
+.badge-CLEAN { color: #6EE7B7; background: #0F261E; border-color: #1D5943; }
+.remediation-plane {
+  padding: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-hairline);
+  max-width: 72ch;
+  font-size: 13px;
+  color: var(--ink-primary);
+}
+.empty-state {
+  padding: 20px 0;
+  color: var(--ink-secondary);
+  font-size: 13px;
+  max-width: 65ch;
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Security Command Center Exposure and Remediation</h1>
+    <p class="posture-summary" id="posture-summary">Awaiting top_vulnerability_findings or get_finding_remediation output.</p>
+  </header>
+
+  <section aria-labelledby="sec-findings">
+    <h2 id="sec-findings"><span class="idx">01</span>Prioritized SCC v2 Findings</h2>
+    <div class="filter-bar" id="sev-bar" role="toolbar" aria-label="Filter SCC findings by severity"></div>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Severity</th>
+          <th scope="col">Exposure Score</th>
+          <th scope="col">Category</th>
+          <th scope="col">Affected GCP Resource</th>
+          <th scope="col">Compliance Frameworks</th>
+        </tr>
+      </thead>
+      <tbody id="findings-body">
+        <tr><td colspan="5" class="empty-state">Run top_vulnerability_findings or get_finding_remediation to inspect cloud findings.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section aria-labelledby="sec-rem">
+    <h2 id="sec-rem"><span class="idx">02</span>Prescriptive Remediation Steps</h2>
+    <div class="remediation-plane" id="remediation-box">Select or query a finding to review remediation guidance and Cloud Asset Inventory context.</div>
+  </section>
+</main>
+<script>
+(function () {
+  var state = { items: [], sev: "ALL" };
+  var nextId = 1;
+
+  function normSev(raw) {
+    var s = String(raw || "").toUpperCase();
+    if (s.indexOf("CRIT") >= 0) return "CRITICAL";
+    if (s.indexOf("HIGH") >= 0) return "HIGH";
+    if (s.indexOf("MED") >= 0) return "MEDIUM";
+    if (s.indexOf("LOW") >= 0) return "LOW";
+    return "CLEAN";
+  }
+
+  function formatCompliance(f) {
+    var comps = (f && f.compliances) || (f && f.finding_details && f.finding_details.compliances) || [];
+    if (!Array.isArray(comps) || !comps.length) return "-";
+    return comps.slice(0, 4).map(function (c) {
+      var ids = Array.isArray(c.ids) ? c.ids.slice(0, 2).join(",") : "";
+      return String(c.standard || "STD") + (ids ? (" " + ids) : "");
+    }).join("; ");
+  }
+
+  function normalizePayload(p) {
+    if (!p || typeof p !== "object") return [];
+    if (Array.isArray(p.top_findings)) {
+      return p.top_findings.map(function (f) {
+        return {
+          severity: normSev(f.severity),
+          score: f.attackExposureScore != null ? Number(f.attackExposureScore).toFixed(1) : "N/A",
+          category: String(f.category || "FINDING"),
+          resource: String(f.resourceName || f.name || "-"),
+          compliance: formatCompliance(f),
+          nextSteps: String(f.nextSteps || f.description || "Review finding in SCC.")
+        };
+      });
+    }
+    if (p.finding_name || p.remediation_steps) {
+      var fd = p.finding_details || {};
+      var ae = (fd.attackExposure && fd.attackExposure.score != null) ? Number(fd.attackExposure.score).toFixed(1) : "N/A";
+      return [{
+        severity: normSev(fd.severity || "HIGH"),
+        score: ae,
+        category: String(fd.category || "REMEDIATION_TARGET"),
+        resource: String(p.resource_name || fd.resourceName || p.finding_name || "-"),
+        compliance: formatCompliance(fd),
+        nextSteps: String(p.remediation_steps || fd.nextSteps || p.description || "-")
+      }];
+    }
+    return [];
+  }
+
+  function renderFilterBar() {
+    var bar = document.getElementById("sev-bar");
+    bar.textContent = "";
+    var lbl = document.createElement("span");
+    lbl.className = "filter-label";
+    lbl.textContent = "Severity:";
+    bar.appendChild(lbl);
+    ["ALL", "CRITICAL", "HIGH", "MEDIUM", "LOW"].forEach(function (s) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "filter-pill";
+      btn.setAttribute("aria-pressed", state.sev === s ? "true" : "false");
+      btn.textContent = s;
+      btn.addEventListener("click", function () {
+        state.sev = s;
+        renderFilterBar();
+        renderRows();
+      });
+      bar.appendChild(btn);
+    });
+  }
+
+  function renderRows() {
+    var tbody = document.getElementById("findings-body");
+    tbody.textContent = "";
+    var filtered = state.items.filter(function (it) {
+      return state.sev === "ALL" || it.severity === state.sev;
+    });
+    if (!filtered.length) {
+      var trE = document.createElement("tr");
+      var tdE = document.createElement("td");
+      tdE.colSpan = 5; tdE.className = "empty-state";
+      tdE.textContent = state.items.length ? "No findings match the selected severity." : "No active SCC findings returned.";
+      trE.appendChild(tdE); tbody.appendChild(trE);
+      notifyHeight();
+      return;
+    }
+    filtered.forEach(function (it) {
+      var tr = document.createElement("tr");
+      var cSev = document.createElement("td");
+      var b = document.createElement("span"); b.className = "badge badge-" + it.severity; b.textContent = it.severity;
+      cSev.appendChild(b);
+      var cScore = document.createElement("td"); cScore.className = "mono"; cScore.textContent = it.score;
+      var cCat = document.createElement("td"); cCat.className = "mono"; cCat.textContent = it.category;
+      var cRes = document.createElement("td"); cRes.className = "mono"; cRes.textContent = it.resource;
+      var cCmp = document.createElement("td"); cCmp.textContent = it.compliance;
+      tr.appendChild(cSev); tr.appendChild(cScore); tr.appendChild(cCat); tr.appendChild(cRes); tr.appendChild(cCmp);
+      tr.style.cursor = "pointer";
+      tr.addEventListener("click", function () {
+        document.getElementById("remediation-box").textContent = it.nextSteps;
+      });
+      tbody.appendChild(tr);
+    });
+    document.getElementById("remediation-box").textContent = filtered[0].nextSteps;
+    notifyHeight();
+  }
+
+  function postRpc(msg) {
+    if (window.parent && window.parent !== window) window.parent.postMessage(msg, "*");
+  }
+  function notifyHeight() {
+    var h = Math.min(Math.max(document.documentElement.scrollHeight, 180), 800);
+    postRpc({ jsonrpc: "2.0", method: "ui/notifications/size-changed", params: { height: h } });
+  }
+
+  window.addEventListener("message", function (ev) {
+    var d = ev.data;
+    if (!d || d.jsonrpc !== "2.0") return;
+    if (d.method === "ping" || d.method === "ui/resource-teardown") {
+      postRpc({ jsonrpc: "2.0", id: d.id, result: {} });
+      return;
+    }
+    if (d.id === 1 && d.result) {
+      postRpc({ jsonrpc: "2.0", method: "ui/notifications/initialized", params: {} });
+      notifyHeight();
+      return;
+    }
+    if (d.method === "ui/notifications/tool-result" && d.params) {
+      var p = d.params.structuredContent || null;
+      if (!p && Array.isArray(d.params.content) && d.params.content[0] && d.params.content[0].text) {
+        try { p = JSON.parse(d.params.content[0].text); } catch (_e) {}
+      }
+      if (p) {
+        state.items = normalizePayload(p);
+        document.getElementById("posture-summary").textContent =
+          "Loaded " + state.items.length + " SCC v2 finding(s) prioritized by Attack Exposure Score.";
+        renderFilterBar();
+        renderRows();
+      }
+    }
+  });
+
+  renderFilterBar();
+  postRpc({
+    jsonrpc: "2.0",
+    id: nextId++,
+    method: "ui/initialize",
+    params: {
+      protocolVersion: "2026-01-26",
+      appInfo: { name: "scc-finding-card", version: "0.3.0" },
+      appCapabilities: {}
+    }
+  });
+})();
+</script>
+</body>
+</html>"""
+
+
+def derive_request_state_key(secret: Optional[str] = None) -> bytes:
+    """Derive a 32-byte AES-GCM key from MCP_REQUEST_STATE_SECRET or ephemeral fallback."""
+    raw = secret if secret is not None else os.getenv("MCP_REQUEST_STATE_SECRET")
+    if raw is None or not raw.strip():
+        return _EPHEMERAL_STATE_KEY
+    cleaned = raw.strip()
+    if len(cleaned) == 64:
+        try:
+            decoded_hex = bytes.fromhex(cleaned)
+            if len(decoded_hex) == 32:
+                return decoded_hex
+        except ValueError:
+            pass
+    padded = cleaned + "=" * (-len(cleaned) % 4)
+    for decoder in (base64.urlsafe_b64decode, base64.b64decode):
+        try:
+            decoded_b64 = decoder(padded.encode("ascii"))
+            if len(decoded_b64) == 32:
+                return decoded_b64
+        except Exception:
+            pass
+    return hashlib.sha256(cleaned.encode("utf-8")).digest()
+
+
+class EnvAwareAESGCMCodec:
+    """RequestStateCodec backed by AESGCMRequestStateCodec using MCP_REQUEST_STATE_SECRET."""
+
+    def __init__(self, secret: Optional[str] = None) -> None:
+        self._explicit_secret = secret
+
+    def _codec(self) -> AESGCMRequestStateCodec:
+        return AESGCMRequestStateCodec(
+            [derive_request_state_key(self._explicit_secret)]
+        )
+
+    def seal(self, payload: bytes) -> str:
+        return self._codec().seal(payload)
+
+    def unseal(self, token: str) -> bytes:
+        return self._codec().unseal(token)
+
+
+def build_request_state_security(
+    secret: Optional[str] = None,
+) -> RequestStateSecurity:
+    """Construct RequestStateSecurity with AES-GCM sealing and principal binding."""
+    return RequestStateSecurity(
+        codec=EnvAwareAESGCMCodec(secret=secret),
+        bind_principal=authenticated_principal,
+    )
+
+
+class DestructiveConfirmation(BaseModel):
+    """Confirmation schema for muting SCC findings."""
+
+    confirm: bool = Field(
+        description="Set true to confirm muting the SCC finding, or false to abort."
+    )
+    reason: str = Field(
+        default="",
+        description="Optional operator justification or risk acceptance note.",
+    )
+
+
+SchemaT = TypeVar("SchemaT", bound=BaseModel)
+
+
+@dataclass
+class ElicitationOutcome(Generic[SchemaT]):
+    """Result of destructive-operation confirmation evaluation."""
+
+    proceed: bool
+    data: Optional[SchemaT] = None
+    input_required: Optional[InputRequiredResult] = None
+    cancelled_response: Optional[dict[str, Any]] = None
+
+
+def is_elicit_destructive_enabled() -> bool:
+    raw = os.getenv("MCP_ELICIT_DESTRUCTIVE", "false").strip().lower()
+    return raw in _TRUTHY_ENV_VALUES
+
+
+def _is_http_context(ctx: Context) -> bool:
+    req_ctx = getattr(ctx, "_request_context", None)
+    if req_ctx is not None and getattr(req_ctx, "request", None) is not None:
+        return True
+    env_transport = os.getenv("MCP_TRANSPORT", "").strip().lower()
+    return env_transport in {"streamable-http", "http"}
+
+
+def resolve_unattended_policy(*, is_http: bool) -> str:
+    raw = os.getenv("MCP_UNATTENDED_DESTRUCTIVE_POLICY", "").strip().lower()
+    if raw in {"allow", "deny"}:
+        return raw
+    return "deny" if is_http else "allow"
+
+
+async def confirm_destructive_action(
+    ctx: Optional[Context],
+    *,
+    action_name: str,
+    message: str,
+    schema: type[ElicitSchemaModelT] = DestructiveConfirmation,  # type: ignore[assignment]
+) -> ElicitationOutcome[ElicitSchemaModelT]:
+    """Gate destructive actions with stateless MRTR or backchannel elicitation."""
+    if not is_elicit_destructive_enabled() or ctx is None:
+        return ElicitationOutcome(proceed=True)
+
+    input_responses = getattr(ctx, "input_responses", None) or {}
+    if "confirm_destructive" in input_responses:
+        raw_state = getattr(ctx, "request_state", None)
+        if not isinstance(raw_state, str) or not raw_state:
+            raise ToolError(
+                f"Destructive confirmation response for '{action_name}' requires a valid server-minted requestState."
+            )
+        try:
+            parsed_state = json.loads(raw_state)
+        except ValueError as exc:
+            raise ToolError("Invalid requestState payload.") from exc
+        if (
+            not isinstance(parsed_state, dict)
+            or parsed_state.get("v") != 1
+            or parsed_state.get("action") != action_name
+        ):
+            raise ToolError(
+                f"requestState action mismatch for '{action_name}'."
+            )
+        resp = input_responses["confirm_destructive"]
+        action = getattr(resp, "action", None)
+        content = getattr(resp, "content", None) or {}
+        if isinstance(resp, dict):
+            action = resp.get("action")
+            content = resp.get("content") or {}
+        if action == "accept":
+            parsed = schema.model_validate(content)
+            if getattr(parsed, "confirm", False) is True:
+                return ElicitationOutcome(proceed=True, data=parsed)
+            return ElicitationOutcome(
+                proceed=False,
+                cancelled_response={
+                    "status": "cancelled",
+                    "cancelled": True,
+                    "elicitation_action": "decline",
+                    "action": action_name,
+                    "message": (
+                        f"Operation '{action_name}' was aborted because confirmation was false."
+                    ),
+                },
+            )
+        return ElicitationOutcome(
+            proceed=False,
+            cancelled_response={
+                "status": "cancelled",
+                "cancelled": True,
+                "elicitation_action": str(action or "cancel"),
+                "action": action_name,
+                "message": f"Operation '{action_name}' cancelled by operator ({action}).",
+            },
+        )
+
+    caps = getattr(ctx, "client_capabilities", None)
+    supports_elicitation = bool(
+        caps is not None and getattr(caps, "elicitation", None) is not None
+    )
+    if not supports_elicitation:
+        is_http = _is_http_context(ctx)
+        policy = resolve_unattended_policy(is_http=is_http)
+        if policy == "deny":
+            raise ToolError(
+                f"Destructive operation '{action_name}' requires client elicitation support "
+                "over streamable-http, or explicit MCP_UNATTENDED_DESTRUCTIVE_POLICY=allow."
+            )
+        return ElicitationOutcome(proceed=True)
+
+    can_send_request = False
+    try:
+        can_send_request = bool(getattr(ctx.session, "can_send_request", False))
+    except Exception:
+        can_send_request = False
+
+    if not can_send_request:
+        return ElicitationOutcome(
+            proceed=False,
+            input_required=InputRequiredResult(
+                input_requests={
+                    "confirm_destructive": ElicitRequest(
+                        params=ElicitRequestFormParams(
+                            message=message,
+                            requested_schema=render_elicitation_schema(schema),
+                        )
+                    )
+                },
+                request_state=json.dumps(
+                    {"v": 1, "action": action_name},
+                    separators=(",", ":"),
+                ),
+            ),
+        )
+
+    elicit_res = await ctx.elicit(message=message, schema=schema)
+    if isinstance(elicit_res, AcceptedElicitation):
+        if getattr(elicit_res.data, "confirm", False) is True:
+            return ElicitationOutcome(proceed=True, data=elicit_res.data)
+        return ElicitationOutcome(
+            proceed=False,
+            cancelled_response={
+                "status": "cancelled",
+                "cancelled": True,
+                "elicitation_action": "decline",
+                "action": action_name,
+                "message": (
+                    f"Operation '{action_name}' was aborted because confirmation was false."
+                ),
+            },
+        )
+    return ElicitationOutcome(
+        proceed=False,
+        cancelled_response={
+            "status": "cancelled",
+            "cancelled": True,
+            "elicitation_action": str(getattr(elicit_res, "action", "cancel")),
+            "action": action_name,
+            "message": (
+                f"Operation '{action_name}' cancelled by operator "
+                f"({getattr(elicit_res, 'action', 'cancel')})."
+            ),
+        },
+    )
+
+
+def _b64url_decode(segment: str) -> bytes:
+    padded = segment + "=" * (-len(segment) % 4)
+    return base64.urlsafe_b64decode(padded.encode("ascii"))
+
+
+def _verify_compact_jwt(
+    token: str,
+    *,
+    hs256_secret: Optional[str] = None,
+    public_key_pem: Optional[str] = None,
+) -> Optional[dict[str, Any]]:
+    parts = token.split(".")
+    if len(parts) != 3:
+        return None
+    header_b64, payload_b64, sig_b64 = parts
+    try:
+        header = json.loads(_b64url_decode(header_b64).decode("utf-8"))
+        payload = json.loads(_b64url_decode(payload_b64).decode("utf-8"))
+        sig = _b64url_decode(sig_b64)
+    except Exception:
+        return None
+    if not isinstance(header, dict) or not isinstance(payload, dict):
+        return None
+
+    alg = str(header.get("alg") or "")
+    signing_input = f"{header_b64}.{payload_b64}".encode("ascii")
+
+    if hs256_secret:
+        if alg != "HS256":
+            return None
+        expected = hmac.new(
+            hs256_secret.encode("utf-8"),
+            signing_input,
+            hashlib.sha256,
+        ).digest()
+        if not hmac.compare_digest(expected, sig):
+            return None
+        return payload
+
+    if public_key_pem:
+        if alg != "RS256":
+            return None
+        try:
+            pub_key = serialization.load_pem_public_key(
+                public_key_pem.encode("utf-8")
+            )
+            if not isinstance(pub_key, rsa.RSAPublicKey):
+                return None
+            pub_key.verify(sig, signing_input, padding.PKCS1v15(), hashes.SHA256())
+        except Exception:
+            return None
+        return payload
+
+    return None
+
+
+def _normalize_url(url: str) -> str:
+    return str(url).strip().rstrip("/")
+
+
+class GoogleOIDCTokenVerifier(TokenVerifier):
+    """OAuth 2.1 / Google OIDC TokenVerifier enforcing issuer, expiry, and RFC 8707 audience."""
+
+    def __init__(
+        self,
+        *,
+        issuer_url: str,
+        resource_server_url: str,
+        required_scopes: Sequence[str] = (),
+        hs256_secret: Optional[str] = None,
+        public_key_pem: Optional[str] = None,
+        verify_callback: Optional[Callable[[str], Any]] = None,
+    ) -> None:
+        self.issuer_url = str(issuer_url).strip()
+        self.resource_server_url = str(resource_server_url).strip()
+        self.required_scopes = list(required_scopes)
+        self.hs256_secret = hs256_secret
+        self.public_key_pem = public_key_pem
+        self.verify_callback = verify_callback
+        self._normalized_issuer = _normalize_url(self.issuer_url)
+        self._normalized_resource = _normalize_url(self.resource_server_url)
+
+    async def verify_token(self, token: str) -> Optional[AccessToken]:
+        cleaned = token.strip()
+        if not cleaned:
+            return None
+
+        claims: Optional[dict[str, Any]] = None
+        if self.verify_callback is not None:
+            raw_claims = self.verify_callback(cleaned)
+            if inspect.isawaitable(raw_claims):
+                raw_claims = await raw_claims
+            if isinstance(raw_claims, AccessToken):
+                return raw_claims
+            if isinstance(raw_claims, dict):
+                claims = raw_claims
+            else:
+                return None
+        else:
+            secret = (
+                self.hs256_secret or os.getenv("MCP_OAUTH_HS256_SECRET") or ""
+            ).strip()
+            pem = (
+                self.public_key_pem or os.getenv("MCP_OAUTH_PUBLIC_KEY_PEM") or ""
+            ).strip()
+            if secret or pem:
+                claims = _verify_compact_jwt(
+                    cleaned,
+                    hs256_secret=secret or None,
+                    public_key_pem=pem or None,
+                )
+            else:
+                claims = await self._verify_via_google_oidc(cleaned)
+
+        if not isinstance(claims, dict):
+            return None
+
+        now = time.time()
+        exp_raw = claims.get("exp")
+        if exp_raw is None:
+            return None
+        try:
+            exp_int = int(float(exp_raw))
+        except (TypeError, ValueError):
+            return None
+        if exp_int <= int(now):
+            return None
+
+        nbf_raw = claims.get("nbf")
+        if nbf_raw is not None:
+            try:
+                if float(nbf_raw) > now:
+                    return None
+            except (TypeError, ValueError):
+                return None
+
+        iss = _normalize_url(str(claims.get("iss") or ""))
+        if not iss or iss != self._normalized_issuer:
+            return None
+
+        audiences: list[str] = []
+        for field_name in ("aud", "resource"):
+            val = claims.get(field_name)
+            if isinstance(val, str) and val.strip():
+                audiences.append(_normalize_url(val))
+            elif isinstance(val, list):
+                for item in val:
+                    if isinstance(item, str) and item.strip():
+                        audiences.append(_normalize_url(item))
+        if self._normalized_resource not in audiences:
+            return None
+
+        scopes: list[str] = []
+        raw_scope = claims.get("scope")
+        if isinstance(raw_scope, str):
+            scopes.extend(s for s in raw_scope.split() if s)
+        raw_scp = claims.get("scp")
+        if isinstance(raw_scp, str):
+            scopes.extend(s for s in raw_scp.split() if s and s not in scopes)
+        elif isinstance(raw_scp, list):
+            for item in raw_scp:
+                if isinstance(item, str) and item.strip() and item.strip() not in scopes:
+                    scopes.append(item.strip())
+
+        client_id = str(
+            claims.get("azp")
+            or claims.get("client_id")
+            or claims.get("sub")
+            or "authenticated-client"
+        )
+        subject = str(claims["sub"]) if claims.get("sub") is not None else None
+        return AccessToken(
+            token=cleaned,
+            client_id=client_id,
+            scopes=scopes,
+            expires_at=exp_int,
+            resource=self.resource_server_url,
+            subject=subject,
+            claims=claims,
+        )
+
+    async def _verify_via_google_oidc(
+        self,
+        token: str,
+    ) -> Optional[dict[str, Any]]:
+        try:
+            from google.auth.transport import requests as google_requests
+            from google.oauth2 import id_token as google_id_token
+
+            verified = await asyncio.to_thread(
+                google_id_token.verify_oauth2_token,
+                token,
+                google_requests.Request(),
+                audience=self.resource_server_url,
+            )
+            return dict(verified) if isinstance(verified, dict) else None
+        except Exception as exc:
+            logger.debug("Google OIDC token verification failed: %s", exc)
+            return None
+
+
+def parse_required_scopes(
+    required_scopes: Optional[Sequence[str] | str] = None,
+) -> list[str]:
+    if required_scopes is None:
+        raw = os.getenv("MCP_REQUIRED_SCOPES", "")
+        if not raw.strip():
+            return []
+        return [s.strip() for s in raw.replace(",", " ").split() if s.strip()]
+    if isinstance(required_scopes, str):
+        return [
+            s.strip() for s in required_scopes.replace(",", " ").split() if s.strip()
+        ]
+    out: list[str] = []
+    for item in required_scopes:
+        for sub in str(item).replace(",", " ").split():
+            if sub.strip():
+                out.append(sub.strip())
+    return out
+
+
+def resolve_oauth_configuration(
+    *,
+    oauth_issuer_url: Optional[str] = None,
+    resource_server_url: Optional[str] = None,
+    required_scopes: Optional[Sequence[str] | str] = None,
+    token_verifier: Optional[TokenVerifier] = None,
+) -> tuple[Optional[AuthSettings], Optional[TokenVerifier]]:
+    issuer = (
+        oauth_issuer_url
+        if oauth_issuer_url is not None
+        else os.getenv("MCP_OAUTH_ISSUER_URL", "")
+    ).strip()
+    resource_url = (
+        resource_server_url
+        if resource_server_url is not None
+        else os.getenv("MCP_RESOURCE_SERVER_URL", "")
+    ).strip()
+    if not issuer or not resource_url:
+        return None, None
+
+    scopes = parse_required_scopes(required_scopes)
+    auth_settings = AuthSettings(
+        issuer_url=AnyHttpUrl(issuer),
+        resource_server_url=AnyHttpUrl(resource_url),
+        required_scopes=scopes or None,
+        validate_token_resource=True,
+    )
+    verifier = token_verifier or GoogleOIDCTokenVerifier(
+        issuer_url=issuer,
+        resource_server_url=resource_url,
+        required_scopes=scopes,
+    )
+    return auth_settings, verifier
+
+
+def extract_resource_host_patterns(resource_server_url: Optional[str]) -> list[str]:
+    raw = (
+        resource_server_url
+        if resource_server_url is not None
+        else os.getenv("MCP_RESOURCE_SERVER_URL", "")
+    ).strip()
+    if not raw:
+        return []
+    parsed = urlparse(raw)
+    hostname = parsed.hostname
+    if not hostname:
+        return []
+    if ":" in hostname and not hostname.startswith("["):
+        bracketed = f"[{hostname}]"
+        return [bracketed, f"{bracketed}:*"]
+    out = [hostname, f"{hostname}:*"]
+    if parsed.port:
+        out.append(f"{hostname}:{parsed.port}")
+    return out
+
+
+def build_root_oauth_well_known_routes(
+    auth_settings: AuthSettings,
+    *,
+    server_name: str,
+) -> list[Route]:
+    if auth_settings.resource_server_url is None:
+        return []
+    metadata_url = build_resource_metadata_url(auth_settings.resource_server_url)
+    well_known_path = urlparse(str(metadata_url)).path
+    if well_known_path == "/.well-known/oauth-protected-resource":
+        return []
+
+    metadata = ProtectedResourceMetadata(
+        resource=auth_settings.resource_server_url,
+        authorization_servers=[auth_settings.issuer_url],
+        scopes_supported=auth_settings.required_scopes,
+        resource_name=server_name,
+    )
+    handler = ProtectedResourceMetadataHandler(metadata)
+    return [
+        Route(
+            "/.well-known/oauth-protected-resource",
+            endpoint=cors_middleware(handler.handle, ["GET", "OPTIONS"]),
+            methods=["GET", "OPTIONS"],
+        )
+    ]
+
+
+def is_apps_enabled() -> bool:
+    raw = os.getenv("MCP_ENABLE_APPS", "true").strip().lower()
+    return raw not in _FALSY_ENV_VALUES
+
+
+def build_strict_csp() -> ResourceCsp:
+    return ResourceCsp(
+        connect_domains=[],
+        resource_domains=[],
+        frame_domains=[],
+        base_uri_domains=[],
+    )
+
+
+def build_scc_apps_extensions() -> list[Apps]:
+    if not is_apps_enabled():
+        return []
+    apps = Apps()
+    apps.add_html_resource(
+        SCC_FINDING_CARD_URI,
+        FINDING_CARD_HTML,
+        name="scc_finding_card",
+        title="Google Cloud SCC Finding Exposure and Remediation",
+        description=(
+            "Interactive dark-mode Google Cloud Security Command Center v2 "
+            "finding exposure score, resource posture, compliance controls, "
+            "and prescriptive remediation view."
+        ),
+        csp=build_strict_csp(),
+        prefers_border=True,
+    )
+    return [apps]
+
+
+def ui_tool_meta(resource_uri: str) -> Optional[dict[str, Any]]:
+    if not is_apps_enabled():
+        return None
+    return {"ui": {"resourceUri": resource_uri}}
+
+
 # Initialize MCPServer with rich 2026-07-28 discovery metadata, SEP-2549 cache hints, and OTel
 mcp = MCPServer(
     name="scc-mcp",
@@ -165,6 +1129,8 @@ mcp = MCPServer(
     ),
     cache_hints=_build_cache_hints(),
     resource_security=DEFAULT_RESOURCE_SECURITY,
+    request_state_security=build_request_state_security(),
+    extensions=build_scc_apps_extensions() or None,
     middleware=[OpenTelemetryMiddleware()] if OpenTelemetryMiddleware is not None else None,
 )
 _deduplicate_otel_middleware(mcp)
@@ -763,6 +1729,7 @@ def _build_scc_finding_resource_links(
         idempotent_hint=True,
         open_world_hint=False,
     ),
+    meta=ui_tool_meta(SCC_FINDING_CARD_URI),
 )
 async def top_vulnerability_findings(
     project_id: Optional[str] = None,
@@ -889,6 +1856,7 @@ async def top_vulnerability_findings(
         idempotent_hint=True,
         open_world_hint=False,
     ),
+    meta=ui_tool_meta(SCC_FINDING_CARD_URI),
 )
 async def get_finding_remediation(
     project_id: Optional[str] = None,
@@ -1136,6 +2104,7 @@ async def set_finding_mute(
     finding_id: Optional[str] = None,
     mute: Optional[str] = None,
     location: str = "global",
+    ctx: Optional[Context] = None,
 ) -> dict[str, Any]:
     """Name: set_finding_mute
 
@@ -1174,9 +2143,26 @@ async def set_finding_mute(
 
     target_label = f"organization '{organization_id}'" if organization_id else f"project '{project_id}'"
     if organization_id:
-        filter_str = f'name="organizations/{organization_id}/sources/-/locations/{location}/findings/{finding_id}"'
+        finding_path = f"organizations/{organization_id}/sources/-/locations/{location}/findings/{finding_id}"
     else:
-        filter_str = f'name="projects/{project_id}/sources/-/locations/{location}/findings/{finding_id}"'
+        finding_path = f"projects/{project_id}/sources/-/locations/{location}/findings/{finding_id}"
+    filter_str = f'name="{finding_path}"'
+
+    if mute_upper == "MUTED":
+        outcome = await confirm_destructive_action(
+            ctx,
+            action_name="set_finding_mute",
+            message=f"Confirm muting Google Cloud SCC finding '{finding_path}'.",
+        )
+        if outcome.input_required is not None:
+            return outcome.input_required  # type: ignore[return-value]
+        if not outcome.proceed:
+            return {
+                **(outcome.cancelled_response or {}),
+                "finding_path": finding_path,
+                "finding_id": finding_id,
+                "muted": False,
+            }
 
     logger.info("Resolving finding %s for mute operation in %s", finding_id, target_label)
 
@@ -1451,10 +2437,19 @@ def build_streamable_http_app(
     stateless_http: bool = True,
     allowed_hosts: Optional[list[str]] = None,
     allowed_origins: Optional[list[str]] = None,
+    oauth_issuer_url: Optional[str] = None,
+    resource_server_url: Optional[str] = None,
+    required_scopes: Optional[Sequence[str] | str] = None,
+    token_verifier: Optional[TokenVerifier] = None,
 ) -> Starlette:
-    """Build the bounded Streamable HTTP ASGI application with health probes."""
+    """Build the bounded Streamable HTTP ASGI application with health probes and optional OAuth 2.1 RS."""
     _register_health_routes(server_instance)
-    resolved_hosts = _resolve_allowed_hosts(host=host, allowed_hosts=allowed_hosts)
+    extra_hosts = list(allowed_hosts or [])
+    extra_hosts.extend(extract_resource_host_patterns(resource_server_url))
+    resolved_hosts = _resolve_allowed_hosts(
+        host=host,
+        allowed_hosts=extra_hosts or None,
+    )
     resolved_origins = _resolve_allowed_origins(
         resolved_hosts,
         allowed_origins=allowed_origins,
@@ -1464,6 +2459,32 @@ def build_streamable_http_app(
         allowed_hosts=resolved_hosts,
         allowed_origins=resolved_origins,
     )
+    auth_settings, resolved_verifier = resolve_oauth_configuration(
+        oauth_issuer_url=oauth_issuer_url,
+        resource_server_url=resource_server_url,
+        required_scopes=required_scopes,
+        token_verifier=token_verifier,
+    )
+    if auth_settings is not None and resolved_verifier is not None:
+        custom_routes = list(getattr(server_instance, "_custom_starlette_routes", []))
+        existing_paths = {getattr(r, "path", None) for r in custom_routes}
+        for wk_route in build_root_oauth_well_known_routes(
+            auth_settings, server_name=server_instance.name
+        ):
+            if wk_route.path not in existing_paths:
+                custom_routes.append(wk_route)
+        return server_instance._lowlevel_server.streamable_http_app(
+            streamable_http_path="/mcp",
+            stateless_http=stateless_http,
+            max_request_body_size=DEFAULT_MAX_REQUEST_BODY_SIZE,
+            session_idle_timeout=DEFAULT_SESSION_IDLE_TIMEOUT,
+            max_sessions=DEFAULT_MAX_SESSIONS,
+            transport_security=transport_security,
+            host=host,
+            auth=auth_settings,
+            token_verifier=resolved_verifier,
+            custom_starlette_routes=custom_routes,
+        )
     return server_instance.streamable_http_app(
         streamable_http_path="/mcp",
         stateless_http=stateless_http,
@@ -1536,6 +2557,16 @@ class _MCPArgumentParser(argparse.ArgumentParser):
         elif not (1 <= parsed_ns.port <= 65535):
             self.error(f"--port must be between 1 and 65535, got {parsed_ns.port}")
 
+        if getattr(parsed_ns, "unattended_policy", None) is None:
+            raw_policy = os.getenv("MCP_UNATTENDED_DESTRUCTIVE_POLICY", "").strip().lower()
+            if raw_policy:
+                if raw_policy not in {"allow", "deny"}:
+                    self.error(
+                        f"invalid MCP_UNATTENDED_DESTRUCTIVE_POLICY value {raw_policy!r} "
+                        "(choose from 'allow', 'deny')"
+                    )
+                parsed_ns.unattended_policy = raw_policy
+
         return parsed_ns, remaining
 
 
@@ -1568,12 +2599,43 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=_resolve_default_stateless_http(),
         help="Serve stateless Streamable HTTP requests (default: MCP_STATELESS_HTTP or true).",
     )
+    parser.add_argument(
+        "--elicit-destructive",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Require user elicitation before muting SCC findings (default: MCP_ELICIT_DESTRUCTIVE or false).",
+    )
+    parser.add_argument(
+        "--unattended-policy",
+        choices=("allow", "deny"),
+        default=None,
+        help="Policy when client lacks elicitation capability (default: allow on stdio, deny on streamable-http).",
+    )
+    parser.add_argument(
+        "--oauth-issuer-url",
+        default=None,
+        help="OAuth 2.1 / OIDC issuer URL for streamable-http Resource Server mode (MCP_OAUTH_ISSUER_URL).",
+    )
+    parser.add_argument(
+        "--resource-server-url",
+        default=None,
+        help="Canonical RFC 8707 Resource Server URL for audience validation (MCP_RESOURCE_SERVER_URL).",
+    )
+    parser.add_argument(
+        "--required-scopes",
+        default=None,
+        help="Comma-separated OAuth 2.1 scopes required on streamable-http requests (MCP_REQUIRED_SCOPES).",
+    )
     return parser
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
     """Runs the SCC MCP server."""
     args = build_arg_parser().parse_args(argv)
+    if args.elicit_destructive is not None:
+        os.environ["MCP_ELICIT_DESTRUCTIVE"] = "true" if args.elicit_destructive else "false"
+    if args.unattended_policy is not None:
+        os.environ["MCP_UNATTENDED_DESTRUCTIVE_POLICY"] = args.unattended_policy
     if not scc_client:
         logger.critical("SCC Client failed to initialize. MCP server cannot serve SCC tools.")
 
@@ -1583,6 +2645,9 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             mcp,
             host=args.host,
             stateless_http=args.stateless_http,
+            oauth_issuer_url=args.oauth_issuer_url,
+            resource_server_url=args.resource_server_url,
+            required_scopes=args.required_scopes,
         )
         logger.info(
             "Starting %s over streamable-http on %s:%d (stateless_http=%s)",

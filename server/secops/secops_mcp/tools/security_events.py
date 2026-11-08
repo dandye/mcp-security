@@ -18,6 +18,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from mcp.types import ToolAnnotations as _ToolAnnotations
+from secops_mcp.phase5 import (
+    SECOPS_ENTITY_TIMELINE_URI as _SECOPS_ENTITY_TIMELINE_URI,
+    ui_tool_meta as _ui_tool_meta,
+)
 from secops_mcp.server import get_chronicle_client, server
 from secops_mcp.utils import parse_time_range, tool_error_result as _tool_error_result
 
@@ -35,6 +39,7 @@ logger = logging.getLogger('secops-mcp')
         idempotent_hint=True,
         open_world_hint=False,
     ),
+    meta=_ui_tool_meta(_SECOPS_ENTITY_TIMELINE_URI),
 )
 async def search_security_events(
     text: str,
