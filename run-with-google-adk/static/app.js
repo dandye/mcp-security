@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const newInvestigationBtn = document.getElementById('newInvestigationBtn');
   const appTitle = document.getElementById('appTitle');
   const currentSessionDisplay = document.getElementById('currentSessionDisplay');
+  const currentModelDisplay = document.getElementById('currentModelDisplay');
   const currentUserDisplay = document.getElementById('currentUserDisplay');
   const userAvatar = document.getElementById('userAvatar');
   const userChip = document.getElementById('userChip');
@@ -128,6 +129,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch(`${API_BASE_URL}/info`);
       if (res.ok) {
         const data = await res.json();
+        if (data.model && currentModelDisplay) {
+          currentModelDisplay.textContent = data.model;
+        }
         if (data.user && !currentUserId) {
           currentUserId = data.user;
           updateUserUI();
@@ -384,8 +388,9 @@ document.addEventListener('DOMContentLoaded', () => {
               } else if (data.text) {
                 const isBlock = data.event_type === 'tool_call' ||
                                 data.event_type === 'tool_response' ||
+                                data.event_type === 'confirmation_request' ||
                                 data.event_type === 'error' ||
-                                (!data.event_type && (data.text.startsWith('[Tool]') || data.text.startsWith('[Error]') || data.text.startsWith('[Warning]')));
+                                (!data.event_type && (data.text.startsWith('[Tool]') || data.text.startsWith('[Confirmation Required]') || data.text.startsWith('[Error]') || data.text.startsWith('[Warning]')));
 
                 if (!accumulatedText) {
                   accumulatedText = data.text;

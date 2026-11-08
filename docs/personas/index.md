@@ -40,6 +40,7 @@ compliance_manager
 cti_researcher
 detection_engineer
 incident_responder
+llm_judge
 red_team
 security_engineer
 soc_analyst_tier_1
@@ -47,3 +48,4 @@ soc_analyst_tier_2
 soc_analyst_tier_3
 soc_manager
 threat_hunter
+```

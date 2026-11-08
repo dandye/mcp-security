@@ -1,8 +1,9 @@
 """Unit tests for mcp_security_agent.cli."""
 
+import os
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 from typer.testing import CliRunner
 
 # Add src directory to path
@@ -21,20 +22,25 @@ def test_cli_help():
     assert "Autonomous Security Operations Center" in result.stdout
 
 
-def test_cli_info():
-    result = runner.invoke(app, ["info"])
-    assert result.exit_code == 0
-    assert "MCP Security Agent v0.3.0" in result.stdout
-    assert "Model:" in result.stdout
-    assert "Project:" in result.stdout
-    assert "ADC:" in result.stdout
-
+def test_cli_info(monkeypatch):
+    monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+    monkeypatch.delenv("GOOGLE_CLOUD_LOCATION", raising=False)
+    with patch.dict(os.environ, {}, clear=True):
+        result = runner.invoke(app, ["info"])
+        assert result.exit_code == 0
+        assert "MCP Security Agent v0.3.0" in result.stdout
+        assert "Model:" in result.stdout
+        assert "Location:" in result.stdout
+        assert "Project:" in result.stdout
+        assert "ADC:" in result.stdout
 
 
 def test_cli_chat_query():
     mock_adk_cli = MagicMock()
+
     async def fake_run_once(*args, **kwargs):
         return 0
+
     mock_adk_cli.run_once_cli = fake_run_once
 
     with patch.dict("sys.modules", {"google.adk.cli.cli": mock_adk_cli}):
@@ -43,11 +49,13 @@ def test_cli_chat_query():
 
 
 def test_cli_chat_tool_flags():
-    import os
     import mcp_security_agent.agent as agent_mod
+
     mock_adk_cli = MagicMock()
+
     async def fake_run_once(*args, **kwargs):
         return 0
+
     mock_adk_cli.run_once_cli = fake_run_once
 
     with patch.dict(os.environ, {}, clear=True):
@@ -59,41 +67,60 @@ def test_cli_chat_tool_flags():
             assert len(agent_mod.root_agent.tools) == 1
             assert sys.modules["mcp_security_agent"].root_agent == agent_mod.root_agent
 
-            result_no_secops = runner.invoke(app, ["chat", "--no-secops", "--no-scc", "test query"])
+            result_no_secops = runner.invoke(
+                app, ["chat", "--no-secops", "--no-scc", "test query"]
+            )
             assert result_no_secops.exit_code == 0
             assert "No MCP tools are currently enabled" in result_no_secops.stdout
             assert len(agent_mod.root_agent.tools) == 0
 
 
-def test_cli_chat_config_flags():
-    import os
+def test_cli_chat_config_and_confirmation_flags():
     import mcp_security_agent.agent as agent_mod
+
     mock_adk_cli = MagicMock()
+
     async def fake_run_once(*args, **kwargs):
         return 0
+
     mock_adk_cli.run_once_cli = fake_run_once
 
     with patch.dict(os.environ, {}, clear=True):
         with patch.dict("sys.modules", {"google.adk.cli.cli": mock_adk_cli}):
-            result = runner.invoke(app, [
-                "chat",
-                "--vertex",
-                "--model", "gemini-2.5-pro",
-                "--project", "test-project-123",
-                "--customer-id", "cust-uuid-456",
-                "test query"
-            ])
+            result = runner.invoke(
+                app,
+                [
+                    "chat",
+                    "--vertex",
+                    "--model",
+                    "gemini-3.1-pro-preview",
+                    "--location",
+                    "global",
+                    "--project",
+                    "test-project-123",
+                    "--customer-id",
+                    "a1b2c3d4-e5f6-4321-abcd-ef1234567890",
+                    "--confirm-destructive",
+                    "--prefix-tools",
+                    "--secops",
+                    "test query",
+                ],
+            )
             assert result.exit_code == 0
             assert os.environ["GOOGLE_GENAI_USE_VERTEXAI"] == "TRUE"
-            assert os.environ["GOOGLE_MODEL"] == "gemini-2.5-pro"
+            assert os.environ["GOOGLE_MODEL"] == "gemini-3.1-pro-preview"
+            assert os.environ["GOOGLE_CLOUD_LOCATION"] == "global"
             assert os.environ["GOOGLE_CLOUD_PROJECT"] == "test-project-123"
             assert os.environ["CHRONICLE_PROJECT_ID"] == "test-project-123"
-            assert os.environ["CHRONICLE_CUSTOMER_ID"] == "cust-uuid-456"
-            assert agent_mod.root_agent.model == "gemini-2.5-pro"
+            assert os.environ["CHRONICLE_CUSTOMER_ID"] == "a1b2c3d4-e5f6-4321-abcd-ef1234567890"
+            assert os.environ["ADK_CONFIRM_DESTRUCTIVE_TOOLS"] == "Y"
+            assert os.environ["MCP_TOOL_NAME_PREFIX_ENABLED"] == "Y"
+            assert agent_mod.root_agent.model == "gemini-3.1-pro-preview"
+            assert agent_mod.root_agent.tools[0].tool_name_prefix == "secops"
+            assert agent_mod.root_agent.tools[0]._confirm_destructive_tools is True
 
 
 def test_cli_serve_command():
-    import os
     mock_uvicorn = MagicMock()
     with patch.dict(os.environ, {"PORT": "9090"}, clear=True):
         with patch.dict("sys.modules", {"uvicorn": mock_uvicorn}):
@@ -116,6 +143,3 @@ def test_cli_serve_command():
             assert kwargs["factory"] is True
             assert kwargs["port"] == 7070
             assert kwargs["reload"] is True
-
-
-

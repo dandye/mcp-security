@@ -1,0 +1,83 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.google/scc-mcp",
+  "title": "Google Cloud Security Command Center MCP Server",
+  "description": "Google Cloud Security Command Center MCP server for cloud posture findings and asset exposure",
+  "version": "0.3.0",
+  "websiteUrl": "https://google.github.io/mcp-security/",
+  "repository": {
+    "url": "https://github.com/google/mcp-security",
+    "source": "github",
+    "subfolder": "server/scc"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "scc-mcp",
+      "version": "0.3.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "GOOGLE_CLOUD_PROJECT",
+          "description": "Default Google Cloud project ID for Security Command Center queries.",
+          "isRequired": false,
+          "format": "string",
+          "placeholder": "my-gcp-project"
+        },
+        {
+          "name": "GOOGLE_CLOUD_ORGANIZATION_ID",
+          "description": "Optional Google Cloud organization ID for organization-scoped SCC findings.",
+          "isRequired": false,
+          "format": "string",
+          "placeholder": "123456789012"
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://{endpoint_host}/mcp",
+      "variables": {
+        "endpoint_host": {
+          "description": "Hostname of a self-hosted or Cloud Run scc-mcp Streamable HTTP deployment.",
+          "format": "string",
+          "placeholder": "scc-mcp.example.run.app"
+        }
+      },
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Optional OAuth 2.1 Bearer token when MCP_OAUTH_ISSUER_URL is enabled.",
+          "isRequired": false,
+          "isSecret": true,
+          "placeholder": "Bearer <OAUTH_ACCESS_TOKEN>"
+        }
+      ]
+    }
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "protocolVersion": "2026-07-28",
+      "transports": [
+        "stdio",
+        "streamable-http"
+      ],
+      "cliStreamableHttpFlags": "--transport streamable-http --host 127.0.0.1 --port 8080",
+      "capabilities": [
+        "server/discover",
+        "SEP-2549 CacheHint",
+        "ToolAnnotations",
+        "Resources (scc://)",
+        "Prompts",
+        "MRTR Elicitation",
+        "OAuth 2.1 Resource Server",
+        "MCP Apps (ui://scc/finding-card.html)"
+      ]
+    }
+  }
+}

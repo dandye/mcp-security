@@ -85,6 +85,7 @@ exclude_patterns = [
     "venv",
     "env",
     "**/.git/**",
+    "superpowers/**",
     "requirements.txt",
     "Makefile"
 ]

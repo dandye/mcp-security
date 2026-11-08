@@ -1,8 +1,21 @@
-# Chronicle SecOps MCP Server
+# Google Security Operations SIEM MCP Server
 
-This is an MCP (Model Context Protocol) server for interacting with Google's
-Chronicle Security Operations suite.
+This is a Model Context Protocol (MCP `2026-07-28`, `mcp>=2.3.0`) server (`google-secops-mcp` `0.9.0`) for interacting with Google Security Operations SIEM.
 [MCP Info](https://modelcontextprotocol.io/introduction)
+
+## MCP 2026-07-28 Capabilities
+
+- **Transports**: Local `stdio` (default) and stateless single-exchange `streamable-http` (`--transport streamable-http --host 127.0.0.1 --port 8080`) with `server/discover`, `/healthz`, and `/readyz`.
+- **Discovery Caching (`SEP-2549`) and OpenTelemetry**: `CacheHint` TTLs via `MCP_TOOLS_CACHE_TTL_MS` and `OpenTelemetryMiddleware` span instrumentation (`OTEL_EXPORTER_OTLP_ENDPOINT`).
+- **Annotations and Typed Envelopes**: 100% `title` + `ToolAnnotations` coverage, typed `structuredContent`, and `is_error=True` operational failure signaling.
+- **Resources and `ResourceLink` Compaction**: Exposes `secops://info/capabilities`, `secops://rules/{rule_id}`, `secops://reference-lists/{name}`, `secops://parsers/{log_type}`, and `secops://alerts/{alert_id}` under `DEFAULT_RESOURCE_SECURITY`, plus `ResourceLink` summaries on `list_security_rules` and `get_security_alerts`.
+- **SOC Prompts**: `@server.prompt()` workflows `triage_siem_alert(alert_id, lookback_hours)`, `validate_yaral2_detection_rule(rule_text)`, and `hunt_entity_timeline(entity_value, hours)`.
+- **Stateless MRTR Elicitation and Progress**: `AESGCMRequestStateCodec` confirmation (`MCP_ELICIT_DESTRUCTIVE`, `MCP_UNATTENDED_DESTRUCTIVE_POLICY`, `MCP_REQUEST_STATE_SECRET`) on `delete_security_rule` and `ctx.report_progress(...)` updates on `test_rule` and `export_udm_search_csv`.
+- **OAuth 2.1 Resource Server**: Optional RFC 9728 Protected Resource Metadata and JWT/JWKS validation (`MCP_OAUTH_ISSUER_URL`, `MCP_RESOURCE_SERVER_URL`, `MCP_OAUTH_JWKS_URL`, `MCP_OAUTH_JWKS_JSON`, `MCP_REQUIRED_SCOPES`).
+- **Dark-Mode MCP App**: Interactive timeline UI resource at `ui://secops/entity-timeline.html` (opt out via `--disable-apps` or `MCP_ENABLE_APPS=false`).
+- **Official MCP Registry**: Manifest published at `server/secops/server.json` (`io.github.google/google-secops-mcp`).
+
+**Rule Syntax Note:** Detection rules managed by `google-secops-mcp` use **YARA-L 2.0** (UDM event detection rules for Google Security Operations SIEM), which is distinct from standard YARA (file/payload pattern matching used in Google Threat Intelligence).
 
 ## Features
 
@@ -24,7 +37,7 @@ Chronicle Security Operations suite.
     - Searches security detection rules from Chronicle using regex.
 
 - **`get_detection_rule(rule_id, project_id=None, customer_id=None, region=None)`**
-    - Retrieves complete YARA-L detection rule code and metadata from Chronicle by Rule Id.
+    - Retrieves complete YARA-L 2.0 detection rule code and metadata from Google Security Operations by Rule ID.
 
 - **`create_rule(rule_text, project_id=None, customer_id=None, region=None)`**
     - Creates a new YARA-L 2.0 detection rule in Chronicle SIEM.
@@ -357,21 +370,38 @@ Authentication section below for more details.
 - **uv**: Recommended for most users as it provides faster package installation, better dependency resolution, and supports loading environment variables from a file with the `--env-file` option.
 - **pip**: Use when you prefer the standard Python package manager or when you need specific environment setup requirements.
 
+### Running Over Stateless `streamable-http`
+
+```bash
+PROJECT_ID="my-secops-project"
+CUSTOMER_ID="a1b2c3d4-e5f6-4321-abcd-ef1234567890"
+MCP_HOST="127.0.0.1"
+MCP_PORT="8080"
+
+CHRONICLE_PROJECT_ID="$PROJECT_ID" \
+CHRONICLE_CUSTOMER_ID="$CUSTOMER_ID" \
+CHRONICLE_REGION="us" \
+MCP_ELICIT_DESTRUCTIVE="true" \
+secops_mcp --transport streamable-http --host "$MCP_HOST" --port "$MCP_PORT"
+```
+
 ### Environment Variable Setup
 
 Set up these environment variables in your system:
 
 **For macOS/Linux:**
 ```bash
-export CHRONICLE_PROJECT_ID="your-google-cloud-project-id"
-export CHRONICLE_CUSTOMER_ID="your-chronicle-customer-id"
+PROJECT_ID="my-secops-project"
+CUSTOMER_ID="a1b2c3d4-e5f6-4321-abcd-ef1234567890"
+export CHRONICLE_PROJECT_ID="$PROJECT_ID"
+export CHRONICLE_CUSTOMER_ID="$CUSTOMER_ID"
 export CHRONICLE_REGION="us"
 ```
 
 **For Windows PowerShell:**
 ```powershell
-$Env:CHRONICLE_PROJECT_ID = "your-google-cloud-project-id"
-$Env:CHRONICLE_CUSTOMER_ID = "your-chronicle-customer-id"
+$Env:CHRONICLE_PROJECT_ID = "my-secops-project"
+$Env:CHRONICLE_CUSTOMER_ID = "a1b2c3d4-e5f6-4321-abcd-ef1234567890"
 $Env:CHRONICLE_REGION = "us"
 ```
 

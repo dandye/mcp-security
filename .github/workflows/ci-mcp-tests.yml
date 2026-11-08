@@ -87,6 +87,9 @@ jobs:
       - name: Run Phase 5 MRTR Elicitation, Progress, OAuth 2.1 RS, and MCP Apps suite
         run: pytest tests/test_mcp_v2_elicitation_oauth_apps.py -v
 
+      - name: Run Phase 6 Official MCP Registry server.json and packaging sync suite
+        run: pytest tests/test_mcp_v2_registry_and_packaging.py -v
+
       - name: Verify CLI --help entrypoints across all 4 servers
         run: |
           secops_mcp --help

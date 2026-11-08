@@ -1,8 +1,21 @@
 # Google Threat Intelligence MCP Server
 
-This is an MCP (Model Context Protocol) server for interacting with Google's
-Threat Intelligence suite.
+This is a Model Context Protocol (MCP `2026-07-28`, `mcp>=2.3.0`) server (`gti-mcp` `0.2.0`) for interacting with Google Threat Intelligence.
 [MCP Info](https://modelcontextprotocol.io/introduction)
+
+## MCP 2026-07-28 Capabilities
+
+- **Transports**: Local `stdio` (default) and stateless single-exchange `streamable-http` (`--transport streamable-http --host 127.0.0.1 --port 8080`) with `server/discover`, `/healthz`, and `/readyz`.
+- **Discovery Caching (`SEP-2549`) and OpenTelemetry**: `CacheHint` TTLs via `MCP_TOOLS_CACHE_TTL_MS` and `OpenTelemetryMiddleware` span instrumentation (`OTEL_EXPORTER_OTLP_ENDPOINT`).
+- **Annotations and Typed Envelopes**: 100% `title` + `ToolAnnotations` coverage, typed `structuredContent`, and `is_error=True` operational failure signaling.
+- **Resources and `ResourceLink` Compaction**: Exposes `gti://info/capabilities`, `gti://files/{file_hash}`, `gti://collections/{collection_id}`, and `gti://hunting-rulesets/{ruleset_id}` under `DEFAULT_RESOURCE_SECURITY`, plus `ResourceLink` summaries on `search_threats`.
+- **SOC Prompts**: `@server.prompt()` workflows `enrich_and_pivot_ioc(indicator)` and `profile_threat_collection(collection_id)`.
+- **Stateless MRTR Elicitation and Progress**: `AESGCMRequestStateCodec` confirmation (`MCP_ELICIT_DESTRUCTIVE`, `MCP_UNATTENDED_DESTRUCTIVE_POLICY`, `MCP_REQUEST_STATE_SECRET`) on `analyse_file` and `ctx.report_progress(...)` updates on `analyse_file` and `analyse_url`.
+- **OAuth 2.1 Resource Server**: Optional RFC 9728 Protected Resource Metadata and JWT/JWKS validation (`MCP_OAUTH_ISSUER_URL`, `MCP_RESOURCE_SERVER_URL`, `MCP_OAUTH_JWKS_URL`, `MCP_OAUTH_JWKS_JSON`, `MCP_REQUIRED_SCOPES`).
+- **Dark-Mode MCP App**: Interactive IOC verdict card at `ui://gti/ioc-verdict.html` (opt out via `--disable-apps` or `MCP_ENABLE_APPS=false`).
+- **Official MCP Registry**: Manifest published at `server/gti/server.json` (`io.github.google/gti-mcp`).
+
+**Rule Syntax Note:** Hunting rulesets in Google Threat Intelligence (`get_hunting_ruleset`, `gti://hunting-rulesets/{ruleset_id}`) use **standard YARA** for file and payload pattern matching, which is distinct from YARA-L 2.0 UDM event detection rules in Google Security Operations SIEM.
 
 ## Features
 
@@ -84,13 +97,26 @@ Add the following configuration to your MCP client's settings file:
 }
 ```
 
+### Running Over Stateless `streamable-http`
+
+```bash
+GTI_KEY="your-gti-api-key"
+MCP_HOST="127.0.0.1"
+MCP_PORT="8080"
+
+VT_APIKEY="$GTI_KEY" \
+MCP_ELICIT_DESTRUCTIVE="true" \
+gti_mcp --transport streamable-http --host "$MCP_HOST" --port "$MCP_PORT"
+```
+
 ### Environment Variable Setup
 
 Set up the `VT_APIKEY` environment variable in your system:
 
 **For macOS/Linux:**
 ```bash
-export VT_APIKEY="your-vt-api-key"
+GTI_KEY="your-gti-api-key"
+export VT_APIKEY="$GTI_KEY"
 ```
    
 **For Windows PowerShell:**

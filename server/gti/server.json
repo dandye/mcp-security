@@ -1,0 +1,76 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.google/gti-mcp",
+  "title": "Google Threat Intelligence MCP Server",
+  "description": "Google Threat Intelligence MCP server for IOC enrichment, threat actors, and standard YARA hunts",
+  "version": "0.2.0",
+  "websiteUrl": "https://google.github.io/mcp-security/",
+  "repository": {
+    "url": "https://github.com/google/mcp-security",
+    "source": "github",
+    "subfolder": "server/gti"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "gti-mcp",
+      "version": "0.2.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "VT_APIKEY",
+          "description": "Google Threat Intelligence / VirusTotal v3 API key.",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://{endpoint_host}/mcp",
+      "variables": {
+        "endpoint_host": {
+          "description": "Hostname of a self-hosted or Cloud Run gti-mcp Streamable HTTP deployment.",
+          "format": "string",
+          "placeholder": "gti-mcp.example.run.app"
+        }
+      },
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Optional OAuth 2.1 Bearer token when MCP_OAUTH_ISSUER_URL is enabled.",
+          "isRequired": false,
+          "isSecret": true,
+          "placeholder": "Bearer <OAUTH_ACCESS_TOKEN>"
+        }
+      ]
+    }
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "protocolVersion": "2026-07-28",
+      "transports": [
+        "stdio",
+        "streamable-http"
+      ],
+      "cliStreamableHttpFlags": "--transport streamable-http --host 127.0.0.1 --port 8080",
+      "capabilities": [
+        "server/discover",
+        "SEP-2549 CacheHint",
+        "ToolAnnotations",
+        "Resources (gti://)",
+        "Prompts",
+        "MRTR Elicitation",
+        "OAuth 2.1 Resource Server",
+        "MCP Apps (ui://gti/ioc-verdict.html)"
+      ]
+    }
+  }
+}

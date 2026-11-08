@@ -1,149 +1,119 @@
 # Development Guide
 
-This guide provides information for developers who want to extend or modify the MCP servers in this repository.
+This guide covers extending, testing, packaging, and documenting the MCP `2026-07-28` (`mcp>=2.3.0`) servers and `google-adk>=2.13.0` agent in `google/mcp-security`.
 
-## Project Structure
+## Repository Structure
 
-The repository is organized as follows:
-
-```
+```text
 mcp-security/
-├── docs/                 # Documentation
-│   ├── servers/          # Server-specific documentation
-│   └── img/              # Images for documentation
-├── run-with-google-adk/   # Autonomous SOC Agent (Google ADK v2 & MCP)
-│   ├── src/              # Package source (mcp_security_agent)
-│   ├── static/           # Web UI frontend assets
-│   └── tests/            # Hermetic unit test suite
-├── server/               # Server implementations
-│   ├── gti/              # Google Threat Intelligence server
-│   ├── scc/              # Security Command Center server
-│   ├── secops/           # Security Operations server
-│   └── secops-soar/      # SOAR server
-└── README.md             # Repository README
+|-- .github/workflows/          # CI unit/contract suites, docs deploy, PyPI publish
+|-- docs/                       # Sphinx + MyST Markdown documentation
+|   |-- mcp_v2_capabilities.md  # MCP 2026-07-28 protocol & security reference
+|   `-- servers/                # Per-server tool, resource, and prompt guides
+|-- run-with-google-adk/        # Autonomous SOC Agent (mcp-security-agent 0.3.0)
+|   |-- src/mcp_security_agent/ # ADK v2.13 agent, toolsets, callbacks, CLI, FastAPI
+|   `-- tests/                  # Hermetic unit test suite
+|-- server/
+|   |-- secops/                 # google-secops-mcp (0.9.0) + server.json
+|   |-- gti/                    # gti-mcp (0.2.0) + server.json
+|   |-- secops-soar/            # secops-soar-mcp (0.3.0) + server.json
+|   `-- scc/                    # scc-mcp (0.3.0) + server.json
+`-- tests/                      # Cross-server MCP 2026-07-28 contract test suites
 ```
 
-## MCP Server Architecture
+## MCP Server Architecture (`mcp>=2.3.0`)
 
-Each MCP server follows a similar structure:
+Each server instantiates `mcp.server.mcpserver.MCPServer` and exposes:
 
-1. **Server Entry Point**: The main server script that handles MCP protocol interactions
-2. **Tools Module**: Contains the functions exposed as MCP tools
-3. **Utilities**: Helper functions and API clients
-
-### Example: GTI Server Structure
-
-```
-server/gti/
-├── gti_mcp/             # Main package
-│   ├── server.py        # MCP server implementation
-│   ├── utils.py         # Utility functions
-│   └── tools/           # Tool implementations
-│       ├── __init__.py
-│       ├── collections.py
-│       ├── files.py
-│       └── ...
-├── pyproject.toml       # Project metadata
-├── setup.py             # Installation script
-└── README.md            # Server-specific README
-```
+1. **CLI and Transport Entrypoint**: Supports `--transport {stdio,streamable-http}`, `--host`, `--port`, `--stateless-http`, `/healthz`, `/readyz`, `SEP-2549` `CacheHint`, and `OpenTelemetryMiddleware`.
+2. **Annotated Tools**: Every `@server.tool(...)` declares a `title`, `ToolAnnotations` (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`), typed `structuredContent`, and raises `ToolError` (returning `is_error=True`) on operational failures.
+3. **Resources and Prompts**: Registers `DEFAULT_RESOURCE_SECURITY` resources (`secops://`, `gti://`, `soar://`, `scc://`), `ResourceLink` summaries, and parameterized `@server.prompt()` workflows.
+4. **Phase 5 Security Controls**: Supports stateless MRTR `ctx.elicit(...)` via `AESGCMRequestStateCodec` (`MCP_ELICIT_DESTRUCTIVE`), `ctx.report_progress(...)`, OAuth 2.1 Resource Server JWT/JWKS validation (`MCP_OAUTH_ISSUER_URL`), and dark-mode MCP Apps (`ui://`).
+5. **Official MCP Registry Manifest**: Ships a synchronized `server.json` validated against `https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json`.
 
 ## Adding a New Tool
 
-To add a new tool to an existing server:
-
-1. Identify the appropriate server and tools module
-2. Add your tool function with proper type annotations
-3. Register the tool in the server's tool registry
-4. Update the documentation in the corresponding `docs/servers/*.md` file
-
-### Example: Adding a Tool to GTI
+1. Implement the tool in the appropriate `tools/` submodule using explicit `Optional[T] = None` annotations for nullable defaults and lazy `%s` formatting in `logger.*(...)` calls.
+2. Provide `title` and `ToolAnnotations(...)` on `@server.tool(...)` so client confirmation gates (`destructiveHint`) remain accurate.
+3. Re-export the function explicitly in `tools/__init__.py` (`__all__`, never wildcard `import *`).
+4. Add unit tests under `server/<pkg>/tests/` and document the tool in `server/<pkg>/README.md` and `docs/servers/<pkg>_mcp.md`.
 
 ```python
-# In server/gti/gti_mcp/tools/files.py
+import logging
+from typing import Any, Optional
+from mcp.types import ToolAnnotations
+from gti_mcp.server import server
 
-def new_file_tool(file_hash: str) -> dict:
-    """
-    Description of what the new tool does.
-    
-    Args:
-        file_hash: Description of the parameter
-        
-    Returns:
-        A dictionary containing the relevant information
-    """
-    # Implementation goes here
-    ...
-    return result
+logger = logging.getLogger("gti-mcp")
+
+
+@server.tool(
+    title="Get Indicator Summary",
+    annotations=ToolAnnotations(
+        title="Get Indicator Summary",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    ),
+)
+async def get_indicator_summary(
+    indicator: str,
+    comment_limit: Optional[int] = None,
+) -> dict[str, Any]:
+    """Fetch a concise reputation summary for an indicator."""
+    logger.info("Fetching summary for indicator: %s", indicator)
+    return {"indicator": indicator, "limit": comment_limit}
 ```
 
-Then register it in `__init__.py`:
+## Version Synchronization (`pyproject.toml`, `setup.py`, and `server.json`)
 
-```python
-from .files import get_file_report, get_entities_related_to_a_file, new_file_tool
+When bumping a server package version, update all metadata files in lockstep:
 
-__all__ = [
-    "get_file_report", 
-    "get_entities_related_to_a_file",
-    "new_file_tool"
-]
+- `server/<pkg>/pyproject.toml` (`[project].version`)
+- `server/<pkg>/setup.py` (`version=...`, where present)
+- `server/<pkg>/server.json` (`version` and `packages[0].version`)
+- Runtime `MCPServer(..., version=...)`
+
+Both `tests/test_mcp_v2_registry_and_packaging.py` (in `.github/workflows/ci-mcp-tests.yml`) and `.github/workflows/publish-packages.yml` verify synchronization before any PyPI release.
+
+## Running Tests and Package Builds
+
+Run per-package unit suites and cross-server MCP `2026-07-28` contract suites from the repository root:
+
+```bash
+pytest server/secops/tests/*_unit.py -v
+pytest server/gti/tests/ -v
+pytest server/secops-soar/tests/unit -v
+pytest server/scc/tests/ -v
+pytest run-with-google-adk/tests/ -v
+pytest tests/test_mcp_v2_*.py -v
 ```
 
-## Creating a New MCP Server
+Verify `sdist` and `wheel` artifacts with `build` and `twine`:
 
-To create a new MCP server:
+```bash
+DIST_BASE="/tmp/mcp-security-dist"
+for pkg in server/secops server/gti server/secops-soar server/scc run-with-google-adk; do
+  PKG_OUT="$DIST_BASE/$(basename "$pkg")"
+  python -m build "$pkg" --outdir "$PKG_OUT"
+  python -m twine check "$PKG_OUT"/*
+done
+```
 
-1. Create a new directory under `server/`
-2. Implement the server following the MCP specification
-3. Create appropriate documentation in `docs/servers/`
-4. Update the table of contents in `docs/toc.md`
+## Building Documentation Locally
 
-## Testing
+Build the Sphinx site with strict warning checking (`-W`) to verify zero broken MyST cross-references (`myst.xref_missing`) or syntax-highlighting errors:
 
-For each server, you should test:
+```bash
+DOCS_OUT_DIR="/tmp/mcp-security-docs-html"
+uv run --python 3.11 \
+  --with sphinx \
+  --with furo \
+  --with myst-parser \
+  --with sphinx-copybutton \
+  --with sphinx-click \
+  sphinx-build -W --keep-going -b html docs "$DOCS_OUT_DIR"
+```
 
-1. **Tool Functionality**: Ensure each tool works as expected
-2. **MCP Protocol Compliance**: Test compatibility with MCP clients
-3. **Error Handling**: Verify graceful error handling
-
-## Documentation Standards
-
-When documenting tools:
-
-1. Include clear descriptions of what each tool does
-2. Document all parameters with types and descriptions
-3. Explain the return values and any side effects
-4. Provide examples of how to use the tool
-
-## Building Documentation
-
-The documentation uses Sphinx with MyST Markdown. To build the docs:
-
-1. Install dependencies:
-   ```bash
-   cd docs
-   pip install -r requirements.txt
-   ```
-
-2. Build the documentation:
-   ```bash
-   make html
-   ```
-
-3. The built documentation will be in `docs/_build/html/`
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Update documentation
-5. Submit a pull request
-
-## Best Practices
-
-- Follow Python PEP 8 style guidelines
-- Add type annotations to all functions
-- Write clear docstrings
-- Handle errors gracefully
-- Keep MCP tools focused on a single responsibility 
+**MyST Cross-Reference Rule:** `docs/conf.py` does not enable automatic heading-slug anchors (`myst_heading_anchors`). Link across documents by filename (`../usage_guide.md`) or define explicit `(target-label)=` MyST anchors above target headings.

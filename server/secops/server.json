@@ -1,0 +1,109 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.google/google-secops-mcp",
+  "title": "Google Security Operations SIEM MCP Server",
+  "description": "Google Security Operations SIEM MCP server for UDM search, alerts, entities, and YARA-L 2.0 rules",
+  "version": "0.9.0",
+  "websiteUrl": "https://google.github.io/mcp-security/",
+  "repository": {
+    "url": "https://github.com/google/mcp-security",
+    "source": "github",
+    "subfolder": "server/secops"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "google-secops-mcp",
+      "version": "0.9.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "CHRONICLE_PROJECT_ID",
+          "description": "Google Cloud project ID bound to the Google Security Operations tenant.",
+          "isRequired": true,
+          "format": "string",
+          "placeholder": "my-secops-project"
+        },
+        {
+          "name": "CHRONICLE_CUSTOMER_ID",
+          "description": "Google Security Operations customer UUID.",
+          "isRequired": true,
+          "format": "string",
+          "placeholder": "a1b2c3d4-e5f6-4321-abcd-ef1234567890"
+        },
+        {
+          "name": "CHRONICLE_REGION",
+          "description": "Google Security Operations regional endpoint code.",
+          "isRequired": false,
+          "format": "string",
+          "default": "us"
+        },
+        {
+          "name": "SECOPS_SA_PATH",
+          "description": "Optional path to a Google Cloud service account JSON key file.",
+          "isRequired": false,
+          "format": "filepath",
+          "isSecret": true
+        },
+        {
+          "name": "SECOPS_IMPERSONATE_SERVICE_ACCOUNT",
+          "description": "Optional service account email to impersonate via Google Cloud IAM.",
+          "isRequired": false,
+          "format": "string"
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://{region}-chronicle.googleapis.com/mcp",
+      "variables": {
+        "region": {
+          "description": "Google Security Operations regional API prefix (for example us, eu, or europe-west2).",
+          "default": "us",
+          "format": "string"
+        }
+      },
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "OAuth 2.0 Bearer token with cloud-platform scope.",
+          "isRequired": true,
+          "isSecret": true,
+          "placeholder": "Bearer <GOOGLE_OAUTH_ACCESS_TOKEN>"
+        },
+        {
+          "name": "x-goog-user-project",
+          "description": "Google Cloud project ID used for quota and tenant routing.",
+          "isRequired": true,
+          "placeholder": "my-secops-project"
+        }
+      ]
+    }
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "protocolVersion": "2026-07-28",
+      "transports": [
+        "stdio",
+        "streamable-http"
+      ],
+      "cliStreamableHttpFlags": "--transport streamable-http --host 127.0.0.1 --port 8080",
+      "capabilities": [
+        "server/discover",
+        "SEP-2549 CacheHint",
+        "ToolAnnotations",
+        "Resources (secops://)",
+        "Prompts",
+        "MRTR Elicitation",
+        "OAuth 2.1 Resource Server",
+        "MCP Apps (ui://secops/entity-timeline.html)"
+      ]
+    }
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.google/secops-soar-mcp",
+  "title": "Google Security Operations SOAR MCP Server",
+  "description": "Google Security Operations SOAR MCP server for case management, alerts, and playbook actions",
+  "version": "0.3.0",
+  "websiteUrl": "https://google.github.io/mcp-security/",
+  "repository": {
+    "url": "https://github.com/google/mcp-security",
+    "source": "github",
+    "subfolder": "server/secops-soar"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "secops-soar-mcp",
+      "version": "0.3.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "SOAR_URL",
+          "description": "Base URL of the Google Security Operations SOAR tenant.",
+          "isRequired": true,
+          "format": "string",
+          "placeholder": "https://tenant.siemplify-soar.com"
+        },
+        {
+          "name": "SOAR_APP_KEY",
+          "description": "API application key for Google Security Operations SOAR.",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "SOAR_INTEGRATIONS",
+          "description": "Optional comma-separated allowlist of SOAR marketplace integrations to register.",
+          "isRequired": false,
+          "format": "string",
+          "default": "CSV,Siemplify,SiemplifyUtilities"
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://{endpoint_host}/mcp",
+      "variables": {
+        "endpoint_host": {
+          "description": "Hostname of a self-hosted or Cloud Run secops-soar-mcp Streamable HTTP deployment.",
+          "format": "string",
+          "placeholder": "secops-soar-mcp.example.run.app"
+        }
+      },
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Optional OAuth 2.1 Bearer token when MCP_OAUTH_ISSUER_URL is enabled.",
+          "isRequired": false,
+          "isSecret": true,
+          "placeholder": "Bearer <OAUTH_ACCESS_TOKEN>"
+        }
+      ]
+    }
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "protocolVersion": "2026-07-28",
+      "transports": [
+        "stdio",
+        "streamable-http"
+      ],
+      "cliStreamableHttpFlags": "--transport streamable-http --host 127.0.0.1 --port 8080",
+      "capabilities": [
+        "server/discover",
+        "SEP-2549 CacheHint",
+        "ToolAnnotations",
+        "Resources (soar://)",
+        "Prompts",
+        "MRTR Elicitation",
+        "OAuth 2.1 Resource Server"
+      ]
+    }
+  }
+}

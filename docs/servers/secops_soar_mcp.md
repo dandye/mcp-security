@@ -1,6 +1,16 @@
-# SecOps SOAR MCP Server
+# Google Security Operations SOAR MCP Server
 
-This server provides tools for interacting with a Security Orchestration, Automation, and Response (SOAR) platform, specifically Google SecOps SOAR (formerly Siemplify). It includes core case management functionalities and dynamically loads integration-specific tools.
+This server (`secops-soar-mcp` `0.3.0`, MCP `2026-07-28` / `mcp>=2.3.0`) provides core case management tools, resources, prompts, and 313 dynamically loaded marketplace integrations for Google Security Operations SOAR.
+
+## MCP 2026-07-28 Capabilities
+
+- **Transports**: Local `stdio` and stateless `streamable-http` (`--transport streamable-http --host 127.0.0.1 --port 8080`) with `server/discover`, `/healthz`, and `/readyz`.
+- **Caching and Tracing**: `SEP-2549` `CacheHint` (`MCP_TOOLS_CACHE_TTL_MS`, `MCP_TOOLS_CACHE_SCOPE`) and `OpenTelemetryMiddleware` (`OTEL_EXPORTER_OTLP_ENDPOINT`).
+- **Resources and `ResourceLink` Compaction**: `soar://info/capabilities`, `soar://cases/{case_id}`, and `soar://cases/{case_id}/wall`, plus `ResourceLink` summaries on `list_cases`.
+- **SOC Prompts**: `investigate_soar_case(case_id)` and `draft_case_closure_summary(case_id)`.
+- **MRTR Elicitation and OAuth 2.1 RS**: Stateless `AESGCMRequestStateCodec` elicitation (`MCP_ELICIT_DESTRUCTIVE`, `MCP_UNATTENDED_DESTRUCTIVE_POLICY`) on `close_case` and OAuth 2.1 bearer verification (`MCP_OAUTH_ISSUER_URL`, `MCP_RESOURCE_SERVER_URL`).
+
+See the [MCP 2026-07-28 Protocol Guide](../mcp_v2_capabilities.md) for full configuration details.
 
 ## Configuration
 
@@ -40,20 +50,24 @@ Recommended: use the `--env-file` option in `uv` to move your secrets to an `.en
 Your revised config would then be:
 
 ```json
-      ...
+{
+  "mcpServers": {
+    "secops-soar": {
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/the/repo/server/secops-soar/secops_soar_mcp",
+        "/path/to/the/repo/server/secops-soar",
         "run",
         "--env-file",
         "/path/to/the/repo/.env",
-        "server.py",
+        "secops_soar_mcp",
         "--integrations",
         "CSV,OKTA"
       ],
-      "env": {},
-      ...
+      "env": {}
+    }
+  }
+}
 ```
 
 Example .env file:
@@ -68,8 +82,10 @@ Set up these environment variables in your system:
 
 **For macOS/Linux:**
 ```bash
-export SOAR_URL="https://your-soar-instance.example.com"
-export SOAR_APP_KEY="your-soar-api-key"
+SOAR_TENANT_URL="https://your-tenant.siemplify-soar.com"
+SOAR_API_KEY="a1b2c3d4-e5f6-4321-abcd-ef1234567890"
+export SOAR_URL="$SOAR_TENANT_URL"
+export SOAR_APP_KEY="$SOAR_API_KEY"
 ```
 
 **For Windows PowerShell:**
@@ -78,7 +94,7 @@ $Env:SOAR_URL = "https://your-soar-instance.example.com"
 $Env:SOAR_APP_KEY = "your-soar-api-key"
 ```
 
-For more detailed instructions on setting up environment variables, refer to the [usage guide](../usage_guide.md#setting-up-environment-variables).
+For more detailed instructions on setting up environment variables, refer to the [usage guide](../usage_guide.md).
 
 If the server closes with a `Failed to fetch valid scopes from SOAR` error, confirm that `SOAR_URL` points to your SOAR base URL rather than your Backstory URL. The [usage guide](../usage_guide.md) includes steps for finding the correct value.
 

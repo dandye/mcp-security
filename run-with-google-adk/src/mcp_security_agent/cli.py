@@ -36,13 +36,31 @@ def info():
     settings = AgentSettings()
     console.print(f"[bold green]MCP Security Agent v{__version__}[/bold green]")
     console.print(f"Model: [cyan]{settings.google_model}[/cyan]")
-    console.print(f"Project: [cyan]{settings.google_cloud_project or os.environ.get('GOOGLE_CLOUD_PROJECT', 'Not set')}[/cyan]")
-    console.print(f"ADC: [cyan]{settings.google_application_credentials or 'Default (~/.config/gcloud/...)'}[/cyan]")
-    console.print(f"SecOps SIEM MCP: {'[green]Enabled[/green]' if settings.load_secops_mcp else '[dim]Disabled[/dim]'}")
-    console.print(f"SCC MCP: {'[green]Enabled[/green]' if settings.load_scc_mcp else '[dim]Disabled[/dim]'}")
-    console.print(f"GTI MCP: {'[green]Enabled[/green]' if settings.load_gti_mcp else '[dim]Disabled[/dim]'}")
-    console.print(f"SecOps SOAR MCP: {'[green]Enabled[/green]' if settings.load_secops_soar_mcp else '[dim]Disabled[/dim]'}")
-
+    console.print(f"Location: [cyan]{settings.google_cloud_location}[/cyan]")
+    console.print(
+        f"Project: [cyan]{settings.google_cloud_project or os.environ.get('GOOGLE_CLOUD_PROJECT', 'Not set')}[/cyan]"
+    )
+    console.print(
+        f"ADC: [cyan]{settings.google_application_credentials or 'Default (~/.config/gcloud/...)'}[/cyan]"
+    )
+    console.print(
+        f"Destructive Tool Confirmation: {'[yellow]Enabled[/yellow]' if settings.confirm_destructive_tools else '[dim]Disabled[/dim]'}"
+    )
+    console.print(
+        f"Tool Name Prefixing: {'[green]Enabled[/green]' if settings.mcp_tool_name_prefix_enabled else '[dim]Disabled[/dim]'}"
+    )
+    console.print(
+        f"SecOps SIEM MCP: {'[green]Enabled[/green]' if settings.load_secops_mcp else '[dim]Disabled[/dim]'}"
+    )
+    console.print(
+        f"SCC MCP: {'[green]Enabled[/green]' if settings.load_scc_mcp else '[dim]Disabled[/dim]'}"
+    )
+    console.print(
+        f"GTI MCP: {'[green]Enabled[/green]' if settings.load_gti_mcp else '[dim]Disabled[/dim]'}"
+    )
+    console.print(
+        f"SecOps SOAR MCP: {'[green]Enabled[/green]' if settings.load_secops_soar_mcp else '[dim]Disabled[/dim]'}"
+    )
 
 
 def _apply_cli_overrides(
@@ -53,7 +71,10 @@ def _apply_cli_overrides(
     vertex: Optional[bool] = None,
     model: Optional[str] = None,
     project: Optional[str] = None,
+    location: Optional[str] = None,
     customer_id: Optional[str] = None,
+    confirm_destructive: Optional[bool] = None,
+    prefix_tools: Optional[bool] = None,
 ) -> None:
     """Applies CLI flag overrides to environment variables before settings initialization."""
     if secops is not None:
@@ -68,12 +89,18 @@ def _apply_cli_overrides(
         os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "TRUE" if vertex else "FALSE"
     if model:
         os.environ["GOOGLE_MODEL"] = model
+    if location:
+        os.environ["GOOGLE_CLOUD_LOCATION"] = location
     if project:
         os.environ["GOOGLE_CLOUD_PROJECT"] = project
         if "CHRONICLE_PROJECT_ID" not in os.environ:
             os.environ["CHRONICLE_PROJECT_ID"] = project
     if customer_id:
         os.environ["CHRONICLE_CUSTOMER_ID"] = customer_id
+    if confirm_destructive is not None:
+        os.environ["ADK_CONFIRM_DESTRUCTIVE_TOOLS"] = "Y" if confirm_destructive else "N"
+    if prefix_tools is not None:
+        os.environ["MCP_TOOL_NAME_PREFIX_ENABLED"] = "Y" if prefix_tools else "N"
 
 
 def _display_active_toolsets(settings: AgentSettings) -> None:
@@ -99,15 +126,46 @@ def _display_active_toolsets(settings: AgentSettings) -> None:
 
 @app.command()
 def chat(
-    query: Optional[str] = typer.Argument(None, help="Optional single-turn investigation query to execute"),
-    secops: Optional[bool] = typer.Option(None, "--secops/--no-secops", help="Enable or disable SecOps SIEM MCP"),
-    scc: Optional[bool] = typer.Option(None, "--scc/--no-scc", help="Enable or disable SCC MCP"),
-    gti: Optional[bool] = typer.Option(None, "--gti/--no-gti", help="Enable or disable GTI MCP"),
-    soar: Optional[bool] = typer.Option(None, "--soar/--no-soar", help="Enable or disable SecOps SOAR MCP"),
-    vertex: Optional[bool] = typer.Option(None, "--vertex/--no-vertex", help="Use Vertex AI for LLM requests"),
-    model: Optional[str] = typer.Option(None, "--model", help="Gemini model to use (e.g. gemini-2.5-flash)"),
+    query: Optional[str] = typer.Argument(
+        None, help="Optional single-turn investigation query to execute"
+    ),
+    secops: Optional[bool] = typer.Option(
+        None, "--secops/--no-secops", help="Enable or disable SecOps SIEM MCP"
+    ),
+    scc: Optional[bool] = typer.Option(
+        None, "--scc/--no-scc", help="Enable or disable SCC MCP"
+    ),
+    gti: Optional[bool] = typer.Option(
+        None, "--gti/--no-gti", help="Enable or disable GTI MCP"
+    ),
+    soar: Optional[bool] = typer.Option(
+        None, "--soar/--no-soar", help="Enable or disable SecOps SOAR MCP"
+    ),
+    vertex: Optional[bool] = typer.Option(
+        None, "--vertex/--no-vertex", help="Use Vertex AI for LLM requests"
+    ),
+    model: Optional[str] = typer.Option(
+        None,
+        "--model",
+        help="Gemini model to use (e.g. gemini-3.1-pro-preview or gemini-3-flash-preview)",
+    ),
     project: Optional[str] = typer.Option(None, "--project", help="Google Cloud project ID"),
-    customer_id: Optional[str] = typer.Option(None, "--customer-id", help="Chronicle Customer ID (UUID)"),
+    location: Optional[str] = typer.Option(
+        None, "--location", help="Vertex AI location (defaults to global)"
+    ),
+    customer_id: Optional[str] = typer.Option(
+        None, "--customer-id", help="Google SecOps customer ID (UUID)"
+    ),
+    confirm_destructive: Optional[bool] = typer.Option(
+        None,
+        "--confirm-destructive/--no-confirm-destructive",
+        help="Require operator confirmation before running destructive MCP tools",
+    ),
+    prefix_tools: Optional[bool] = typer.Option(
+        None,
+        "--prefix-tools/--no-prefix-tools",
+        help="Prefix MCP tool names by server (secops_, gti_, soar_, scc_)",
+    ),
 ):
     """Start an interactive terminal chat session with the SOC agent powered by ADK v2."""
     _apply_cli_overrides(
@@ -118,19 +176,23 @@ def chat(
         vertex=vertex,
         model=model,
         project=project,
+        location=location,
         customer_id=customer_id,
+        confirm_destructive=confirm_destructive,
+        prefix_tools=prefix_tools,
     )
 
     settings = AgentSettings()
     _display_active_toolsets(settings)
 
     import mcp_security_agent.agent as agent_mod
+
     agent = agent_mod.create_security_agent(settings)
     agent_mod._root_agent = agent
     agent_mod.root_agent = agent
     if "mcp_security_agent" in sys.modules:
-        sys.modules["mcp_security_agent"]._root_agent = agent
-        sys.modules["mcp_security_agent"].root_agent = agent
+        sys.modules["mcp_security_agent"]._root_agent = agent  # type: ignore[attr-defined]
+        sys.modules["mcp_security_agent"].root_agent = agent  # type: ignore[attr-defined]
 
     try:
         from google.adk.cli.cli import run_cli, run_once_cli
@@ -165,16 +227,47 @@ def chat(
 @app.command()
 def serve(
     host: str = typer.Option("0.0.0.0", help="Host address to bind"),
-    port: Optional[int] = typer.Option(None, help="Port to listen on (defaults to $PORT or 8080)"),
+    port: Optional[int] = typer.Option(
+        None, help="Port to listen on (defaults to $PORT or 8080)"
+    ),
     reload: bool = typer.Option(False, "--reload", help="Enable auto-reload for development"),
-    secops: Optional[bool] = typer.Option(None, "--secops/--no-secops", help="Enable or disable SecOps SIEM MCP"),
-    scc: Optional[bool] = typer.Option(None, "--scc/--no-scc", help="Enable or disable SCC MCP"),
-    gti: Optional[bool] = typer.Option(None, "--gti/--no-gti", help="Enable or disable GTI MCP"),
-    soar: Optional[bool] = typer.Option(None, "--soar/--no-soar", help="Enable or disable SecOps SOAR MCP"),
-    vertex: Optional[bool] = typer.Option(None, "--vertex/--no-vertex", help="Use Vertex AI for LLM requests"),
-    model: Optional[str] = typer.Option(None, "--model", help="Gemini model to use (e.g. gemini-2.5-flash)"),
+    secops: Optional[bool] = typer.Option(
+        None, "--secops/--no-secops", help="Enable or disable SecOps SIEM MCP"
+    ),
+    scc: Optional[bool] = typer.Option(
+        None, "--scc/--no-scc", help="Enable or disable SCC MCP"
+    ),
+    gti: Optional[bool] = typer.Option(
+        None, "--gti/--no-gti", help="Enable or disable GTI MCP"
+    ),
+    soar: Optional[bool] = typer.Option(
+        None, "--soar/--no-soar", help="Enable or disable SecOps SOAR MCP"
+    ),
+    vertex: Optional[bool] = typer.Option(
+        None, "--vertex/--no-vertex", help="Use Vertex AI for LLM requests"
+    ),
+    model: Optional[str] = typer.Option(
+        None,
+        "--model",
+        help="Gemini model to use (e.g. gemini-3.1-pro-preview or gemini-3-flash-preview)",
+    ),
     project: Optional[str] = typer.Option(None, "--project", help="Google Cloud project ID"),
-    customer_id: Optional[str] = typer.Option(None, "--customer-id", help="Chronicle Customer ID (UUID)"),
+    location: Optional[str] = typer.Option(
+        None, "--location", help="Vertex AI location (defaults to global)"
+    ),
+    customer_id: Optional[str] = typer.Option(
+        None, "--customer-id", help="Google SecOps customer ID (UUID)"
+    ),
+    confirm_destructive: Optional[bool] = typer.Option(
+        None,
+        "--confirm-destructive/--no-confirm-destructive",
+        help="Require operator confirmation before running destructive MCP tools",
+    ),
+    prefix_tools: Optional[bool] = typer.Option(
+        None,
+        "--prefix-tools/--no-prefix-tools",
+        help="Prefix MCP tool names by server (secops_, gti_, soar_, scc_)",
+    ),
 ):
     """Run the FastAPI web server and Cloud Run REST API."""
     _apply_cli_overrides(
@@ -185,28 +278,40 @@ def serve(
         vertex=vertex,
         model=model,
         project=project,
+        location=location,
         customer_id=customer_id,
+        confirm_destructive=confirm_destructive,
+        prefix_tools=prefix_tools,
     )
 
     settings = AgentSettings()
     _display_active_toolsets(settings)
 
     import mcp_security_agent.agent as agent_mod
+
     agent = agent_mod.create_security_agent(settings)
     agent_mod._root_agent = agent
     agent_mod.root_agent = agent
     if "mcp_security_agent" in sys.modules:
-        sys.modules["mcp_security_agent"]._root_agent = agent
-        sys.modules["mcp_security_agent"].root_agent = agent
+        sys.modules["mcp_security_agent"]._root_agent = agent  # type: ignore[attr-defined]
+        sys.modules["mcp_security_agent"].root_agent = agent  # type: ignore[attr-defined]
 
     bind_port = port if port is not None else int(os.environ.get("PORT", 8080))
     console.print(f"[bold green]Starting MCP Security Agent server on {host}:{bind_port}[/bold green]")
 
     import uvicorn
+
     if reload:
-        uvicorn.run("mcp_security_agent.server.app:create_app", factory=True, host=host, port=bind_port, reload=True)
+        uvicorn.run(
+            "mcp_security_agent.server.app:create_app",
+            factory=True,
+            host=host,
+            port=bind_port,
+            reload=True,
+        )
     else:
         from mcp_security_agent.server.app import create_app
+
         app_instance = create_app()
         uvicorn.run(app_instance, host=host, port=bind_port)
 

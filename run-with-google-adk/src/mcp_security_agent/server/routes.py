@@ -13,27 +13,31 @@
 # limitations under the License.
 """REST and SSE endpoints for FastAPI server and Cloud Run deployments."""
 
-import json
-import uuid
 import asyncio
-import logging
-import threading
 from collections import OrderedDict
+import json
+import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, AsyncGenerator
-from fastapi import APIRouter, HTTPException, Query, Request, Response
-from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
-from pydantic import BaseModel
+import threading
+from typing import Any, AsyncGenerator, Dict, Optional, Tuple
+import uuid
+
+from fastapi import APIRouter, Query, Request, Response
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
-import mcp_security_agent.agent as agent_mod
+from pydantic import BaseModel
+
 from mcp_security_agent import __version__
+import mcp_security_agent.agent as agent_mod
 from mcp_security_agent.config import AgentSettings, discover_user_identity
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+CONFIRMATION_FUNCTION_CALL_NAME = "adk_request_confirmation"
 
 
 class ChatRequest(BaseModel):
@@ -41,6 +45,7 @@ class ChatRequest(BaseModel):
     message: Optional[str] = None
     session_id: Optional[str] = None
     user_id: Optional[str] = None
+    confirmed: Optional[bool] = None
 
 
 class ChatResponse(BaseModel):
@@ -62,7 +67,6 @@ def get_root():
     return JSONResponse({"status": "ok", "message": "MCP Security Agent API is running."})
 
 
-
 @router.get("/healthz")
 def health_check() -> Dict[str, str]:
     """Health check endpoint for Cloud Run and Kubernetes probes."""
@@ -82,10 +86,16 @@ def get_app_name() -> Dict[str, str]:
 
 
 @router.get("/get_session")
-def get_session(username: Optional[str] = Query(None, description="Username for session")) -> Dict[str, str]:
+def get_session(
+    username: Optional[str] = Query(None, description="Username for session")
+) -> Dict[str, str]:
     """Generates a session ID and returns user context for chat sessions."""
     detected_user = discover_user_identity()
-    user = username if (username and username.strip() and username != "secops_user") else detected_user
+    user = (
+        username
+        if (username and username.strip() and username != "secops_user")
+        else detected_user
+    )
     return {
         "session_id": str(uuid.uuid4()),
         "user_id": user,
@@ -113,7 +123,9 @@ def get_info() -> Dict[str, Any]:
     return {
         "version": __version__,
         "model": settings.google_model,
+        "location": settings.google_cloud_location,
         "user": discover_user_identity(),
+        "confirm_destructive_tools": settings.confirm_destructive_tools,
         "tools": {
             "secops": settings.load_secops_mcp,
             "scc": settings.load_scc_mcp,
@@ -260,10 +272,72 @@ def get_runner() -> Optional[Runner]:
     return _runner
 
 
+def _parse_confirmation_decision(message: str, explicit_confirmed: Optional[bool]) -> Dict[str, Any]:
+    """Resolves an operator confirmation decision from explicit flag, JSON payload, or text."""
+    if explicit_confirmed is not None:
+        return {"confirmed": bool(explicit_confirmed)}
+    cleaned = (message or "").strip()
+    if cleaned.startswith("{"):
+        try:
+            parsed = json.loads(cleaned)
+            if isinstance(parsed, dict) and "confirmed" in parsed:
+                return {"confirmed": bool(parsed["confirmed"])}
+        except (ValueError, TypeError):
+            pass
+    affirmative = cleaned.lower() in (
+        "y",
+        "yes",
+        "true",
+        "1",
+        "confirm",
+        "confirmed",
+        "approve",
+        "approved",
+    )
+    return {"confirmed": affirmative}
+
+
+def _find_open_confirmation_interrupt(session: Any) -> Tuple[Optional[str], Optional[str]]:
+    """Finds the latest unanswered adk_request_confirmation interrupt in session.events."""
+    events = getattr(session, "events", None) or []
+    if not events:
+        return None, None
+
+    try:
+        from google.adk.events._interrupts import index_open_interrupts
+
+        open_ids = set(index_open_interrupts(events).keys())
+    except Exception:
+        answered = {
+            fr.id
+            for ev in events
+            if getattr(ev, "author", None) == "user"
+            for fr in ev.get_function_responses()
+            if getattr(fr, "id", None)
+        }
+        open_ids = {
+            fc_id
+            for ev in events
+            for fc_id in (getattr(ev, "long_running_tool_ids", None) or ())
+            if fc_id not in answered
+        }
+
+    if not open_ids:
+        return None, None
+
+    for ev in reversed(events):
+        for fc in ev.get_function_calls():
+            fc_id = getattr(fc, "id", None)
+            if fc_id in open_ids and getattr(fc, "name", None) == CONFIRMATION_FUNCTION_CALL_NAME:
+                return fc_id, getattr(ev, "invocation_id", None)
+    return None, None
+
+
 async def sse_event_generator(
     message: str,
     session_id: str,
     user_id: Optional[str] = None,
+    confirmed: Optional[bool] = None,
 ) -> AsyncGenerator[str, None]:
     """Streams real ADK agent execution events over Server-Sent Events (SSE)."""
     uid = user_id or discover_user_identity()
@@ -271,13 +345,17 @@ async def sse_event_generator(
     runner = get_runner()
 
     if runner is None:
-        err_msg = json.dumps({
-            "text": "[Warning] Agent runner is unavailable in this environment.",
-            "last_msg": False,
-            "session_id": session_id,
-        })
+        err_msg = json.dumps(
+            {
+                "text": "[Warning] Agent runner is unavailable in this environment.",
+                "last_msg": False,
+                "session_id": session_id,
+            }
+        )
         yield f"data: {err_msg}\n\n"
-        done_msg = json.dumps({"text": "Stream finished.", "last_msg": True, "session_id": session_id})
+        done_msg = json.dumps(
+            {"text": "Stream finished.", "last_msg": True, "session_id": session_id}
+        )
         yield f"data: {done_msg}\n\n"
         return
 
@@ -293,59 +371,125 @@ async def sse_event_generator(
             session_id=session_id,
         )
 
-    content = types.Content(role="user", parts=[types.Part(text=message)])
+    interrupt_id, interrupt_invocation_id = _find_open_confirmation_interrupt(session)
+    run_kwargs: Dict[str, Any] = {
+        "user_id": session.user_id,
+        "session_id": session.id,
+    }
+    if interrupt_id:
+        decision = _parse_confirmation_decision(message, confirmed)
+        content = types.Content(
+            role="user",
+            parts=[
+                types.Part(
+                    function_response=types.FunctionResponse(
+                        id=interrupt_id,
+                        name=CONFIRMATION_FUNCTION_CALL_NAME,
+                        response=decision,
+                    )
+                )
+            ],
+        )
+        if interrupt_invocation_id:
+            run_kwargs["invocation_id"] = interrupt_invocation_id
+    else:
+        content = types.Content(role="user", parts=[types.Part(text=message)])
+    run_kwargs["new_message"] = content
 
     try:
-        async for event in runner.run_async(
-            user_id=session.user_id,
-            session_id=session.id,
-            new_message=content,
-        ):
+        async for event in runner.run_async(**run_kwargs):
             if event.content and event.content.parts:
                 for part in event.content.parts:
                     if part.text:
-                        data = json.dumps({
-                            "text": part.text,
-                            "last_msg": False,
-                            "session_id": session_id,
-                            "author": event.author or "SecurityOperationsAgent",
-                            "event_type": "content",
-                        })
+                        data = json.dumps(
+                            {
+                                "text": part.text,
+                                "last_msg": False,
+                                "session_id": session_id,
+                                "author": event.author or "SecurityOperationsAgent",
+                                "event_type": "content",
+                            }
+                        )
                         yield f"data: {data}\n\n"
                     elif part.function_call:
-                        call_info = json.dumps({
-                            "text": f"[Tool] **Calling tool `{part.function_call.name}`**\n```json\n{json.dumps(part.function_call.args, indent=2)}\n```",
-                            "last_msg": False,
-                            "session_id": session_id,
-                            "event_type": "tool_call",
-                        })
-                        yield f"data: {call_info}\n\n"
+                        if part.function_call.name == CONFIRMATION_FUNCTION_CALL_NAME:
+                            fc_args = part.function_call.args or {}
+                            orig_fc = (
+                                fc_args.get("originalFunctionCall")
+                                if isinstance(fc_args, dict)
+                                else None
+                            )
+                            target_name = (
+                                orig_fc.get("name", "destructive_tool")
+                                if isinstance(orig_fc, dict)
+                                else "destructive_tool"
+                            )
+                            target_args = (
+                                orig_fc.get("args", {}) if isinstance(orig_fc, dict) else {}
+                            )
+                            confirm_info = json.dumps(
+                                {
+                                    "text": (
+                                        f"[Confirmation Required] **Destructive tool `{target_name}` "
+                                        "requires operator approval.**\n"
+                                        f"```json\n{json.dumps(target_args, indent=2)}\n```\n"
+                                        "Reply `yes` to confirm execution or `no` to cancel."
+                                    ),
+                                    "last_msg": False,
+                                    "session_id": session_id,
+                                    "event_type": "confirmation_request",
+                                    "tool_name": target_name,
+                                    "interrupt_id": getattr(part.function_call, "id", None),
+                                }
+                            )
+                            yield f"data: {confirm_info}\n\n"
+                        else:
+                            call_info = json.dumps(
+                                {
+                                    "text": (
+                                        f"[Tool] **Calling tool `{part.function_call.name}`**\n"
+                                        f"```json\n{json.dumps(part.function_call.args, indent=2)}\n```"
+                                    ),
+                                    "last_msg": False,
+                                    "session_id": session_id,
+                                    "event_type": "tool_call",
+                                }
+                            )
+                            yield f"data: {call_info}\n\n"
                     elif part.function_response:
-                        resp_info = json.dumps({
-                            "text": f"[Tool] **Received tool response from `{part.function_response.name}`**",
-                            "last_msg": False,
-                            "session_id": session_id,
-                            "event_type": "tool_response",
-                        })
+                        if part.function_response.name == CONFIRMATION_FUNCTION_CALL_NAME:
+                            continue
+                        resp_info = json.dumps(
+                            {
+                                "text": f"[Tool] **Received tool response from `{part.function_response.name}`**",
+                                "last_msg": False,
+                                "session_id": session_id,
+                                "event_type": "tool_response",
+                            }
+                        )
                         yield f"data: {resp_info}\n\n"
     except asyncio.CancelledError:
-        logger.info(f"SSE client disconnected for session {session_id}")
+        logger.info("SSE client disconnected for session %s", session_id)
         raise
     except Exception as e:
-        logger.error(f"Error during agent execution: {e}", exc_info=True)
-        err_data = json.dumps({
-            "text": f"[Error] **Error during investigation:** {str(e)}",
-            "last_msg": False,
-            "session_id": session_id,
-            "event_type": "error",
-        })
+        logger.error("Error during agent execution: %s", e, exc_info=True)
+        err_data = json.dumps(
+            {
+                "text": f"[Error] **Error during investigation:** {str(e)}",
+                "last_msg": False,
+                "session_id": session_id,
+                "event_type": "error",
+            }
+        )
         yield f"data: {err_data}\n\n"
 
-    done_data = json.dumps({
-        "text": "Stream finished.",
-        "last_msg": True,
-        "session_id": session_id,
-    })
+    done_data = json.dumps(
+        {
+            "text": "Stream finished.",
+            "last_msg": True,
+            "session_id": session_id,
+        }
+    )
     yield f"data: {done_data}\n\n"
 
 
@@ -354,11 +498,14 @@ async def chat_sse_stream(
     message: str = Query(..., description="User prompt or security alert query"),
     session_id: Optional[str] = Query(None, description="Session ID for conversation history"),
     user_id: Optional[str] = Query(None, description="Active user ID"),
+    confirmed: Optional[bool] = Query(
+        None, description="Explicit confirmation decision for pending destructive tool"
+    ),
 ):
     """Server-Sent Events (SSE) streaming endpoint for web UI clients."""
     sess_id = session_id or str(uuid.uuid4())
     return StreamingResponse(
-        sse_event_generator(message, sess_id, user_id),
+        sse_event_generator(message, sess_id, user_id, confirmed=confirmed),
         media_type="text/event-stream",
     )
 
@@ -373,13 +520,17 @@ async def chat_post(request: ChatRequest, http_request: Request):
     accept_header = http_request.headers.get("accept", "")
     if "text/event-stream" in accept_header:
         return StreamingResponse(
-            sse_event_generator(query_text, sess_id, uid),
+            sse_event_generator(
+                query_text, sess_id, uid, confirmed=request.confirmed
+            ),
             media_type="text/event-stream",
         )
 
     # For non-streaming REST queries, collect text parts from runner
     accumulated = []
-    async for chunk_str in sse_event_generator(query_text, sess_id, uid):
+    async for chunk_str in sse_event_generator(
+        query_text, sess_id, uid, confirmed=request.confirmed
+    ):
         if chunk_str.startswith("data: "):
             try:
                 data = json.loads(chunk_str[6:].strip())
@@ -388,11 +539,14 @@ async def chat_post(request: ChatRequest, http_request: Request):
             except Exception:
                 pass
 
-    response_text = "\n\n".join(accumulated) if accumulated else f"No response generated for: {query_text}"
+    response_text = (
+        "\n\n".join(accumulated)
+        if accumulated
+        else f"No response generated for: {query_text}"
+    )
     return JSONResponse(
         content={
             "response": response_text,
             "session_id": sess_id,
         }
     )
-

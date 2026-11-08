@@ -1,98 +1,147 @@
 # Using the Google Security MCP Servers
 
-This guide will help you get started with using the MCP servers to access Google's security products and services from Claude Desktop or other MCP-compatible clients.
+This guide covers configuring and running the Google Security MCP servers (`mcp>=2.3.0`, protocol `2026-07-28`) across Google ADK, Gemini CLI, Goose, Claude Desktop, and VS Code.
 
 ## Prerequisites
 
-Before you begin, make sure you have:
+1. **Google Cloud Authentication** (for Google Security Operations SIEM and Security Command Center):
+   - Authenticate Application Default Credentials:
+     ```bash
+     PROJECT_ID="my-secops-project"
+     ACCOUNT_EMAIL="analyst@example.com"
+     gcloud config set project "$PROJECT_ID"
+     gcloud auth login "$ACCOUNT_EMAIL" --update-adc
+     gcloud auth application-default set-quota-project "$PROJECT_ID"
+     ```
+   - Or point `GOOGLE_APPLICATION_CREDENTIALS` (or `SECOPS_SA_PATH` for `google-secops-mcp`) to a service account JSON key file.
 
-1. **Google Cloud Authentication** set up using one of these two methods:
-   - Set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to point to a service account key file
-   - Application Default Credentials (ADC) configured with:
-     - `gcloud config set project ...`  # needed when switching projects
-     - `gcloud auth application-default set-quota-project ...` # needed when switching projects
-     - `gcloud auth application-default login`
+2. **Service Credentials** (as needed):
+   - `CHRONICLE_PROJECT_ID`, `CHRONICLE_CUSTOMER_ID` (for example `a1b2c3d4-e5f6-4321-abcd-ef1234567890`), and `CHRONICLE_REGION` (`us` default) for Google Security Operations SIEM.
+   - `VT_APIKEY` for Google Threat Intelligence.
+   - `SOAR_URL` and `SOAR_APP_KEY` for Google Security Operations SOAR.
 
-2. **Service-specific API keys** (as needed):
-   - VirusTotal API key for Google Threat Intelligence (as env var `VT_APIKEY`)
-   - SOAR application key for SecOps SOAR (as env var `SOAR_APP_KEY`)
-   - Chronicle customer ID (`CHRONICLE_CUSTOMER_ID`) and project ID (`CHRONICLE_PROJECT_ID`) for Chronicle SecOps.
-     - `CHRONICLE_REGION` is also needed if not=`us`.
+3. **Supported MCP Clients and Agent Harnesses**:
+   - [Google ADK (Agent Development Kit)](https://google.github.io/adk-docs/) (`google-adk[mcp]>=2.13.0`, prebuilt agent included in `run-with-google-adk/`)
+   - [Gemini CLI](https://geminicli.com)
+   - [Goose (`aaif-goose/goose`)](https://goose-docs.ai/)
+   - [Claude Desktop](https://claude.ai/download) and Claude Code
+   - [Cline VS Code Extension](https://cline.bot/)
 
-3. **An MCP client** such as:
-   - [Claude Desktop](https://claude.ai/download)
-   - [cline.bot](https://cline.bot/) [VS Code extension](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev)
-   - [Google ADK(Agent Development Kit)](https://google.github.io/adk-docs/) based agent (a prebuilt one is provided)
+4. **Python Tooling**:
+   - Python 3.11+ and [`uv`](https://docs.astral.sh/uv/getting-started/installation/).
 
-4. **Python environment tools**:
-   - `uv` - [The Python package installer](https://docs.astral.sh/uv/) used to run the MCP servers with isolated environments
-     - See [Installing uv](https://docs.astral.sh/uv/getting-started/installation/) on the [Astral docs site](https://docs.astral.sh/uv/)
-
+(getting-started)=
 ## Getting Started
 
-### Step 1: Clone the Repository
+### Step 1: Install Packages or Clone the Repository
 
-Clone this repository to your local machine:
+Install published PyPI packages via `uv tool install`:
+
+```bash
+uv tool install google-secops-mcp
+uv tool install gti-mcp
+uv tool install secops-soar-mcp
+uv tool install scc-mcp
+```
+
+Or clone the repository for local development and the Google ADK agent:
 
 ```bash
 git clone https://github.com/google/mcp-security.git
 cd mcp-security
 ```
 
-No additional installation is needed as `uv` will handle dependencies when running the servers.
-
 ### Step 2: Configure Your MCP Client
 
+#### Google ADK Autonomous SOC Agent (`run-with-google-adk`)
 
-#### For Prebuilt Google ADK Agent as a Client:
-
-The repository provides a prebuilt Autonomous Security Operations Center (SOC) Agent powered by Google ADK v2.x and MCP in [`run-with-google-adk/`](../run-with-google-adk/README.md).
+`mcp-security-agent` (`0.3.0`) defaults to `gemini-3.1-pro-preview` (with `gemini-3-flash-preview` supported) on Vertex AI `GOOGLE_CLOUD_LOCATION="global"` and connects over either local `stdio` or remote `streamable-http` (`SECOPS_MCP_URL`, `CHRONICLE_REMOTE_MCP_URL`, `GTI_MCP_URL`, `SOAR_MCP_URL`, `SCC_MCP_URL`):
 
 ```bash
+ADK_PORT="8080"
 cd run-with-google-adk
 cp .env.example .env
 
-# Interactive terminal investigation REPL
+# Interactive terminal REPL with destructive-tool confirmation and MRTR elicitation
 uv run mcp-security-agent chat
 
-# Web UI and Cloud Run API server
-uv run mcp-security-agent serve --port 8080
+# Dark-mode Web UI and FastAPI service
+uv run mcp-security-agent serve --port "$ADK_PORT"
 ```
 
-For complete configuration and deployment details, see the [ADK Agent Guide](../run-with-google-adk/README.md).
+See the [ADK Agent Guide](https://github.com/google/mcp-security/blob/main/run-with-google-adk/README.md) for all environment variables and Cloud Run deployment instructions.
 
+#### Gemini CLI (`~/.gemini/settings.json`)
 
-#### For Claude Desktop:
+Gemini CLI supports both the managed [Remote MCP Server](remote_server.md) (`httpUrl`) and local `stdio` servers:
 
-1. Open Claude Desktop and select "Settings" from the Claude menu
-2. Click on "Developer" in the lefthand bar, then click "Edit Config"
-3. Add the MCP server configurations to your `claude_desktop_config.json` (see configuration reference below)
-4. Save the file and restart Claude Desktop
-5. Look for the hammer icon indicating the MCP servers are active
+```json
+{
+  "mcpServers": {
+    "secops": {
+      "command": "uvx",
+      "args": ["--from", "google-secops-mcp", "secops_mcp"],
+      "env": {
+        "CHRONICLE_PROJECT_ID": "my-secops-project",
+        "CHRONICLE_CUSTOMER_ID": "a1b2c3d4-e5f6-4321-abcd-ef1234567890",
+        "CHRONICLE_REGION": "us"
+      }
+    },
+    "gti": {
+      "command": "uvx",
+      "args": ["--from", "gti-mcp", "gti_mcp"],
+      "env": {
+        "VT_APIKEY": "your-gti-api-key"
+      }
+    }
+  }
+}
+```
 
-#### For cline.bot VS Code Extension:
+#### Goose (`~/.config/goose/config.yaml`)
 
-1. Install the [cline.bot](https://cline.bot/) [extension in VS Code](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev)
-2. Update your `cline_mcp_settings.json` with the appropriate configuration. See [sample on GitHub](https://github.com/google/mcp-security/blob/main/cline_mcp_settings.json.example)
-3. Restart VS Code
+[Goose](https://goose-docs.ai/) (`aaif-goose/goose`) connects to these servers as `stdio` or `streamable_http` extensions:
 
-### Step 3: Using the Tools
+```yaml
+extensions:
+  secops:
+    name: Google Security Operations SIEM
+    type: stdio
+    cmd: uvx
+    args:
+      - --from
+      - google-secops-mcp
+      - secops_mcp
+    envs:
+      CHRONICLE_PROJECT_ID: my-secops-project
+      CHRONICLE_CUSTOMER_ID: a1b2c3d4-e5f6-4321-abcd-ef1234567890
+      CHRONICLE_REGION: us
+  scc:
+    name: Security Command Center
+    type: stdio
+    cmd: uvx
+    args:
+      - --from
+      - scc-mcp
+      - scc_mcp
+  gti-http:
+    name: Google Threat Intelligence HTTP
+    type: streamable_http
+    uri: http://127.0.0.1:8081/mcp
+```
 
-Once configured, you can interact with the MCP servers by asking Claude to perform specific security tasks:
+#### Claude Desktop (`claude_desktop_config.json`)
 
-- "Can you look up information about this IP address: 8.8.8.8"
-- "Check if there are any recent security alerts in my Chronicle instance"
-- "Search for threats related to ransomware in Google Threat Intelligence"
-- "Find and remediate critical vulnerabilities in my GCP project"
+1. Open Claude Desktop and navigate to **Settings -> Developer -> Edit Config**.
+2. Add the desired server entries from the configuration reference below.
+3. Save `claude_desktop_config.json` and restart Claude Desktop.
 
+(mcp-server-configuration-reference)=
 ## MCP Server Configuration Reference
 
-Here's a complete reference configuration for all available MCP servers. However, we strongly recommend using environment variables instead of hardcoding sensitive information like API keys:
+### Local `stdio` Configuration (`uv --directory`)
 
-**NOTE:** For OSX users, if you used [this one-liner](https://docs.astral.sh/uv/getting-started/installation/#standalone-installer) to install uv, use the full path to the uv binary for the "command" value below, as uv will not be placed in the system path for Claude to use! For example: `/Users/yourusername/.local/bin/uv` instead of just `uv`.
-
-Additionally, for the secops-soar MCP server, you will need use the CA list bundled with the certifi package. This can be done via the following command. Change the Python minor version to match whatever version you are currently running. (ex. `Python\ 3.11`):
-`/Applications/Python\ 3.12/Install\ Certificates.command`
+**macOS Note:** If `uv` was installed via the standalone installer into `~/.local/bin/uv`, specify the absolute path `/Users/<username>/.local/bin/uv` in `"command"` so GUI clients locate the binary.
 
 ```json
 {
@@ -101,13 +150,13 @@ Additionally, for the secops-soar MCP server, you will need use the CA list bund
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/the/repo/server/secops/secops_mcp",
+        "/path/to/mcp-security/server/secops",
         "run",
-        "server.py"
+        "secops_mcp"
       ],
       "env": {
-        "CHRONICLE_PROJECT_ID": "your-project-id",
-        "CHRONICLE_CUSTOMER_ID": "01234567-abcd-4321-1234-0123456789ab",
+        "CHRONICLE_PROJECT_ID": "my-secops-project",
+        "CHRONICLE_CUSTOMER_ID": "a1b2c3d4-e5f6-4321-abcd-ef1234567890",
         "CHRONICLE_REGION": "us"
       }
     },
@@ -115,36 +164,36 @@ Additionally, for the secops-soar MCP server, you will need use the CA list bund
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/the/repo/server/secops-soar/secops_soar_mcp",
+        "/path/to/mcp-security/server/secops-soar",
         "run",
-        "server.py",
+        "secops_soar_mcp",
         "--integrations",
         "CSV,OKTA"
       ],
       "env": {
-        "SOAR_URL": "https://yours-here.siemplify-soar.com:443",
-        "SOAR_APP_KEY": "01234567-abcd-4321-1234-0123456789ab"
+        "SOAR_URL": "https://your-tenant.siemplify-soar.com:443",
+        "SOAR_APP_KEY": "a1b2c3d4-e5f6-4321-abcd-ef1234567890"
       }
     },
     "gti": {
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/the/repo/server/gti/gti_mcp",
+        "/path/to/mcp-security/server/gti",
         "run",
-        "server.py"
+        "gti_mcp"
       ],
       "env": {
-        "VT_APIKEY": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        "VT_APIKEY": "your-gti-api-key"
       }
     },
     "scc-mcp": {
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/the/repo/server/scc",
+        "/path/to/mcp-security/server/scc",
         "run",
-        "scc_mcp.py"
+        "scc_mcp"
       ],
       "env": {}
     }
@@ -152,155 +201,117 @@ Additionally, for the secops-soar MCP server, you will need use the CA list bund
 }
 ```
 
-### Using .env and Env Vars
+### Stateless `streamable-http` Deployment
 
-`uv` supports passing an `.env` file like so:
-```
-      "command": "uv",
-      "args": [
-        "--directory",
-        "/path/to/the/repo/server/...",
-        "run",
-        "--env-file",
-        "/path/to/the/repo/server/.env",
-        "server.py"
-      ]
-```
-
-The `--env-file` option in the configuration allows `uv` to use a .env file for environment variables. Make sure to create this file with your sensitive information, or use system environment variables as described below.
-
-### Setting Up Environment Variables
-
-#### For macOS/Linux:
-
-Add these lines to your `~/.bashrc`, `~/.zshrc`, or equivalent shell configuration file:
+Every server can also run as a stateless HTTP service (`--transport streamable-http`) with `/healthz`, `/readyz`, `SEP-2549` `CacheHint` TTLs, MRTR destructive-action elicitation, and optional OAuth 2.1 bearer verification. See the [MCP 2026-07-28 Protocol Guide](mcp_v2_capabilities.md) for full details:
 
 ```bash
-# Google Security Operations (Chronicle)
-export CHRONICLE_PROJECT_ID="your-google-cloud-project-id"
-export CHRONICLE_CUSTOMER_ID="your-chronicle-customer-id"
+PROJECT_ID="my-secops-project"
+CUSTOMER_ID="a1b2c3d4-e5f6-4321-abcd-ef1234567890"
+MCP_HOST="127.0.0.1"
+MCP_PORT="8080"
+
+CHRONICLE_PROJECT_ID="$PROJECT_ID" \
+CHRONICLE_CUSTOMER_ID="$CUSTOMER_ID" \
+CHRONICLE_REGION="us" \
+MCP_TOOLS_CACHE_TTL_MS="300000" \
+MCP_ELICIT_DESTRUCTIVE="true" \
+secops_mcp --transport streamable-http --host "$MCP_HOST" --port "$MCP_PORT"
+```
+
+(setting-up-environment-variables)=
+### Setting Up Environment Variables
+
+#### macOS and Linux
+
+```bash
+PROJECT_ID="my-secops-project"
+CUSTOMER_ID="a1b2c3d4-e5f6-4321-abcd-ef1234567890"
+SOAR_TENANT_URL="https://your-tenant.siemplify-soar.com"
+SOAR_API_KEY="a1b2c3d4-e5f6-4321-abcd-ef1234567890"
+GTI_KEY="your-gti-api-key"
+
+# Google Security Operations SIEM
+export CHRONICLE_PROJECT_ID="$PROJECT_ID"
+export CHRONICLE_CUSTOMER_ID="$CUSTOMER_ID"
 export CHRONICLE_REGION="us"
 
-# SOAR
-export SOAR_URL="your-soar-url"
-export SOAR_APP_KEY="your-soar-app-key"
+# Google Security Operations SOAR
+export SOAR_URL="$SOAR_TENANT_URL"
+export SOAR_APP_KEY="$SOAR_API_KEY"
 export SOAR_INTEGRATIONS="ServiceNow,CSV,Siemplify"
 
 # Google Threat Intelligence
-export VT_APIKEY="your-vt-api-key"
+export VT_APIKEY="$GTI_KEY"
 ```
 
-Then restart your terminal, restart VS Code, or run `source ~/.bashrc` (or equivalent).
-
-#### For Windows:
-
-Set environment variables using the System Properties dialog:
-
-1. Search for "environment variables" in the Start menu
-2. Click "Edit the system environment variables"
-3. Click the "Environment Variables" button
-4. Add new variables with the appropriate names and values
-
-Or set them via PowerShell:
+#### Windows PowerShell
 
 ```powershell
-$Env:CHRONICLE_PROJECT_ID = "your-google-cloud-project-id"
-$Env:CHRONICLE_CUSTOMER_ID = "your-chronicle-customer-id"
+$Env:CHRONICLE_PROJECT_ID = "my-secops-project"
+$Env:CHRONICLE_CUSTOMER_ID = "a1b2c3d4-e5f6-4321-abcd-ef1234567890"
 $Env:CHRONICLE_REGION = "us"
-$Env:SOAR_URL = "your-soar-url"
-$Env:SOAR_APP_KEY = "your-soar-app-key"
-$Env:VT_APIKEY = "your-vt-api-key"
+$Env:SOAR_URL = "https://your-tenant.siemplify-soar.com"
+$Env:SOAR_APP_KEY = "a1b2c3d4-e5f6-4321-abcd-ef1234567890"
+$Env:VT_APIKEY = "your-gti-api-key"
 ```
 
+(usage-examples)=
 ## Usage Examples
 
 ### Google Threat Intelligence (GTI)
 
-```
-Can you search for information about the Emotet malware family?
-```
-
-The LLM will use the GTI server to search for and retrieve information about the Emotet malware family, including related IoCs, campaigns, and threat actor information.
-
-### Chronicle Security Operations (SecOps)
-
-```
-Can you look for security events related to suspicious PowerShell usage in the last 24 hours?
+```text
+Enrich file hash 44d88612fea8a8f36de82e1278abb02f, list contacted domains, and check standard YARA hunting rulesets.
 ```
 
-The LLM will use the Chronicle SecOps server to search for security events matching this description and present the findings.
+### Google Security Operations SIEM
 
-### SecOps SOAR
-
-```
-Can you list open security cases and show me details about the highest priority one?
+```text
+Search UDM events for suspicious PowerShell command lines in the last 24 hours and validate a YARA-L 2.0 detection rule for encoded commands.
 ```
 
-The LLM will use the SecOps SOAR server to list open cases and provide details about the highest priority case.
+### Google Security Operations SOAR
 
-For details on configuring and using specific SOAR integrations, refer to the [SOAR Integrations documentation](./soar_integrations/index.md).
+```text
+List open high-priority cases, inspect grouped alerts and entities on the top case, and draft a closure summary.
+```
+
+See [SOAR Integrations](./soar_integrations/index.md) for action documentation across marketplace integrations.
 
 ### Security Command Center (SCC)
 
+```text
+List the top critical vulnerability findings by Attack Exposure Score in project 'my-secops-project' and retrieve remediation steps.
 ```
-What are the top critical vulnerabilities in my GCP project 'my-project-id'?
-```
-
-The LLM will use the SCC server to list high-priority vulnerabilities and provide remediation guidance.
 
 ## Troubleshooting
 
-If you encounter issues with the MCP servers:
+### SecOps SOAR: Finding the Correct `SOAR_URL`
 
-1. **Check authentication**: Ensure your Google Cloud credentials are properly set up
-2. **Verify API keys**: Make sure all required API keys are correctly configured
-3. **Check server logs**: Look for error messages in the server output
-4. **Restart the client**: Sometimes restarting the LLM Desktop or VS Code can resolve connection issues
-5. **Verify uv installation**: Ensure that `uv` is properly installed and accessible in your PATH
-
-### SecOps SOAR: finding the correct SOAR_URL
-
-If the SecOps SOAR server starts and then shuts down with an error like this:
+If `secops-soar-mcp` exits at startup with:
 
 ```text
 Error: Failed to fetch valid scopes from SOAR, please make sure you have configured the right SOAR credentials. Shutting down...
-MCP error -32000: Connection closed
 ```
 
-check that `SOAR_URL` is set to your Google SecOps SOAR base URL, not your Backstory URL. The SOAR APIs used by this server are specific to the SOAR platform, so they are not listed in a Backstory tenant's Swagger documentation.
+verify that `SOAR_URL` points to your Google Security Operations SOAR instance base URL (for example `https://your-tenant.siemplify-soar.com`) rather than a SIEM URL:
 
-If you are not sure which URL to use, try one of these options:
+1. In Google Security Operations SOAR, open **Settings -> Webhooks**, create a placeholder webhook, and copy the scheme and host from the generated URL.
+2. Alternatively, inspect a `GetCaseCardsByRequest` network call in browser developer tools on the **Cases** view and copy its origin URL.
 
-1. In Google SecOps SOAR, go to **Settings > Webhooks**, create a new webhook with any parameters, and copy the base URL from the generated webhook URL. For example: `https://s4i0z.siemplify-soar.com`.
-2. Open your browser developer tools, go to the **Network** tab, and navigate to **Cases** in the SOAR UI. Look for a request such as `GetCaseCardsByRequest`, open the **Headers** tab, and copy the base URL from that request. For example: `https://s4i0z.siemplify-soar.com`.
+### Corporate Proxy and Custom TLS CA Configuration
 
-After updating `SOAR_URL`, restart your MCP client so it picks up the new environment variable.
-
-### Corporate Proxy Configuration
-
-If you are running MCP servers behind an HTTP/HTTPS corporate proxy:
-
-1. **Configure standard proxy variables**: Set `HTTP_PROXY`, `HTTPS_PROXY`, and optionally `NO_PROXY` in your environment.
-2. **Pass proxy variables in MCP client settings**: Ensure your MCP client configuration passes these variables to each server's `env` section:
+All servers honor standard `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables:
 
 ```json
 {
   "mcpServers": {
     "gti": {
-      "command": "uv",
-      "args": ["--directory", "/path/to/server/gti/gti_mcp", "run", "server.py"],
+      "command": "uvx",
+      "args": ["--from", "gti-mcp", "gti_mcp"],
       "env": {
         "VT_APIKEY": "${VT_APIKEY}",
-        "HTTP_PROXY": "${HTTP_PROXY}",
-        "HTTPS_PROXY": "${HTTPS_PROXY}"
-      }
-    },
-    "secops-soar": {
-      "command": "uv",
-      "args": ["--directory", "/path/to/server/secops-soar/secops_soar_mcp", "run", "server.py"],
-      "env": {
-        "SOAR_URL": "${SOAR_URL}",
-        "SOAR_APP_KEY": "${SOAR_APP_KEY}",
         "HTTP_PROXY": "${HTTP_PROXY}",
         "HTTPS_PROXY": "${HTTPS_PROXY}"
       }
@@ -309,6 +320,8 @@ If you are running MCP servers behind an HTTP/HTTPS corporate proxy:
 }
 ```
 
-3. **Custom SSL/CA Certificates (SSL Decryption/Inspection)**: If your corporate proxy intercepts SSL traffic, point `SSL_CERT_FILE` to your corporate CA certificate bundle.
+When running behind a TLS-inspecting proxy, point the transport CA variable at your corporate root bundle:
 
-
+- `gti-mcp` and `secops-soar-mcp` (`aiohttp`): `SSL_CERT_FILE`
+- `google-secops-mcp` (`requests`): `REQUESTS_CA_BUNDLE`
+- `scc-mcp` (`grpcio` and `google-auth`): `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH` and `REQUESTS_CA_BUNDLE`
